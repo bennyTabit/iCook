@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "iCook",
-    "slug": "iCook",
+    "slug": "icook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,22 +9,38 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FF6B6B"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.yourcompany.icook",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "iCook uses the camera to scan recipe pages",
+        "NSPhotoLibraryUsageDescription": "iCook accesses your photos to add recipe images"
+      }
     },
     "android": {
+      "package": "com.yourcompany.icook",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B6B"
       },
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"],
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "iCook accesses your photos to add recipe images",
+          "cameraPermission": "iCook uses the camera to scan recipe pages"
+        }
+      ]
+    ]
   }
 }
