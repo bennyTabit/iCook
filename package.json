@@ -22,11 +22,13 @@
     "expo-status-bar": "55.0.5-canary-20260327-0789fbc",
     "i18next": "^25.10.10",
     "react": "19.2.0",
+    "react-dom": "19.2.0",
     "react-i18next": "^17.0.0",
     "react-native": "0.83.4",
     "react-native-gesture-handler": "~2.30.0",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
+    "react-native-web": "~0.21.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
