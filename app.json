@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FF6B6B"
     },
@@ -22,7 +22,7 @@
     "android": {
       "package": "com.yourcompany.icook",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#FF6B6B"
       },
       "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"],
