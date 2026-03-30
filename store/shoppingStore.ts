@@ -16,7 +16,7 @@ export type ShopItem = {
 type ShoppingStore = {
   items: ShopItem[];
   grouped: Record<string, ShopItem[]>;
-  addFromRecipe: (recipe: Recipe) => void;
+  addFromRecipe: (recipe: Recipe, ingredients?: string[]) => void;
   addItem: (text: string) => void;
   checkItem: (id: string) => void;
   removeItem: (id: string) => void;
@@ -114,13 +114,13 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
     items: [],
     grouped: {},
 
-    addFromRecipe: (recipe) => {
-      const ingredients = parseIngredientsFromNotes(
-        recipe.notes_he || recipe.notes_en,
-      );
+    addFromRecipe: (recipe, ingredients) => {
+      const parsed =
+        ingredients ??
+        parseIngredientsFromNotes(recipe.notes_he || recipe.notes_en);
 
       const fallback = recipe.title_he || recipe.title_en || "מרכיב";
-      const source = ingredients.length ? ingredients : [fallback];
+      const source = parsed.length ? parsed : [fallback];
 
       const existing = get().items;
       const newItems: ShopItem[] = source

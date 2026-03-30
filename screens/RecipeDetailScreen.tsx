@@ -160,7 +160,12 @@ function CookingModeOverlay({
   const stepText = steps[currentStep] ?? "";
 
   return (
-    <Modal visible={true} animationType="slide" presentationStyle="fullScreen">
+    <Modal
+      visible={true}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
       <SafeAreaView style={s.cookContainer} edges={["top", "bottom"]}>
         <View
           style={[s.cookTop, { flexDirection: isHe ? "row-reverse" : "row" }]}
@@ -205,6 +210,16 @@ function CookingModeOverlay({
             <Text style={s.cookBtnText}>{isHe ? "הבא" : "Next"}</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={s.cookExitBtn}
+          onPress={onClose}
+          activeOpacity={0.9}
+        >
+          <Text style={s.cookExitBtnText}>
+            {isHe ? "חזרה למתכון" : "Back to recipe"}
+          </Text>
+        </TouchableOpacity>
       </SafeAreaView>
     </Modal>
   );
@@ -399,7 +414,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         .trim(),
     });
     await loadRecipes();
-    navigation.replace("RecipeDetail", { id: newId });
+    navigation.navigate("RecipeDetail", { id: newId });
   }
 
   async function handleCookedIt() {
@@ -633,7 +648,23 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     shoppingMode && s.togglePillTextActive,
                   ]}
                 >
-                  {isHe ? "מצב קניות" : "Shopping mode"}
+                  {isHe ? "סימון מרכיבים" : "Checklist mode"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.addIngredientsPill}
+                onPress={() => {
+                  if (!recipe) return;
+                  addFromRecipe(recipe, rawIngredients);
+                  showToast(
+                    isHe
+                      ? "המרכיבים נוספו לרשימת קניות 🛒"
+                      : "Ingredients added to shopping list 🛒",
+                  );
+                }}
+              >
+                <Text style={s.addIngredientsPillText}>
+                  {isHe ? "הוסף לקניות" : "Add to shopping"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -804,7 +835,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               style={s.primaryAction}
               onPress={() => {
                 if (!recipe) return;
-                addFromRecipe(recipe);
+                addFromRecipe(recipe, rawIngredients);
                 showToast(
                   isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping list 🛒",
                 );
@@ -1019,6 +1050,19 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
   togglePillTextActive: { color: "#fff" },
+  addIngredientsPill: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C7E9E3",
+    backgroundColor: "#EAF7F5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addIngredientsPillText: {
+    ...Typography.caption,
+    color: "#2C756A",
+    fontWeight: "700",
+  },
 
   ingredientRow: {
     alignItems: "center",
@@ -1251,5 +1295,19 @@ const s = StyleSheet.create({
   cookBtnText: {
     ...Typography.button,
     color: "#fff",
+  },
+  cookExitBtn: {
+    marginTop: 10,
+    alignSelf: "center",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cookExitBtnText: {
+    ...Typography.label,
+    color: Colors.text.primary,
   },
 });
