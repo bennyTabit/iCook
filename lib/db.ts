@@ -1,6 +1,6 @@
-import * as SQLite from 'expo-sqlite';
+import * as SQLite from "expo-sqlite";
 
-const db = SQLite.openDatabaseSync('icook.db');
+const db = SQLite.openDatabaseSync("icook.db");
 
 export async function initDB() {
   await db.execAsync(`
@@ -133,32 +133,113 @@ export async function initDB() {
 }
 
 async function seedDefaults() {
-  const cats = await db.getAllAsync('SELECT id FROM categories LIMIT 1');
-  if (cats.length > 0) return;
+  const cats = await db.getAllAsync("SELECT id FROM categories LIMIT 1");
+  if (cats.length === 0) {
+    await db.execAsync(`
+      INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES
+        ('הכל',        'All',       '🍽', 0),
+        ('פסטה',       'Pasta',     '🍝', 1),
+        ('סלטים',      'Salads',    '🥗', 2),
+        ('קינוחים',    'Desserts',  '🍰', 3),
+        ('מרקים',      'Soups',     '🍜', 4),
+        ('בשר',        'Meat',      '🥩', 5),
+        ('דגים',       'Fish',      '🐟', 6),
+        ('צמחוני',     'Veggie',    '🥦', 7),
+        ('ארוחות בוקר','Breakfast', '🍳', 8);
+
+      INSERT INTO tags (name_he, name_en) VALUES
+        ('טבעוני',      'Vegan'),
+        ('צמחוני',      'Vegetarian'),
+        ('ללא גלוטן',   'Gluten-free'),
+        ('ללא לקטוז',   'Dairy-free'),
+        ('חלבי',        'Dairy'),
+        ('בשרי',        'Meat'),
+        ('פרווה',       'Parve'),
+        ('כשר',         'Kosher'),
+        ('קטו',         'Keto'),
+        ('מהיר',        'Quick');
+    `);
+  }
+
+  const recipes = await db.getAllAsync("SELECT id FROM recipes LIMIT 1");
+  if (recipes.length > 0) return;
 
   await db.execAsync(`
-    INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES
-      ('הכל',        'All',       '🍽', 0),
-      ('פסטה',       'Pasta',     '🍝', 1),
-      ('סלטים',      'Salads',    '🥗', 2),
-      ('קינוחים',    'Desserts',  '🍰', 3),
-      ('מרקים',      'Soups',     '🍜', 4),
-      ('בשר',        'Meat',      '🥩', 5),
-      ('דגים',       'Fish',      '🐟', 6),
-      ('צמחוני',     'Veggie',    '🥦', 7),
-      ('ארוחות בוקר','Breakfast', '🍳', 8);
-
-    INSERT INTO tags (name_he, name_en) VALUES
-      ('טבעוני',      'Vegan'),
-      ('צמחוני',      'Vegetarian'),
-      ('ללא גלוטן',   'Gluten-free'),
-      ('ללא לקטוז',   'Dairy-free'),
-      ('חלבי',        'Dairy'),
-      ('בשרי',        'Meat'),
-      ('פרווה',       'Parve'),
-      ('כשר',         'Kosher'),
-      ('קטו',         'Keto'),
-      ('מהיר',        'Quick');
+    INSERT INTO recipes (
+      title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type,
+      notes_he, notes_en, is_favorite
+    ) VALUES
+      (
+        'פסטה רוזה מהירה', 'Quick Rose Pasta',
+        'פסטה שמנת-עגבניות זריזה לארוחת ערב.', 'Creamy tomato pasta for a fast dinner.',
+        (SELECT id FROM categories WHERE name_en = 'Pasta'),
+        'easy', 10, 20, 4, 'manual',
+        'להגיש עם בזיליקום טרי.', 'Serve with fresh basil.', 1
+      ),
+      (
+        'סלט קינואה ועשבי תיבול', 'Herb Quinoa Salad',
+        'סלט רענן עם ירקות, עשבים ולימון.', 'Fresh salad with herbs, vegetables and lemon.',
+        (SELECT id FROM categories WHERE name_en = 'Salads'),
+        'easy', 15, 15, 3, 'manual',
+        'טעים גם קר מהמקרר.', 'Great served chilled.', 0
+      ),
+      (
+        'בראוניז שוקולד רכים', 'Fudgy Chocolate Brownies',
+        'בראוניז עשירים עם מרכז רך.', 'Rich brownies with a soft center.',
+        (SELECT id FROM categories WHERE name_en = 'Desserts'),
+        'medium', 15, 28, 8, 'manual',
+        'לא לאפות יותר מדי.', 'Do not overbake.', 1
+      ),
+      (
+        'מרק כתום ביתי', 'Roasted Orange Soup',
+        'מרק גזר ובטטה סמיך ומנחם.', 'Comforting carrot and sweet potato soup.',
+        (SELECT id FROM categories WHERE name_en = 'Soups'),
+        'easy', 15, 35, 5, 'manual',
+        'להוסיף קרם קוקוס להגשה.', 'Finish with coconut cream.', 0
+      ),
+      (
+        'קציצות ברוטב עגבניות', 'Meatballs in Tomato Sauce',
+        'קציצות עסיסיות לארוחה משפחתית.', 'Juicy meatballs for a family meal.',
+        (SELECT id FROM categories WHERE name_en = 'Meat'),
+        'medium', 20, 40, 5, 'manual',
+        'מומלץ ליד אורז לבן.', 'Best served with rice.', 0
+      ),
+      (
+        'דג אפוי עם לימון', 'Baked Lemon Fish',
+        'פילה דג בתנור עם עשבי תיבול ולימון.', 'Oven baked fish fillet with herbs and lemon.',
+        (SELECT id FROM categories WHERE name_en = 'Fish'),
+        'easy', 10, 18, 2, 'manual',
+        'להגיש עם סלט ירוק.', 'Serve with a green salad.', 0
+      ),
+      (
+        'קציצות עדשים אפויות', 'Baked Lentil Patties',
+        'קציצות עדשים וצמחי תבלין בתנור.', 'Lentil patties with herbs baked in the oven.',
+        (SELECT id FROM categories WHERE name_en = 'Veggie'),
+        'medium', 20, 25, 4, 'manual',
+        'מעולה עם טחינה.', 'Excellent with tahini.', 1
+      ),
+      (
+        'שקשוקה קלאסית', 'Classic Shakshuka',
+        'ארוחת בוקר ישראלית עם ביצים ברוטב עגבניות.', 'Israeli breakfast with eggs in tomato sauce.',
+        (SELECT id FROM categories WHERE name_en = 'Breakfast'),
+        'easy', 10, 15, 2, 'manual',
+        'להגיש עם חלה או לחם טוב.', 'Serve with challah or crusty bread.', 1
+      ),
+      (
+        'פסטה פטריות ושום', 'Garlic Mushroom Pasta',
+        'פסטה מהירה עם פטריות, שום ושמן זית.', 'Quick pasta with mushrooms, garlic and olive oil.',
+        (SELECT id FROM categories WHERE name_en = 'Pasta'),
+        'easy', 10, 18, 3, 'manual',
+        'להוסיף פרמזן בהגשה.', 'Finish with parmesan.', 0
+      ),
+      (
+        'סלט קצוץ ישראלי', 'Israeli Chopped Salad',
+        'סלט קלאסי עם עגבניות, מלפפון, בצל ולימון.', 'Classic chopped salad with tomato, cucumber, onion and lemon.',
+        (SELECT id FROM categories WHERE name_en = 'Salads'),
+        'easy', 12, 0, 4, 'manual',
+        'להוסיף נענע אם יש.', 'Add mint if available.', 0
+      );
   `);
 }
 
@@ -169,11 +250,11 @@ export type Recipe = {
   description_he?: string;
   description_en?: string;
   category_id?: number;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
   prep_time_min?: number;
   cook_time_min?: number;
   servings?: number;
-  source_type?: 'manual' | 'ocr' | 'url' | 'instagram' | 'ai';
+  source_type?: "manual" | "ocr" | "url" | "instagram" | "ai";
   source_url?: string;
   source_name?: string;
   image_uri?: string;
@@ -194,7 +275,7 @@ export async function getAllRecipes(): Promise<Recipe[]> {
 }
 
 export async function getRecipeById(id: number): Promise<Recipe | null> {
-  return db.getFirstAsync<Recipe>('SELECT * FROM recipes WHERE id = ?', [id]);
+  return db.getFirstAsync<Recipe>("SELECT * FROM recipes WHERE id = ?", [id]);
 }
 
 export async function insertRecipe(recipe: Recipe): Promise<number> {
@@ -214,18 +295,21 @@ export async function insertRecipe(recipe: Recipe): Promise<number> {
       recipe.prep_time_min ?? null,
       recipe.cook_time_min ?? null,
       recipe.servings ?? null,
-      recipe.source_type ?? 'manual',
+      recipe.source_type ?? "manual",
       recipe.source_url ?? null,
       recipe.source_name ?? null,
       recipe.image_uri ?? null,
       recipe.notes_he ?? null,
       recipe.notes_en ?? null,
-    ]
+    ],
   );
   return res.lastInsertRowId;
 }
 
-export async function updateRecipe(id: number, recipe: Partial<Recipe>): Promise<void> {
+export async function updateRecipe(
+  id: number,
+  recipe: Partial<Recipe>,
+): Promise<void> {
   await db.runAsync(
     `UPDATE recipes SET
       title_he = COALESCE(?, title_he),
@@ -254,19 +338,19 @@ export async function updateRecipe(id: number, recipe: Partial<Recipe>): Promise
       recipe.notes_he ?? null,
       recipe.notes_en ?? null,
       id,
-    ]
+    ],
   );
 }
 
 export async function toggleFavorite(id: number, current: number) {
   await db.runAsync(
     'UPDATE recipes SET is_favorite = ?, updated_at = datetime("now") WHERE id = ?',
-    [current ? 0 : 1, id]
+    [current ? 0 : 1, id],
   );
 }
 
 export async function deleteRecipe(id: number) {
-  await db.runAsync('DELETE FROM recipes WHERE id = ?', [id]);
+  await db.runAsync("DELETE FROM recipes WHERE id = ?", [id]);
 }
 
 export async function searchRecipes(query: string): Promise<Recipe[]> {
@@ -275,7 +359,7 @@ export async function searchRecipes(query: string): Promise<Recipe[]> {
     `SELECT * FROM recipes
      WHERE title_he LIKE ? OR title_en LIKE ? OR description_he LIKE ?
      ORDER BY created_at DESC`,
-    [q, q, q]
+    [q, q, q],
   );
 }
 
@@ -285,23 +369,32 @@ export async function getRecipesByFilter(filters: {
   maxCookTime?: number;
   tagIds?: number[];
 }): Promise<Recipe[]> {
-  let sql = 'SELECT DISTINCT r.* FROM recipes r';
+  let sql = "SELECT DISTINCT r.* FROM recipes r";
   const params: any[] = [];
 
   if (filters.tagIds?.length) {
-    sql += ' JOIN recipe_tags rt ON r.id = rt.recipe_id';
+    sql += " JOIN recipe_tags rt ON r.id = rt.recipe_id";
   }
-  sql += ' WHERE 1=1';
+  sql += " WHERE 1=1";
 
-  if (filters.categoryId) { sql += ' AND r.category_id = ?'; params.push(filters.categoryId); }
-  if (filters.difficulty) { sql += ' AND r.difficulty = ?'; params.push(filters.difficulty); }
-  if (filters.maxCookTime) { sql += ' AND r.cook_time_min <= ?'; params.push(filters.maxCookTime); }
+  if (filters.categoryId) {
+    sql += " AND r.category_id = ?";
+    params.push(filters.categoryId);
+  }
+  if (filters.difficulty) {
+    sql += " AND r.difficulty = ?";
+    params.push(filters.difficulty);
+  }
+  if (filters.maxCookTime) {
+    sql += " AND r.cook_time_min <= ?";
+    params.push(filters.maxCookTime);
+  }
   if (filters.tagIds?.length) {
-    sql += ` AND rt.tag_id IN (${filters.tagIds.map(() => '?').join(',')})`;
+    sql += ` AND rt.tag_id IN (${filters.tagIds.map(() => "?").join(",")})`;
     params.push(...filters.tagIds);
   }
 
-  sql += ' ORDER BY r.created_at DESC';
+  sql += " ORDER BY r.created_at DESC";
   return db.getAllAsync<Recipe>(sql, params);
 }
 

@@ -1,98 +1,263 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
-import { Colors } from '../constants/colors';
-import { isHebrew } from '../lib/i18n';
+import React from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import { Colors } from "../constants/colors";
+import { Typography } from "../constants/typography";
+import { isHebrew } from "../lib/i18n";
+import { pickRecipeImage, requestMediaPermissions, runOCR } from "../lib/ocr";
 
-type Option = {
-  icon: string;
-  titleKey: string;
-  subKey: string;
-  screen: string;
-  color: string;
+type AddOption = {
+  key: "import" | "scan" | "manual";
+  title: string;
+  subtitle: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  recommended?: boolean;
+  onPress: () => void;
 };
-
-const OPTIONS: Option[] = [
-  { icon: '✏️', titleKey: 'manual',     subKey: 'manualSub',  screen: 'EditRecipe',  color: Colors.accent },
-  { icon: '📷', titleKey: 'scan',       subKey: 'scanSub',    screen: 'OcrReview',   color: Colors.secondary },
-  { icon: '🔗', titleKey: 'importLink', subKey: 'importSub',  screen: 'ImportLink',  color: Colors.primary },
-];
-
-const QUICK_TAGS = ['tagVegan', 'tagGlutenFree', 'tagQuick', 'tagMeat', 'tagDairy', 'tagParve'];
 
 export default function AddRecipeScreen({ navigation }: any) {
   const { t } = useTranslation();
   const isHe = isHebrew();
 
+  function showCameraGuidance() {
+    Alert.alert(
+      isHe ? "סריקת מתכון" : "Scan recipe",
+      isHe ? "כוון את המצלמה למתכון" : "Point the camera at your recipe",
+    );
+  }
+
+  function chooseScanSource(): Promise<"camera" | "gallery" | null> {
+    return new Promise((resolve) => {
+      Alert.alert(
+        isHe ? "סריקת מתכון" : "Scan recipe",
+        isHe ? "איך תרצה להוסיף תמונה?" : "How would you like to add an image?",
+        [
+          {
+            text: isHe ? "מצלמה" : "Camera",
+            onPress: () => {
+              showCameraGuidance();
+              resolve("camera");
+            },
+          },
+          {
+            text: isHe ? "גלריה" : "Gallery",
+            onPress: () => resolve("gallery"),
+          },
+          {
+            text: isHe ? "ביטול" : "Cancel",
+            style: "cancel",
+            onPress: () => resolve(null),
+          },
+        ],
+      );
+    });
+  }
+
+  async function handleScanPress() {
+    const granted = await requestMediaPermissions();
+    if (!granted) {
+      Alert.alert(
+        isHe ? "אין הרשאות" : "Permissions required",
+        isHe
+          ? "נדרשות הרשאות מצלמה וגלריה כדי לסרוק מתכון."
+          : "Camera and gallery permissions are required to scan a recipe.",
+      );
+      return;
+    }
+
+    const source = await chooseScanSource();
+    if (!source) return;
+
+    try {
+      const imageUri = await pickRecipeImage(source);
+      if (!imageUri) return;
+      const ocr = await runOCR(imageUri);
+      navigation.navigate("OcrReview", { ocr });
+    } catch (e: any) {
+      Alert.alert(
+        isHe ? "שגיאת סריקה" : "Scan failed",
+        e?.message ??
+          (isHe ? "לא הצלחנו לעבד את התמונה" : "Could not process image"),
+      );
+    }
+  }
+
+  const options: AddOption[] = [
+    {
+      key: "import",
+      title: isHe ? "ייבוא מלינק" : "Import from link",
+      subtitle: isHe ? "הדבק כתובת ונמלא עבורך" : "Paste a URL and auto-fill",
+      icon: "link-outline",
+      iconColor: Colors.primary,
+      recommended: true,
+      onPress: () => navigation.navigate("ImportLink"),
+    },
+    {
+      key: "scan",
+      title: isHe ? "סריקת מתכון" : "Scan recipe",
+      subtitle: isHe
+        ? "צלם דף ונחלץ את הפרטים"
+        : "Capture a page and extract details",
+      icon: "scan-outline",
+      iconColor: Colors.secondary,
+      onPress: () => {
+        void handleScanPress();
+      },
+    },
+    {
+      key: "manual",
+      title: isHe ? "הזנה ידנית" : "Manual entry",
+      subtitle: isHe
+        ? "בוא נכניס את המתכון שלך 🍝"
+        : "Let us add your recipe 🍝",
+      icon: "create-outline",
+      iconColor: "#B1785C",
+      onPress: () => navigation.navigate("EditRecipe", { id: null }),
+    },
+  ];
+
   return (
-    <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
-        <View style={[s.header, { backgroundColor: Colors.primary }]}>
-          <Text style={s.headerTitle}>{t('addRecipe')}</Text>
-          <Text style={s.headerSub}>{t('choosePath')}</Text>
-        </View>
-
-        <View style={s.options}>
-          {OPTIONS.map(opt => (
-            <TouchableOpacity
-              key={opt.titleKey}
-              style={[s.optCard, { borderColor: opt.color + '55', backgroundColor: opt.color + '11' }]}
-              onPress={() => navigation.navigate(opt.screen, opt.screen === 'EditRecipe' ? { id: null } : undefined)}
-              activeOpacity={0.8}
-            >
-              <View style={[s.optIcon, { backgroundColor: opt.color + '33' }]}>
-                <Text style={{ fontSize: 22 }}>{opt.icon}</Text>
-              </View>
-              <View style={s.optText}>
-                <Text style={[s.optTitle, { textAlign: isHe ? 'right' : 'left' }]}>{t(opt.titleKey as any)}</Text>
-                <Text style={[s.optSub, { textAlign: isHe ? 'right' : 'left' }]}>{t(opt.subKey as any)}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          {/* Coming in v2 */}
-          <View style={s.optCardDisabled}>
-            <View style={[s.optIcon, { backgroundColor: Colors.surface }]}>
-              <Text style={{ fontSize: 22 }}>📱</Text>
-            </View>
-            <View style={s.optText}>
-              <Text style={[s.optTitle, { color: Colors.text.tertiary, textAlign: isHe ? 'right' : 'left' }]}>{t('comingV2')}</Text>
-              <Text style={[s.optSub, { textAlign: isHe ? 'right' : 'left' }]}>{t('instaSub')}</Text>
-            </View>
-          </View>
-        </View>
-
-        <Text style={[s.tagsLabel, { textAlign: isHe ? 'right' : 'left' }]}>
-          {isHe ? 'פילטרים מהירים לאחר ההוספה:' : 'Quick filters after adding:'}
+    <SafeAreaView style={s.container} edges={["left", "right"]}>
+      <ScrollView contentContainerStyle={s.content}>
+        <Text style={[s.title, { textAlign: isHe ? "right" : "left" }]}>
+          {isHe
+            ? "איך תרצה להוסיף מתכון?"
+            : "How would you like to add a recipe?"}
         </Text>
-        <View style={s.tagsRow}>
-          {QUICK_TAGS.map(k => (
-            <View key={k} style={s.tagChip}>
-              <Text style={s.tagText}>{t(k as any)}</Text>
+        <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left" }]}>
+          {isHe
+            ? "בחר את הדרך הנוחה לך"
+            : "Choose the way that works best for you"}
+        </Text>
+
+        {options.map((option) => (
+          <Pressable
+            key={option.key}
+            onPress={option.onPress}
+            style={({ pressed }) => [s.card, pressed && s.cardPressed]}
+          >
+            {option.recommended && (
+              <View style={s.badge}>
+                <Text style={s.badgeText}>
+                  {isHe ? "מומלץ" : "Recommended"}
+                </Text>
+              </View>
+            )}
+
+            <View
+              style={[s.iconWrap, { backgroundColor: option.iconColor + "20" }]}
+            >
+              <Ionicons name={option.icon} size={24} color={option.iconColor} />
             </View>
-          ))}
-        </View>
+
+            <View style={s.cardBody}>
+              <Text
+                style={[s.cardTitle, { textAlign: isHe ? "right" : "left" }]}
+              >
+                {option.title}
+              </Text>
+              <Text
+                style={[s.cardSub, { textAlign: isHe ? "right" : "left" }]}
+                numberOfLines={1}
+              >
+                {option.subtitle}
+              </Text>
+            </View>
+
+            <Ionicons
+              name={isHe ? "chevron-back" : "chevron-forward"}
+              size={18}
+              color={Colors.text.tertiary}
+            />
+          </Pressable>
+        ))}
+
+        <Text style={[s.footerNote, { textAlign: isHe ? "right" : "left" }]}>
+          {isHe ? "עוד רגע וזה מוכן!" : "You are one step away!"}
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: Colors.background },
-  scroll:          { paddingBottom: 32 },
-  header:          { padding: 16, paddingBottom: 20 },
-  headerTitle:     { fontSize: 18, fontWeight: '500', color: '#fff' },
-  headerSub:       { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-  options:         { padding: 16, gap: 12 },
-  optCard:         { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, borderWidth: 0.5, padding: 14 },
-  optCardDisabled: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, borderWidth: 0.5, borderColor: Colors.border, borderStyle: 'dashed', padding: 14, backgroundColor: Colors.surface },
-  optIcon:         { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  optText:         { flex: 1 },
-  optTitle:        { fontSize: 13, fontWeight: '500', color: Colors.text.primary, marginBottom: 2 },
-  optSub:          { fontSize: 11, color: Colors.text.secondary, lineHeight: 15 },
-  tagsLabel:       { fontSize: 11, color: Colors.text.secondary, paddingHorizontal: 16, marginBottom: 8 },
-  tagsRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16 },
-  tagChip:         { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: Colors.surface, borderWidth: 0.5, borderColor: Colors.border },
-  tagText:         { fontSize: 12, color: Colors.text.secondary, fontWeight: '500' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: 16, paddingBottom: 28 },
+  title: {
+    ...Typography.h2,
+    color: Colors.text.primary,
+    marginBottom: 6,
+  },
+  subtitle: {
+    ...Typography.bodySmall,
+    color: Colors.text.secondary,
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardPressed: {
+    transform: [{ scale: 0.985 }],
+  },
+  badge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  badgeText: {
+    ...Typography.caption,
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 10,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardBody: { flex: 1, paddingTop: 2 },
+  cardTitle: {
+    ...Typography.body,
+    color: Colors.text.primary,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  cardSub: {
+    ...Typography.caption,
+    color: Colors.text.secondary,
+  },
+  footerNote: {
+    ...Typography.bodySmall,
+    color: Colors.text.tertiary,
+    marginTop: 8,
+  },
 });

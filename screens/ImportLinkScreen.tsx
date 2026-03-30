@@ -1,27 +1,58 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, StyleSheet,
-} from 'react-native';
-import { isHebrew } from '../lib/i18n';
-import { importFromUrl } from '../lib/importer';
-import { insertRecipe } from '../lib/db';
-import type { ImportedRecipe } from '../lib/importer';
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import * as Clipboard from "expo-clipboard";
+
+import { importFromUrl } from "../lib/importer";
+import { insertRecipe } from "../lib/db";
+import { useRecipeStore } from "../store/recipeStore";
+import { isHebrew } from "../lib/i18n";
+import { Colors } from "../constants/colors";
+import { Typography } from "../constants/typography";
+import type { ImportedRecipe } from "../lib/importer";
 
 export default function ImportLinkScreen({ navigation }: any) {
-  const [url,     setUrl]     = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result,  setResult]  = useState<ImportedRecipe | null>(null);
-  const [error,   setError]   = useState<string | null>(null);
   const isHe = isHebrew();
+  const { loadRecipes } = useRecipeStore();
+
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ImportedRecipe | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const canImport = useMemo(
+    () => url.trim().length > 0 && !loading,
+    [url, loading],
+  );
+
+  async function handlePaste() {
+    const text = await Clipboard.getStringAsync();
+    if (text?.trim()) setUrl(text.trim());
+  }
 
   async function handleFetch() {
-    setLoading(true); setError(null); setResult(null);
+    if (!canImport) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
     try {
       const imported = await importFromUrl(url.trim());
       setResult(imported);
     } catch (e: any) {
-      setError(e.message ?? 'שגיאה לא ידועה / Unknown error');
+      setError(
+        e?.message ??
+          (isHe ? "לא הצלחנו לקרוא את המתכון 😕" : "Could not parse recipe 😕"),
+      );
     } finally {
       setLoading(false);
     }
@@ -29,83 +60,158 @@ export default function ImportLinkScreen({ navigation }: any) {
 
   async function handleSave() {
     if (!result) return;
+
+    const normalizedTitle = result.title.trim();
     const id = await insertRecipe({
-      title_he:      isHe ? result.title : '',
-      title_en:      !isHe ? result.title : '',
-      source_type:   'url',
-      source_url:    result.sourceUrl,
-      source_name:   result.sourceName,
-      image_uri:     result.imageUrl,
+      title_he: normalizedTitle,
+      title_en: normalizedTitle,
+      source_type: "url",
+      source_url: result.sourceUrl,
+      source_name: result.sourceName,
+      image_uri: result.imageUrl,
       prep_time_min: result.prepTime,
       cook_time_min: result.cookTime,
-      servings:      result.servings,
+      servings: result.servings,
+      notes_he: [
+        result.ingredients.length
+          ? `מרכיבים:\n${result.ingredients.join("\n")}`
+          : "",
+        result.steps.length ? `\n\nשלבים:\n${result.steps.join("\n")}` : "",
+      ]
+        .join("")
+        .trim(),
+      notes_en: [
+        result.ingredients.length
+          ? `Ingredients:\n${result.ingredients.join("\n")}`
+          : "",
+        result.steps.length ? `\n\nSteps:\n${result.steps.join("\n")}` : "",
+      ]
+        .join("")
+        .trim(),
     });
-    navigation.replace('RecipeDetail', { id });
+
+    await loadRecipes();
+    Alert.alert(
+      isHe ? "🎉 המתכון נוסף בהצלחה!" : "🎉 Recipe added successfully!",
+      undefined,
+      [
+        {
+          text: isHe ? "לצפייה במתכון" : "View recipe",
+          onPress: () => navigation.navigate("RecipeDetail", { id }),
+        },
+      ],
+    );
   }
 
-  const methodBadge = result
-    ? result.parseMethod === 'json-ld'
-      ? { label: 'JSON-LD ✓', color: '#4ECDC4' }
-      : result.parseMethod === 'scrape'
-      ? { label: 'Scraping', color: '#FFE66D' }
-      : { label: isHe ? 'חלקי' : 'Partial', color: '#FF6B6B' }
-    : null;
-
   return (
-    <ScrollView style={s.container}>
-      <Text style={s.label}>
-        {isHe ? 'הדבק כתובת של אתר מתכונים' : 'Paste a recipe website URL'}
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={s.content}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[s.title, { textAlign: isHe ? "right" : "left" }]}>
+        {isHe ? "ייבוא מתכון מהאינטרנט" : "Import recipe from the web"}
       </Text>
-      <View style={s.inputRow}>
+      <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left" }]}>
+        {isHe
+          ? "הדבק קישור ואנחנו נמלא הכל עבורך"
+          : "Paste a link and we will auto-fill it for you"}
+      </Text>
+
+      <View style={s.urlWrap}>
         <TextInput
-          style={s.input}
+          style={[s.input, { textAlign: isHe ? "right" : "left" }]}
           value={url}
           onChangeText={setUrl}
-          placeholder="https://..."
+          placeholder={
+            isHe
+              ? "הדבק כאן קישור למתכון (למשל: מאקו, וואלה, בלוגים...)"
+              : "Paste recipe URL here (blog, food site, etc...)"
+          }
+          placeholderTextColor={Colors.text.tertiary}
           autoCapitalize="none"
           keyboardType="url"
         />
-        <TouchableOpacity onPress={handleFetch} style={s.fetchBtn}>
-          <Text style={s.fetchBtnText}>{isHe ? 'שלוף' : 'Fetch'}</Text>
+        <TouchableOpacity style={s.pasteBtn} onPress={handlePaste}>
+          <Text style={s.pasteBtnText}>{isHe ? "הדבק" : "Paste"}</Text>
         </TouchableOpacity>
       </View>
 
-      {loading && <ActivityIndicator color="#FF6B6B" style={{ marginTop: 20 }} />}
-      {error && <Text style={s.errorText}>{error}</Text>}
+      <TouchableOpacity
+        style={[s.cta, !canImport && s.ctaDisabled]}
+        disabled={!canImport}
+        onPress={handleFetch}
+      >
+        {loading ? (
+          <View style={s.loadingRow}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={s.ctaText}>
+              {isHe ? "מייבא מתכון..." : "Importing recipe..."}
+            </Text>
+          </View>
+        ) : (
+          <Text style={s.ctaText}>{isHe ? "ייבא מתכון" : "Import recipe"}</Text>
+        )}
+      </TouchableOpacity>
+
+      {error && (
+        <View style={s.errorBox}>
+          <Text style={[s.errorTitle, { textAlign: isHe ? "right" : "left" }]}>
+            {isHe
+              ? "לא הצלחנו לקרוא את המתכון 😕"
+              : "Could not parse this recipe 😕"}
+          </Text>
+          <Text style={[s.errorSub, { textAlign: isHe ? "right" : "left" }]}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={s.errorAction}
+            onPress={() => navigation.navigate("EditRecipe", { id: null })}
+          >
+            <Text style={s.errorActionText}>
+              {isHe ? "עבר להזנה ידנית" : "Switch to manual entry"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {result && (
         <View style={s.preview}>
-          <View style={s.badgeRow}>
-            <View style={[s.methodBadge, { backgroundColor: methodBadge!.color + '22', borderColor: methodBadge!.color }]}>
-              <Text style={[s.methodBadgeText, { color: methodBadge!.color }]}>{methodBadge!.label}</Text>
-            </View>
-            <Text style={s.sourceName}>{result.sourceName}</Text>
-          </View>
-
-          <Text style={s.recipeTitle}>{result.title}</Text>
-          <Text style={s.sectionLabel}>
-            {isHe ? 'מרכיבים' : 'Ingredients'} ({result.ingredients.length})
+          <Text
+            style={[s.previewTitle, { textAlign: isHe ? "right" : "left" }]}
+          >
+            {isHe ? "תצוגה לפני שמירה" : "Preview before save"}
           </Text>
-          {result.ingredients.slice(0, 4).map((ing, i) => (
-            <Text key={i} style={s.ingItem}>• {ing}</Text>
-          ))}
-          {result.ingredients.length > 4 && (
-            <Text style={s.moreText}>+{result.ingredients.length - 4} {isHe ? 'עוד' : 'more'}</Text>
+
+          {result.imageUrl ? (
+            <Image
+              source={{ uri: result.imageUrl }}
+              style={s.previewImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={s.previewImageFallback}>
+              <Text style={s.previewFallbackText}>🍲</Text>
+            </View>
           )}
 
-          <View style={s.actionRow}>
-            <TouchableOpacity style={s.btnPrimary} onPress={handleSave}>
-              <Text style={s.btnPrimaryText}>{isHe ? 'שמור' : 'Save'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.btnSecondary}
-              onPress={() => navigation.navigate('OcrReview', {
-                ocr: { title: result.title, ingredients: result.ingredients, steps: result.steps, rawText: '', confidence: 'medium' }
-              })}
-            >
-              <Text style={s.btnSecondaryText}>{isHe ? 'ערוך לפני שמירה' : 'Edit before saving'}</Text>
-            </TouchableOpacity>
-          </View>
+          <Text
+            style={[s.recipeTitle, { textAlign: isHe ? "right" : "left" }]}
+            numberOfLines={2}
+          >
+            {result.title}
+          </Text>
+
+          <Text style={[s.meta, { textAlign: isHe ? "right" : "left" }]}>
+            ⏱ {result.cookTime ?? 0} {isHe ? "דקות" : "min"} | 🍽{" "}
+            {result.servings ?? 2} {isHe ? "מנות" : "servings"}
+          </Text>
+
+          <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+            <Text style={s.saveBtnText}>
+              {isHe ? "שמור מתכון" : "Save recipe"}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -113,25 +219,151 @@ export default function ImportLinkScreen({ navigation }: any) {
 }
 
 const s = StyleSheet.create({
-  container:       { flex: 1, padding: 16, backgroundColor: '#FFFDF7' },
-  label:           { fontSize: 12, color: '#888', marginBottom: 6 },
-  inputRow:        { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  input:           { flex: 1, borderWidth: 0.5, borderColor: '#ddd', borderRadius: 10, padding: 10, fontSize: 12 },
-  fetchBtn:        { backgroundColor: '#FF6B6B', borderRadius: 10, padding: 10, justifyContent: 'center' },
-  fetchBtnText:    { color: '#fff', fontWeight: '500', fontSize: 12 },
-  errorText:       { color: '#FF6B6B', fontSize: 12 },
-  preview:         { marginTop: 8 },
-  badgeRow:        { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 10 },
-  methodBadge:     { borderRadius: 6, borderWidth: 0.5, padding: 4 },
-  methodBadgeText: { fontSize: 10 },
-  sourceName:      { fontSize: 11, color: '#888' },
-  recipeTitle:     { fontSize: 16, fontWeight: '500', marginBottom: 8 },
-  sectionLabel:    { fontSize: 11, color: '#888', marginBottom: 4 },
-  ingItem:         { fontSize: 12, color: '#333', marginBottom: 3 },
-  moreText:        { fontSize: 11, color: '#888' },
-  actionRow:       { flexDirection: 'row', gap: 10, marginTop: 16 },
-  btnPrimary:      { flex: 1, backgroundColor: '#FF6B6B', borderRadius: 10, padding: 12, alignItems: 'center' },
-  btnPrimaryText:  { color: '#fff', fontWeight: '500' },
-  btnSecondary:    { flex: 1, borderWidth: 0.5, borderColor: '#ddd', borderRadius: 10, padding: 12, alignItems: 'center' },
-  btnSecondaryText:{ fontWeight: '500', fontSize: 12 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: 16, paddingBottom: 24 },
+  title: {
+    ...Typography.h2,
+    color: Colors.text.primary,
+    marginBottom: 4,
+  },
+  subtitle: {
+    ...Typography.bodySmall,
+    color: Colors.text.secondary,
+    marginBottom: 14,
+  },
+  urlWrap: {
+    position: "relative",
+    marginBottom: 12,
+  },
+  input: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceElevated,
+    paddingHorizontal: 14,
+    paddingRight: 84,
+    ...Typography.bodySmall,
+    color: Colors.text.primary,
+  },
+  pasteBtn: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pasteBtnText: {
+    ...Typography.label,
+    color: Colors.text.secondary,
+    fontSize: 12,
+  },
+  cta: {
+    minHeight: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+  },
+  ctaDisabled: {
+    opacity: 0.45,
+  },
+  ctaText: {
+    ...Typography.button,
+    color: "#fff",
+    fontSize: 15,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  errorBox: {
+    marginTop: 14,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#FFF0ED",
+    borderWidth: 1,
+    borderColor: "#FFC7BC",
+  },
+  errorTitle: {
+    ...Typography.label,
+    color: "#B33F31",
+    marginBottom: 4,
+  },
+  errorSub: {
+    ...Typography.caption,
+    color: "#9D5447",
+  },
+  errorAction: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#F3B8AD",
+  },
+  errorActionText: {
+    ...Typography.label,
+    color: "#B33F31",
+    fontSize: 12,
+  },
+  preview: {
+    marginTop: 16,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+  },
+  previewTitle: {
+    ...Typography.label,
+    color: Colors.text.secondary,
+    marginBottom: 10,
+  },
+  previewImage: {
+    width: "100%",
+    height: 170,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    marginBottom: 10,
+  },
+  previewImageFallback: {
+    width: "100%",
+    height: 170,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewFallbackText: { fontSize: 36 },
+  recipeTitle: {
+    ...Typography.h3,
+    color: Colors.text.primary,
+    marginBottom: 6,
+  },
+  meta: {
+    ...Typography.caption,
+    color: Colors.text.secondary,
+    marginBottom: 12,
+  },
+  saveBtn: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveBtnText: {
+    ...Typography.button,
+    color: "#fff",
+    fontSize: 15,
+  },
 });

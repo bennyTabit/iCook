@@ -19,10 +19,10 @@ export async function pickRecipeImage(
   source: "camera" | "gallery",
 ): Promise<string | null> {
   const opts: ImagePicker.ImagePickerOptions = {
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 0.85,
-    allowsEditing: true,
-    aspect: [3, 4],
+    mediaTypes: ["images"],
+    // Preserve original resolution for better OCR on handwriting.
+    quality: 1,
+    allowsEditing: false,
   };
   const result =
     source === "camera"
@@ -39,10 +39,20 @@ async function imageToBase64(uri: string): Promise<string> {
 }
 
 export async function runOCR(imageUri: string): Promise<OcrResult> {
+  const visionApiKey =
+    process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY ??
+    process.env.GOOGLE_VISION_API_KEY;
+
+  if (!visionApiKey) {
+    throw new Error(
+      "Missing Google Vision API key. Set EXPO_PUBLIC_GOOGLE_VISION_API_KEY and restart Expo.",
+    );
+  }
+
   const base64 = await imageToBase64(imageUri);
 
   const response = await fetch(
-    `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_VISION_API_KEY}`,
+    `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -50,8 +60,11 @@ export async function runOCR(imageUri: string): Promise<OcrResult> {
         requests: [
           {
             image: { content: base64 },
-            features: [{ type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 }],
-            imageContext: { languageHints: ["he", "en"] },
+            features: [
+              { type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 },
+              { type: "TEXT_DETECTION", maxResults: 1 },
+            ],
+            imageContext: { languageHints: ["he", "iw", "en"] },
           },
         ],
       }),
@@ -59,16 +72,24 @@ export async function runOCR(imageUri: string): Promise<OcrResult> {
   );
 
   const data = await response.json();
-  const rawText: string = data.responses?.[0]?.fullTextAnnotation?.text ?? "";
+  const apiError =
+    data?.error?.message ?? data?.responses?.[0]?.error?.message ?? null;
+
+  if (!response.ok || apiError) {
+    throw new Error(
+      apiError ?? `Vision API request failed (${response.status})`,
+    );
+  }
+
+  const rawText: string =
+    data.responses?.[0]?.fullTextAnnotation?.text ??
+    data.responses?.[0]?.textAnnotations?.[0]?.description ??
+    "";
 
   if (!rawText) {
-    return {
-      rawText: "",
-      title: "",
-      ingredients: [],
-      steps: [],
-      confidence: "low",
-    };
+    throw new Error(
+      "No text detected. For handwritten recipes, use a close, bright photo with high contrast and minimal background.",
+    );
   }
 
   return parseOcrText(rawText);

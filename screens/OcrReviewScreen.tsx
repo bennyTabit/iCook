@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   View,
   Text,
   TextInput,
@@ -11,21 +12,38 @@ import {
 import { useTranslation } from "react-i18next";
 import { insertRecipe } from "../lib/db";
 import { isHebrew } from "../lib/i18n";
+import { useRecipeStore } from "../store/recipeStore";
 import type { OcrResult } from "../lib/ocr";
+import { Colors } from "../constants/colors";
+import { Typography } from "../constants/typography";
 
 type Props = {
-  route: { params: { ocr: OcrResult } };
+  route: { params?: { ocr?: OcrResult } };
   navigation: any;
 };
 
 export default function OcrReviewScreen({ route, navigation }: Props) {
   const { t } = useTranslation();
   const isHe = isHebrew();
-  const { ocr } = route.params;
+  const { loadRecipes } = useRecipeStore();
+  const ocr = route.params?.ocr;
+
+  if (!ocr) {
+    Alert.alert(
+      isHe ? "אין נתוני סריקה" : "No scan data",
+      isHe
+        ? "יש להתחיל סריקה ממסך הוספת מתכון."
+        : "Start scanning from the Add Recipe screen.",
+      [{ text: isHe ? "חזרה" : "Back", onPress: () => navigation.goBack() }],
+    );
+    return <View style={s.container} />;
+  }
 
   const [title, setTitle] = useState(ocr.title);
   const [ingredients, setIngredients] = useState(ocr.ingredients.join("\n"));
   const [steps, setSteps] = useState(ocr.steps.join("\n"));
+  const [confirmed, setConfirmed] = useState(ocr.confidence === "high");
+  const [saving, setSaving] = useState(false);
 
   const confidenceColor =
     ocr.confidence === "high"
@@ -34,21 +52,105 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         ? "#FFE66D"
         : "#FF6B6B";
 
+  const allLines = [...ingredients.split("\n"), ...steps.split("\n")]
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const uncertainLines = allLines.filter((line) => {
+    if (line.length <= 2) return true;
+    if (/[?@#$%^*_=+<>]/.test(line)) return true;
+    if (/^[\d\s.,:/-]+$/.test(line)) return true;
+    return false;
+  });
+
   async function handleSave() {
     if (!title.trim()) {
       Alert.alert(t("error"), t("titleRequired"));
       return;
     }
-    const id = await insertRecipe({
-      title_he: isHe ? title : "",
-      title_en: !isHe ? title : "",
-      source_type: "ocr",
+
+    if (!confirmed) {
+      Alert.alert(
+        isHe ? "נדרש אישור" : "Confirmation required",
+        isHe
+          ? "סמן שאישרת את הטקסט שזוהה לפני שמירה"
+          : "Please confirm the recognized text before saving",
+      );
+      return;
+    }
+
+    const ingredientsList = ingredients
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const stepsList = steps
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (!ingredientsList.length || !stepsList.length) {
+      Alert.alert(
+        isHe ? "חסרים נתונים" : "Missing data",
+        isHe
+          ? "כדאי למלא לפחות מרכיב אחד ושלב אחד"
+          : "Please add at least one ingredient and one step",
+      );
+      return;
+    }
+
+    const ok = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        isHe ? "לאשר ולשמור?" : "Confirm and save?",
+        isHe
+          ? "עברו על הכותרת, המרכיבים והשלבים לפני שמירה"
+          : "Please review title, ingredients and steps before saving",
+        [
+          {
+            text: isHe ? "ביטול" : "Cancel",
+            style: "cancel",
+            onPress: () => resolve(false),
+          },
+          { text: isHe ? "שמור" : "Save", onPress: () => resolve(true) },
+        ],
+      );
     });
-    navigation.replace("RecipeDetail", { id });
+
+    if (!ok) return;
+
+    setSaving(true);
+    const normalizedTitle = title.trim();
+    try {
+      const notesHe = `מרכיבים:\n${ingredientsList.join("\n")}\n\nשלבים:\n${stepsList.join("\n")}`;
+      const notesEn = `Ingredients:\n${ingredientsList.join("\n")}\n\nSteps:\n${stepsList.join("\n")}`;
+      const id = await insertRecipe({
+        title_he: normalizedTitle,
+        title_en: normalizedTitle,
+        source_type: "ocr",
+        notes_he: notesHe,
+        notes_en: notesEn,
+      });
+      await loadRecipes();
+      navigation.navigate("RecipeDetail", { id });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <ScrollView style={s.container}>
+      <View style={s.tipCard}>
+        <Text style={[s.tipTitle, { textAlign: isHe ? "right" : "left" }]}>
+          {isHe
+            ? "לפני שמירה, כדאי לעבור על הטקסט"
+            : "Quick review before saving"}
+        </Text>
+        <Text style={[s.tipText, { textAlign: isHe ? "right" : "left" }]}>
+          {isHe
+            ? "בדקו שגיאות נפוצות בזיהוי: כמויות, שמות רכיבים ותווים מוזרים."
+            : "Check common OCR issues: quantities, ingredient names and odd symbols."}
+        </Text>
+      </View>
+
       <View
         style={[
           s.badge,
@@ -72,6 +174,21 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
                 : "Weak recognition — please correct"}
         </Text>
       </View>
+
+      {uncertainLines.length > 0 ? (
+        <View style={s.warnCard}>
+          <Text style={[s.warnTitle, { textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "קטעים שדורשים תשומת לב" : "Parts that may need correction"}
+          </Text>
+          <View style={s.warnChipsWrap}>
+            {uncertainLines.slice(0, 5).map((line, idx) => (
+              <View key={`${line}-${idx}`} style={s.warnChip}>
+                <Text style={s.warnChipText}>{line}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <Text style={s.label}>{isHe ? "כותרת" : "Title"}</Text>
       <TextInput
@@ -113,10 +230,36 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         textAlignVertical="top"
       />
 
+      <TouchableOpacity
+        style={[s.confirmRow, confirmed && s.confirmRowChecked]}
+        onPress={() => setConfirmed((prev) => !prev)}
+        activeOpacity={0.8}
+      >
+        <View style={[s.checkbox, confirmed && s.checkboxChecked]}>
+          {confirmed ? <Text style={s.checkboxTick}>✓</Text> : null}
+        </View>
+        <Text style={[s.confirmText, confirmed && s.confirmTextChecked]}>
+          {isHe
+            ? "עברתי על הטקסט ואני מאשר/ת שהוא מוכן לשמירה"
+            : "I reviewed the text and confirm it is ready to save"}
+        </Text>
+      </TouchableOpacity>
+
       <View style={s.row}>
-        <TouchableOpacity style={s.btnPrimary} onPress={handleSave}>
+        <TouchableOpacity
+          style={[s.btnPrimary, (!confirmed || saving) && s.btnDisabled]}
+          onPress={handleSave}
+          disabled={!confirmed || saving}
+        >
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : null}
           <Text style={s.btnPrimaryText}>
-            {isHe ? "שמור מתכון" : "Save recipe"}
+            {saving
+              ? isHe
+                ? "שומר..."
+                : "Saving..."
+              : isHe
+                ? "שמור מתכון"
+                : "Save recipe"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -131,41 +274,148 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#FFFDF7" },
+  container: { flex: 1, padding: 16, backgroundColor: Colors.background },
+  tipCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E8E2D5",
+    backgroundColor: "#FFF8EA",
+    padding: 12,
+    marginBottom: 12,
+  },
+  tipTitle: {
+    ...Typography.label,
+    color: "#7A5A19",
+    marginBottom: 4,
+  },
+  tipText: {
+    ...Typography.caption,
+    color: "#92753A",
+  },
   badge: {
-    borderRadius: 8,
-    borderWidth: 0.5,
-    padding: 8,
-    marginBottom: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 12,
     alignSelf: "flex-start",
   },
-  badgeText: { fontSize: 12, fontWeight: "500" },
-  label: { fontSize: 12, color: "#888", marginBottom: 4, marginTop: 12 },
-  input: {
-    borderWidth: 0.5,
-    borderColor: "#ddd",
-    borderRadius: 10,
+  badgeText: { ...Typography.caption, fontWeight: "700" },
+  warnCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFD3D3",
+    backgroundColor: "#FFF4F4",
     padding: 10,
-    fontSize: 14,
+    marginBottom: 8,
+  },
+  warnTitle: {
+    ...Typography.caption,
+    color: "#C03535",
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  warnChipsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  warnChip: {
+    borderRadius: 10,
+    backgroundColor: "#FFE2E2",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  warnChipText: {
+    ...Typography.caption,
+    color: "#A03939",
+  },
+  label: {
+    ...Typography.caption,
+    color: Colors.text.secondary,
+    marginBottom: 4,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 10,
+    ...Typography.bodySmall,
+    color: Colors.text.primary,
+    backgroundColor: Colors.surfaceElevated,
+  },
+  multiline: { minHeight: 110 },
+  confirmRow: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  confirmRowChecked: {
+    borderColor: "#9ED9CD",
+    backgroundColor: "#EEF9F6",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#fff",
   },
-  multiline: { minHeight: 100 },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  checkboxTick: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  confirmText: {
+    ...Typography.caption,
+    color: Colors.text.secondary,
+    flex: 1,
+  },
+  confirmTextChecked: {
+    color: "#2A6B60",
+    fontWeight: "600",
+  },
   row: { flexDirection: "row", gap: 10, marginTop: 20, marginBottom: 40 },
   btnPrimary: {
     flex: 1,
-    backgroundColor: "#FF6B6B",
-    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
     padding: 13,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  btnPrimaryText: { color: "#fff", fontWeight: "500", fontSize: 14 },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  btnPrimaryText: { ...Typography.button, color: "#fff", fontSize: 14 },
   btnSecondary: {
     flex: 1,
-    borderWidth: 0.5,
-    borderColor: "#ddd",
-    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
     padding: 13,
     alignItems: "center",
+    backgroundColor: Colors.surfaceElevated,
   },
-  btnSecondaryText: { fontSize: 14 },
+  btnSecondaryText: {
+    ...Typography.button,
+    color: Colors.text.secondary,
+    fontSize: 14,
+  },
 });
