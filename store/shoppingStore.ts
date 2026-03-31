@@ -13,11 +13,18 @@ export type ShopItem = {
   category: string;
 };
 
+export type AddItemParams = {
+  text: string;
+  quantity?: string;
+  unit?: string;
+  category?: string;
+};
+
 type ShoppingStore = {
   items: ShopItem[];
   grouped: Record<string, ShopItem[]>;
   addFromRecipe: (recipe: Recipe, ingredients?: string[]) => void;
-  addItem: (text: string) => void;
+  addItem: (params: AddItemParams | string) => void;
   checkItem: (id: string) => void;
   removeItem: (id: string) => void;
   clearChecked: () => void;
@@ -139,16 +146,19 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
       set({ items: merged, grouped: groupItems(merged) });
     },
 
-    addItem: (text) => {
-      const trimmed = text.trim();
+    addItem: (params) => {
+      const p: AddItemParams = typeof params === "string" ? { text: params } : params;
+      const trimmed = p.text.trim();
       if (!trimmed) return;
       const existing = get().items;
       if (existing.find((i) => i.text === trimmed)) return;
       const item: ShopItem = {
         id: `manual-${Date.now()}`,
         text: trimmed,
+        quantity: p.quantity?.trim() || undefined,
+        unit: p.unit?.trim() || undefined,
         checked: false,
-        category: guessCategory(trimmed),
+        category: p.category ?? guessCategory(trimmed),
       };
       const merged = [...existing, item];
       persist(merged);

@@ -1,27 +1,51 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type User = {
+const AUTH_KEY = "@icook_auth_user";
+// Separate key that is NEVER deleted — persists Apple name/email across sign-outs
+export const APPLE_PROFILE_KEY = "@icook_apple_profile";
+
+export type AuthUser = {
   uid: string;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
+  provider: "google" | "apple";
 };
 
 type AuthStore = {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  setUser: (user: User | null) => void;
+  setUser: (user: AuthUser | null) => void;
   signOut: () => Promise<void>;
 };
 
-export const useAuthStore = create<AuthStore>((set) => ({
-  user: null,
-  loading: true,
+export const useAuthStore = create<AuthStore>((set) => {
+  // Hydrate persisted session on store creation
+  AsyncStorage.getItem(AUTH_KEY)
+    .then((raw) => {
+      if (raw) {
+        set({ user: JSON.parse(raw) as AuthUser, loading: false });
+      } else {
+        set({ loading: false });
+      }
+    })
+    .catch(() => set({ loading: false }));
 
-  setUser: (user) => set({ user, loading: false }),
+  return {
+    user: null,
+    loading: true,
 
-  signOut: async () => {
-    // v1.5: await auth().signOut();
-    set({ user: null });
-  },
-}));
+    setUser: (user) => {
+      if (user) {
+        AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user)).catch(() => {});
+      }
+      set({ user, loading: false });
+    },
+
+    signOut: async () => {
+      await AsyncStorage.removeItem(AUTH_KEY);
+      set({ user: null });
+    },
+  };
+});

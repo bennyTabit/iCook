@@ -18,6 +18,7 @@ import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
+import { useAuthStore } from "../store/authStore";
 
 type QuickCategory = {
   key: string;
@@ -37,6 +38,11 @@ export default function HomeFeedScreen({ navigation }: any) {
     resetFilters,
     filters,
   } = useRecipeStore();
+  const { user } = useAuthStore();
+  const resolvedName = user
+    ? (user.displayName ?? (user.email ? user.email.split("@")[0] : null) ?? (user.provider === "apple" ? (isHe ? "משתמש Apple" : "Apple User") : (isHe ? "משתמש Google" : "Google User")))
+    : null;
+  const firstName = resolvedName?.split(" ")[0] ?? null;
 
   const [selectedCat, setSelectedCat] = useState("all");
 
@@ -171,7 +177,9 @@ export default function HomeFeedScreen({ navigation }: any) {
             style={s.hero}
           >
             <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
-              {isHe ? "מה בא לך לבשל היום, אבי?" : "What do you feel like cooking today, Avi?"}
+              {isHe
+                ? `מה בא לך לבשל היום${firstName ? `, ${firstName}` : ""}?`
+                : `What do you feel like cooking today${firstName ? `, ${firstName}` : ""}?`}
             </Text>
             <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
               {isHe

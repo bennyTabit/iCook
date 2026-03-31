@@ -11,11 +11,10 @@ import {
   LayoutAnimation,
   Modal,
   Platform,
-  Pressable,
   UIManager,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,7 +24,6 @@ import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
-import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe } from "../lib/db";
 import { useRecipeStore } from "../store/recipeStore";
@@ -33,7 +31,6 @@ import { useShoppingStore } from "../store/shoppingStore";
 import { shareRecipe } from "../lib/sharing";
 import Toast from "../components/Toast";
 import type { Recipe } from "../lib/db";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type DraftRecipe = {
   title: string;
@@ -48,6 +45,8 @@ if (
 ) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function parseSectionLines(notes: string, section: "ingredients" | "steps") {
   if (!notes.trim()) return [];
@@ -98,31 +97,25 @@ const UNICODE_FRACTIONS: Record<string, number> = {
 function parseNumericToken(token: string) {
   const t = token.trim();
   if (!t) return null;
-
   if (UNICODE_FRACTIONS[t] != null) return UNICODE_FRACTIONS[t];
-
   const mixedUnicode = t.match(/^(\d+)([¼½¾⅓⅔⅛⅜⅝⅞])$/);
-  if (mixedUnicode) {
+  if (mixedUnicode)
     return Number(mixedUnicode[1]) + (UNICODE_FRACTIONS[mixedUnicode[2]] ?? 0);
-  }
-
   const mixedFraction = t.match(/^(\d+)\s+(\d+)\/(\d+)$/);
   if (mixedFraction) {
     const whole = Number(mixedFraction[1]);
-    const numerator = Number(mixedFraction[2]);
-    const denominator = Number(mixedFraction[3]);
-    if (denominator === 0) return null;
-    return whole + numerator / denominator;
+    const num = Number(mixedFraction[2]);
+    const den = Number(mixedFraction[3]);
+    if (den === 0) return null;
+    return whole + num / den;
   }
-
   const fraction = t.match(/^(\d+)\/(\d+)$/);
   if (fraction) {
-    const numerator = Number(fraction[1]);
-    const denominator = Number(fraction[2]);
-    if (denominator === 0) return null;
-    return numerator / denominator;
+    const num = Number(fraction[1]);
+    const den = Number(fraction[2]);
+    if (den === 0) return null;
+    return num / den;
   }
-
   const decimal = Number(t.replace(",", "."));
   return Number.isNaN(decimal) ? null : decimal;
 }
@@ -145,6 +138,8 @@ function parseMinutesFromStep(step: string) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+// ─── Cooking Mode Overlay ─────────────────────────────────────────────────────
+
 function CookingModeOverlay({
   steps,
   isHe,
@@ -155,75 +150,137 @@ function CookingModeOverlay({
   onClose: () => void;
 }) {
   useKeepAwake();
-  const [currentStep, setCurrentStep] = useState(0);
+  const [current, setCurrent] = useState(0);
+  const total = Math.max(steps.length, 1);
+  const progress = (current + 1) / total;
 
-  const stepText = steps[currentStep] ?? "";
+  function goPrev() {
+    void Haptics.selectionAsync();
+    setCurrent((x) => Math.max(x - 1, 0));
+  }
+
+  function goNext() {
+    void Haptics.selectionAsync();
+    if (current < steps.length - 1) {
+      setCurrent((x) => x + 1);
+    } else {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onClose();
+    }
+  }
+
+  const isLast = current >= steps.length - 1;
+  const stepText = steps[current] ?? "";
+  const stepMinutes = parseMinutesFromStep(stepText);
 
   return (
     <Modal
-      visible={true}
+      visible
       animationType="slide"
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={s.cookContainer} edges={["top", "bottom"]}>
-        <View
-          style={[s.cookTop, { flexDirection: isHe ? "row-reverse" : "row" }]}
-        >
-          <Text style={s.cookProgress}>
-            {isHe ? "שלב" : "Step"} {currentStep + 1}/
-            {Math.max(steps.length, 1)}
-          </Text>
-          <TouchableOpacity onPress={onClose} style={s.cookCloseBtn}>
-            <Ionicons name="close" size={20} color={Colors.text.primary} />
+      <SafeAreaView style={cm.container} edges={["top", "bottom"]}>
+        {/* Header */}
+        <View style={cm.header}>
+          <TouchableOpacity style={cm.closeBtn} onPress={onClose}>
+            <Ionicons name="close" size={20} color={Colors.text.secondary} />
           </TouchableOpacity>
+          <Text style={cm.headerTitle}>
+            {isHe ? "מצב בישול" : "Cooking Mode"}
+          </Text>
+          <Text style={cm.stepCounter}>
+            {current + 1} / {total}
+          </Text>
         </View>
 
-        <View style={s.cookStepCard}>
-          <Text
-            style={[s.cookStepText, { textAlign: isHe ? "right" : "left" }]}
-          >
+        {/* Progress bar */}
+        <View style={cm.progressTrack}>
+          <View style={[cm.progressFill, { width: `${progress * 100}%` as any }]} />
+        </View>
+
+        {/* Step dots */}
+        <View style={cm.dotsRow}>
+          {Array.from({ length: total }).map((_, i) => (
+            <View
+              key={i}
+              style={[cm.dot, i === current && cm.dotActive, i < current && cm.dotDone]}
+            />
+          ))}
+        </View>
+
+        {/* Step card */}
+        <View style={cm.stepCard}>
+          <View style={cm.stepBadge}>
+            <Text style={cm.stepBadgeText}>
+              {isHe ? "שלב" : "Step"} {current + 1}
+            </Text>
+          </View>
+          <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left" }]}>
             {stepText}
           </Text>
+          {stepMinutes ? (
+            <View style={cm.timerChip}>
+              <Ionicons name="timer-outline" size={14} color={Colors.primary} />
+              <Text style={cm.timerChipText}>
+                {stepMinutes} {isHe ? "דקות" : "min"}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
-        <View
-          style={[s.cookNav, { flexDirection: isHe ? "row-reverse" : "row" }]}
-        >
+        {/* Navigation */}
+        <View style={cm.navRow}>
           <TouchableOpacity
-            style={[s.cookBtn, currentStep <= 0 && s.cookBtnDisabled]}
-            disabled={currentStep <= 0}
-            onPress={() => setCurrentStep((x) => Math.max(x - 1, 0))}
+            style={[cm.navBtn, current <= 0 && cm.navBtnDisabled]}
+            disabled={current <= 0}
+            onPress={goPrev}
+            activeOpacity={0.8}
           >
-            <Text style={s.cookBtnText}>{isHe ? "הקודם" : "Previous"}</Text>
+            <Ionicons
+              name={isHe ? "chevron-forward" : "chevron-back"}
+              size={20}
+              color={current <= 0 ? Colors.text.tertiary : Colors.text.primary}
+            />
+            <Text
+              style={[
+                cm.navBtnText,
+                current <= 0 && cm.navBtnTextDisabled,
+              ]}
+            >
+              {isHe ? "הקודם" : "Previous"}
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={[
-              s.cookBtn,
-              currentStep >= steps.length - 1 && s.cookBtnDisabled,
-            ]}
-            disabled={currentStep >= steps.length - 1}
-            onPress={() =>
-              setCurrentStep((x) => Math.min(x + 1, steps.length - 1))
-            }
+            style={[cm.navBtnPrimary, isLast && cm.navBtnFinish]}
+            onPress={goNext}
+            activeOpacity={0.85}
           >
-            <Text style={s.cookBtnText}>{isHe ? "הבא" : "Next"}</Text>
+            <Text style={cm.navBtnPrimaryText}>
+              {isLast
+                ? isHe
+                  ? "סיום בישול 🎉"
+                  : "Done cooking 🎉"
+                : isHe
+                  ? "הבא"
+                  : "Next"}
+            </Text>
+            {!isLast && (
+              <Ionicons
+                name={isHe ? "chevron-back" : "chevron-forward"}
+                size={20}
+                color="#fff"
+              />
+            )}
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={s.cookExitBtn}
-          onPress={onClose}
-          activeOpacity={0.9}
-        >
-          <Text style={s.cookExitBtnText}>
-            {isHe ? "חזרה למתכון" : "Back to recipe"}
-          </Text>
-        </TouchableOpacity>
       </SafeAreaView>
     </Modal>
   );
 }
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RecipeDetailScreen({ route, navigation }: any) {
   const id: number | undefined = route.params?.id;
@@ -235,20 +292,20 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const { height } = useWindowDimensions();
   const { toggleFav, removeRecipe, loadRecipes } = useRecipeStore();
   const { addFromRecipe } = useShoppingStore();
+
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [toast, setToast] = useState("");
-  const [ingredientDone, setIngredientDone] = useState<Record<number, boolean>>(
-    {},
-  );
+  const [ingredientDone, setIngredientDone] = useState<Record<number, boolean>>({});
   const [stepDone, setStepDone] = useState<Record<number, boolean>>({});
-  const [shoppingMode, setShoppingMode] = useState(false);
+  const [checklistMode, setChecklistMode] = useState(false);
   const [cookingMode, setCookingMode] = useState(false);
   const [timerLeftSec, setTimerLeftSec] = useState(0);
   const [servings, setServings] = useState(2);
   const [cookHistory, setCookHistory] = useState(0);
+
   const favScale = useRef(new Animated.Value(1)).current;
   const timerWasRunningRef = useRef(false);
-  const heroHeight = Math.max(280, Math.round(height * 0.4));
+  const heroHeight = Math.max(300, Math.round(height * 0.42));
 
   async function loadRecipe() {
     if (!id) return;
@@ -258,7 +315,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (isDraft) return;
-    loadRecipe();
+    void loadRecipe();
   }, [id, isDraft]);
 
   useFocusEffect(
@@ -269,16 +326,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     }, [id, isDraft]),
   );
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2500);
-  }
-
   useEffect(() => {
-    if (isDraft) {
-      setServings(2);
-      return;
-    }
+    if (isDraft) { setServings(2); return; }
     setServings(recipe?.servings ?? 2);
   }, [recipe?.servings, isDraft]);
 
@@ -295,6 +344,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     void hydrateCookHistory();
   }, [historyKey]);
 
+  // Timer countdown
   useEffect(() => {
     if (timerLeftSec <= 0) return;
     const timer = setInterval(
@@ -310,6 +360,55 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     timerWasRunningRef.current = false;
     showToast(isHe ? "הטיימר הסתיים ⏰" : "Timer finished ⏰");
   }, [timerLeftSec, isHe]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2500);
+  }
+
+  // ── Derived values ──────────────────────────────────────────────────────────
+
+  const title = isDraft
+    ? (draft?.title ?? "")
+    : isHe
+      ? (recipe?.title_he ?? "")
+      : (recipe?.title_en ?? recipe?.title_he ?? "");
+
+  const isFav = !isDraft && recipe ? recipe.is_favorite === 1 : false;
+
+  const rawIngredients = useMemo(() => {
+    if (isDraft) return draft?.ingredients ?? [];
+    return parseSectionLines(
+      isHe
+        ? (recipe?.notes_he ?? "")
+        : (recipe?.notes_en ?? recipe?.notes_he ?? ""),
+      "ingredients",
+    );
+  }, [isDraft, draft?.ingredients, recipe?.notes_he, recipe?.notes_en, isHe]);
+
+  const rawSteps = useMemo(() => {
+    if (isDraft) return draft?.steps ?? [];
+    return parseSectionLines(
+      isHe
+        ? (recipe?.notes_he ?? "")
+        : (recipe?.notes_en ?? recipe?.notes_he ?? ""),
+      "steps",
+    );
+  }, [isDraft, draft?.steps, recipe?.notes_he, recipe?.notes_en, isHe]);
+
+  const baseServings = isDraft ? 2 : Math.max(recipe?.servings ?? 2, 1);
+  const ratio = Math.max(servings, 1) / baseServings;
+
+  const shownIngredients = useMemo(
+    () => rawIngredients.map((ing) => scaleIngredientText(ing, ratio)),
+    [rawIngredients, ratio],
+  );
+
+  const timerLabel = timerLeftSec > 0
+    ? `${Math.floor(timerLeftSec / 60)}:${String(timerLeftSec % 60).padStart(2, "0")}`
+    : null;
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   function handleDelete() {
     if (!id) return;
@@ -330,63 +429,6 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const title = isDraft
-    ? (draft?.title ?? "")
-    : isHe
-      ? (recipe?.title_he ?? "")
-      : (recipe?.title_en ?? recipe?.title_he ?? "");
-  const isFav = !isDraft && recipe ? recipe.is_favorite === 1 : false;
-
-  const rawIngredients = useMemo(() => {
-    if (isDraft) return draft?.ingredients ?? [];
-    const fromNotes = parseSectionLines(
-      isHe
-        ? (recipe?.notes_he ?? "")
-        : (recipe?.notes_en ?? recipe?.notes_he ?? ""),
-      "ingredients",
-    );
-    return fromNotes.length
-      ? fromNotes
-      : [
-          "ספגטי 400 גרם",
-          "בשר טחון 300 גרם",
-          "רסק עגבניות 2 כוסות",
-          "בצל גדול",
-          "שום 3 שיניים",
-        ];
-  }, [isDraft, draft?.ingredients, recipe?.notes_he, recipe?.notes_en, isHe]);
-
-  const rawSteps = useMemo(() => {
-    if (isDraft) return draft?.steps ?? [];
-    const fromNotes = parseSectionLines(
-      isHe
-        ? (recipe?.notes_he ?? "")
-        : (recipe?.notes_en ?? recipe?.notes_he ?? ""),
-      "steps",
-    );
-    return fromNotes.length
-      ? fromNotes
-      : [
-          "בשל פסטה במים מומלחים.",
-          "טגן בצל ושום, הוסף בשר.",
-          "הוסף רסק, בשל 20 דקות.",
-        ];
-  }, [isDraft, draft?.steps, recipe?.notes_he, recipe?.notes_en, isHe]);
-
-  const baseServings = isDraft ? 2 : Math.max(recipe?.servings ?? 2, 1);
-  const ratio = Math.max(servings, 1) / baseServings;
-
-  const shownIngredients = useMemo(
-    () => rawIngredients.map((ing) => scaleIngredientText(ing, ratio)),
-    [rawIngredients, ratio],
-  );
-
-  const shownSteps = rawSteps;
-  const timerLabel =
-    timerLeftSec > 0
-      ? `${Math.floor(timerLeftSec / 60)}:${String(timerLeftSec % 60).padStart(2, "0")}`
-      : null;
-
   async function handleSaveDraft() {
     if (!draft || !title.trim()) {
       Alert.alert(t("error"), t("titleRequired"));
@@ -397,21 +439,13 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       title_en: title.trim(),
       source_type: draft.source_type ?? "ocr",
       notes_he: [
-        draft.ingredients.length
-          ? `מרכיבים:\n${draft.ingredients.join("\n")}`
-          : "",
+        draft.ingredients.length ? `מרכיבים:\n${draft.ingredients.join("\n")}` : "",
         draft.steps.length ? `\n\nשלבים:\n${draft.steps.join("\n")}` : "",
-      ]
-        .join("")
-        .trim(),
+      ].join("").trim(),
       notes_en: [
-        draft.ingredients.length
-          ? `Ingredients:\n${draft.ingredients.join("\n")}`
-          : "",
+        draft.ingredients.length ? `Ingredients:\n${draft.ingredients.join("\n")}` : "",
         draft.steps.length ? `\n\nSteps:\n${draft.steps.join("\n")}` : "",
-      ]
-        .join("")
-        .trim(),
+      ].join("").trim(),
     });
     await loadRecipes();
     navigation.navigate("RecipeDetail", { id: newId });
@@ -422,9 +456,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     setCookHistory(next);
     await AsyncStorage.setItem(historyKey, String(next));
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast(
-      isHe ? "מעולה! סומן שבישלת את זה 👨‍🍳" : "Great! Marked as cooked 👨‍🍳",
-    );
+    showToast(isHe ? "מעולה! סומן שבישלת את זה 👨‍🍳" : "Great! Marked as cooked 👨‍🍳");
   }
 
   function toggleIngredientDone(index: number) {
@@ -442,22 +474,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   function onFavoritePress() {
     if (!recipe || !id) return;
     Animated.sequence([
-      Animated.spring(favScale, {
-        toValue: 1.28,
-        useNativeDriver: true,
-        friction: 5,
-      }),
-      Animated.spring(favScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 6,
-      }),
+      Animated.spring(favScale, { toValue: 1.3, useNativeDriver: true, friction: 5 }),
+      Animated.spring(favScale, { toValue: 1, useNativeDriver: true, friction: 6 }),
     ]).start();
     toggleFav(id, recipe.is_favorite ?? 0);
     setRecipe((prev) =>
       prev ? { ...prev, is_favorite: prev.is_favorite ? 0 : 1 } : prev,
     );
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }
 
   function handleTimerStart(minutes?: number | null) {
@@ -468,846 +492,1006 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     }
     timerWasRunningRef.current = true;
     setTimerLeftSec(mins * 60);
-    showToast(
-      isHe ? `הטיימר התחיל: ${mins} דקות` : `Timer started: ${mins} min`,
-    );
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showToast(isHe ? `הטיימר התחיל: ${mins} דקות` : `Timer started: ${mins} min`);
+  }
+
+  function handleAddToShopping() {
+    if (!recipe) return;
+    addFromRecipe(recipe, rawIngredients);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast(isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping list 🛒");
   }
 
   if (!isDraft && !recipe) return <View style={s.container} />;
 
+  const cookTimeMin = recipe?.cook_time_min ?? 0;
+  const prepTimeMin = recipe?.prep_time_min ?? 0;
+  const totalMin = (cookTimeMin || 0) + (prepTimeMin || 0);
+
+  const difficultyColor =
+    recipe?.difficulty === "hard"
+      ? Colors.difficulty.hard
+      : recipe?.difficulty === "medium"
+        ? Colors.difficulty.medium
+        : Colors.difficulty.easy;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
   return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
+    <View style={s.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
       >
+        {/* ── Hero ── */}
         <View style={[s.hero, { height: heroHeight }]}>
           {recipe?.image_uri ? (
             <Image
               source={{ uri: recipe.image_uri }}
-              style={s.heroImage}
+              style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
           ) : (
-            <LinearGradient colors={["#FFD8CD", "#FFE1B6"]} style={s.heroImage}>
-              <Text style={s.heroEmoji}>🍽️</Text>
+            <LinearGradient
+              colors={["#FFD8CD", "#FBBF9F", "#F5A473"]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={s.heroPlaceholder}>
+                <Text style={s.heroEmoji}>🍽️</Text>
+              </View>
             </LinearGradient>
           )}
 
+          {/* Gradient overlay */}
           <LinearGradient
-            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.65)"]}
-            style={s.heroOverlay}
+            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0)", "rgba(0,0,0,0.7)"]}
+            style={StyleSheet.absoluteFill}
+            locations={[0, 0.35, 1]}
           />
 
-          <View style={s.heroTitleWrap}>
+          {/* Top controls */}
+          <View
+            style={[
+              s.heroTopBar,
+              {
+                paddingTop: insets.top + 8,
+                flexDirection: isHe ? "row-reverse" : "row",
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={s.heroIconBtn}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                navigation.goBack();
+              }}
+            >
+              <Ionicons
+                name={isHe ? "chevron-forward" : "chevron-back"}
+                size={22}
+                color="#fff"
+              />
+            </TouchableOpacity>
+
+            <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              {!isDraft && (
+                <>
+                  <TouchableOpacity
+                    style={s.heroIconBtn}
+                    onPress={() => recipe && void shareRecipe(recipe)}
+                  >
+                    <Ionicons name="share-outline" size={20} color="#fff" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.heroIconBtn}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      navigation.navigate("EditRecipe", { id });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={20} color="#fff" />
+                  </TouchableOpacity>
+
+                  <Animated.View style={{ transform: [{ scale: favScale }] }}>
+                    <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
+                      <Ionicons
+                        name={isFav ? "heart" : "heart-outline"}
+                        size={20}
+                        color={isFav ? "#FF4757" : "#fff"}
+                      />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* Title at bottom of hero */}
+          <View style={[s.heroBottom, { paddingBottom: 20 }]}>
+            {recipe?.source_type && recipe.source_type !== "manual" ? (
+              <View style={s.sourceBadge}>
+                <Text style={s.sourceBadgeText}>
+                  {recipe.source_type.toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
             <Text
               style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}
               numberOfLines={2}
             >
               {title}
             </Text>
+            {cookHistory > 0 ? (
+              <Text style={[s.cookHistoryHero, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
+              </Text>
+            ) : null}
           </View>
-
-          {!isDraft && (
-            <Animated.View
-              style={[s.favBtn, { transform: [{ scale: favScale }] }]}
-            >
-              <TouchableOpacity onPress={onFavoritePress} style={s.favInnerBtn}>
-                <Ionicons
-                  name={isFav ? "heart" : "heart-outline"}
-                  size={21}
-                  color={isFav ? "#F1545C" : "#fff"}
-                />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          {!isDraft && (
-            <TouchableOpacity
-              style={s.editBtn}
-              onPress={() => navigation.navigate("EditRecipe", { id })}
-            >
-              <Ionicons
-                name="create-outline"
-                size={18}
-                color={Colors.text.primary}
-              />
-            </TouchableOpacity>
-          )}
         </View>
 
+        {/* ── Info chips ── */}
+        <View style={s.infoStrip}>
+          {totalMin > 0 ? (
+            <TouchableOpacity
+              style={s.infoChip}
+              onPress={() => handleTimerStart(cookTimeMin || totalMin)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="timer-outline" size={15} color={Colors.primary} />
+              <Text style={[s.infoChipText, { color: Colors.primary }]}>
+                {totalMin} {isHe ? "דקות" : "min"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+
+          <View style={s.infoChip}>
+            <Ionicons name="people-outline" size={15} color={Colors.text.secondary} />
+            <Text style={s.infoChipText}>
+              {servings} {isHe ? "מנות" : "servings"}
+            </Text>
+          </View>
+
+          {recipe?.difficulty ? (
+            <View style={[s.infoChip, { borderColor: difficultyColor + "44", backgroundColor: difficultyColor + "18" }]}>
+              <View style={[s.difficultyDot, { backgroundColor: difficultyColor }]} />
+              <Text style={[s.infoChipText, { color: difficultyColor }]}>
+                {t(recipe.difficulty as any)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ── Active timer banner ── */}
+        {timerLabel ? (
+          <View style={s.timerBanner}>
+            <Ionicons name="timer" size={18} color="#fff" />
+            <Text style={s.timerBannerText}>
+              {isHe ? `טיימר: ${timerLabel}` : `Timer: ${timerLabel}`}
+            </Text>
+            <TouchableOpacity onPress={() => setTimerLeftSec(0)} style={s.timerCancelBtn}>
+              <Ionicons name="close" size={16} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={s.body}>
-          <View
-            style={[
-              s.quickInfoRow,
-              { flexDirection: isHe ? "row-reverse" : "row" },
-            ]}
-          >
-            <Pressable
-              onPress={() => handleTimerStart(recipe?.cook_time_min)}
-              style={s.quickInfoItem}
-            >
-              <Ionicons
-                name="time-outline"
-                size={16}
-                color={Colors.text.secondary}
-              />
-              <Text style={s.quickInfoText}>
-                {recipe?.cook_time_min ?? 0} {isHe ? "דקות" : "min"}
-              </Text>
-            </Pressable>
-            <View style={s.quickInfoItem}>
-              <Ionicons
-                name="restaurant-outline"
-                size={16}
-                color={Colors.text.secondary}
-              />
-              <Text style={s.quickInfoText}>
-                {servings} {isHe ? "מנות" : "servings"}
-              </Text>
-            </View>
-            <View style={s.quickInfoItem}>
-              <Ionicons
-                name="flash-outline"
-                size={16}
-                color={Colors.text.secondary}
-              />
-              <Text style={s.quickInfoText}>
-                {recipe?.difficulty
-                  ? t(recipe.difficulty as any)
-                  : isHe
-                    ? "קל"
-                    : "easy"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={s.infoDivider} />
-
-          <View
-            style={[
-              s.servingsAdjuster,
-              { flexDirection: isHe ? "row-reverse" : "row" },
-            ]}
-          >
-            <Text style={s.servingsLabel}>{isHe ? "מנות:" : "Servings:"}</Text>
-            <TouchableOpacity
-              style={s.servingsBtn}
-              onPress={() => setServings((x) => Math.max(1, x - 1))}
-            >
-              <Text style={s.servingsBtnText}>-</Text>
-            </TouchableOpacity>
-            <Text style={s.servingsValue}>{servings}</Text>
-            <TouchableOpacity
-              style={s.servingsBtn}
-              onPress={() => setServings((x) => x + 1)}
-            >
-              <Text style={s.servingsBtnText}>+</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={s.cookedBtn} onPress={handleCookedIt}>
-              <Text style={s.cookedBtnText}>
-                {isHe ? "בישלתי את זה" : "I cooked this"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {cookHistory > 0 ? (
-            <Text
-              style={[s.cookHistory, { textAlign: isHe ? "right" : "left" }]}
-            >
-              {isHe
-                ? `בושל ${cookHistory} פעמים`
-                : `Cooked ${cookHistory} times`}
-            </Text>
-          ) : null}
-
-          {timerLabel ? (
-            <Text style={[s.timerLive, { textAlign: isHe ? "right" : "left" }]}>
-              ⏱ {isHe ? "טיימר פעיל:" : "Timer:"} {timerLabel}
-            </Text>
-          ) : null}
-
-          <View style={s.sectionCard}>
-            <View
-              style={[
-                s.sectionHeader,
-                { flexDirection: isHe ? "row-reverse" : "row" },
-              ]}
-            >
-              <Text style={s.sectionTitle}>
-                {isHe ? "מרכיבים" : "Ingredients"}
-              </Text>
+          {/* ── Servings stepper + cooked ── */}
+          <View style={[s.servingsRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <Text style={s.servingsLabel}>{isHe ? "מנות" : "Servings"}</Text>
+            <View style={[s.stepper, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <TouchableOpacity
-                style={[s.togglePill, shoppingMode && s.togglePillActive]}
-                onPress={() => setShoppingMode((prev) => !prev)}
-              >
-                <Text
-                  style={[
-                    s.togglePillText,
-                    shoppingMode && s.togglePillTextActive,
-                  ]}
-                >
-                  {isHe ? "סימון מרכיבים" : "Checklist mode"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.addIngredientsPill}
+                style={s.stepperBtn}
                 onPress={() => {
-                  if (!recipe) return;
-                  addFromRecipe(recipe, rawIngredients);
-                  showToast(
-                    isHe
-                      ? "המרכיבים נוספו לרשימת קניות 🛒"
-                      : "Ingredients added to shopping list 🛒",
-                  );
+                  void Haptics.selectionAsync();
+                  setServings((x) => Math.max(1, x - 1));
                 }}
               >
-                <Text style={s.addIngredientsPillText}>
-                  {isHe ? "הוסף לקניות" : "Add to shopping"}
-                </Text>
+                <Ionicons name="remove" size={18} color={Colors.text.primary} />
+              </TouchableOpacity>
+              <Text style={s.stepperValue}>{servings}</Text>
+              <TouchableOpacity
+                style={s.stepperBtn}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setServings((x) => x + 1);
+                }}
+              >
+                <Ionicons name="add" size={18} color={Colors.text.primary} />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity style={s.cookedBtn} onPress={handleCookedIt} activeOpacity={0.8}>
+              <Text style={s.cookedBtnText}>
+                {isHe ? "בישלתי את זה ✓" : "I cooked this ✓"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-            {shownIngredients.map((ing, i) => {
-              const done = !!ingredientDone[i];
-              return (
+          {/* ── Ingredients ── */}
+          <View style={s.section}>
+            <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <Text style={s.sectionTitle}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
+              <View style={[s.sectionHeaderActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 <TouchableOpacity
-                  key={`${ing}-${i}`}
-                  style={[
-                    s.ingredientRow,
-                    done && s.ingredientRowDone,
-                    { flexDirection: isHe ? "row-reverse" : "row" },
-                  ]}
-                  onPress={() => shoppingMode && toggleIngredientDone(i)}
-                  activeOpacity={0.8}
+                  style={[s.pill, checklistMode && s.pillActive]}
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    setChecklistMode((v) => !v);
+                  }}
                 >
-                  <View
-                    style={[s.ingredientCheck, done && s.ingredientCheckDone]}
-                  >
-                    {done ? (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    ) : null}
-                  </View>
-                  <Text
-                    style={[
-                      s.ingredientText,
-                      done && s.ingredientTextDone,
-                      { textAlign: isHe ? "right" : "left" },
-                    ]}
-                  >
-                    {ing}
+                  <Ionicons
+                    name={checklistMode ? "checkmark-circle" : "checkmark-circle-outline"}
+                    size={13}
+                    color={checklistMode ? "#fff" : Colors.text.secondary}
+                  />
+                  <Text style={[s.pillText, checklistMode && s.pillTextActive]}>
+                    {isHe ? "סימון" : "Check"}
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={s.sectionCard}>
-            <View
-              style={[
-                s.sectionHeader,
-                { flexDirection: isHe ? "row-reverse" : "row" },
-              ]}
-            >
-              <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
-              <TouchableOpacity
-                style={s.cookModeBtn}
-                onPress={() => setCookingMode(true)}
-              >
-                <Text style={s.cookModeBtnText}>
-                  {isHe ? "מצב בישול" : "Cooking mode"}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.pillTeal}
+                  onPress={() => {
+                    if (!recipe) return;
+                    addFromRecipe(recipe, rawIngredients);
+                    showToast(isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping 🛒");
+                  }}
+                >
+                  <Ionicons name="cart-outline" size={13} color="#2C756A" />
+                  <Text style={s.pillTealText}>{isHe ? "לקניות" : "Shop"}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {shownSteps.map((step, i) => {
-              const done = !!stepDone[i];
-              const stepMinutes = parseMinutesFromStep(step);
-              return (
-                <Swipeable
-                  key={`${step}-${i}`}
-                  friction={2}
-                  rightThreshold={72}
-                  overshootRight={false}
-                  onSwipeableWillOpen={() =>
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                  }
-                  onSwipeableOpen={() => toggleStepDone(i)}
-                  renderRightActions={() => (
-                    <View style={s.swipeDone}>
-                      <Ionicons name="checkmark-done" size={19} color="#fff" />
-                    </View>
-                  )}
-                >
+            {shownIngredients.length === 0 ? (
+              <Text style={[s.emptyHint, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "אין מרכיבים — ערוך את המתכון להוספה" : "No ingredients — edit recipe to add"}
+              </Text>
+            ) : (
+              shownIngredients.map((ing, i) => {
+                const done = !!ingredientDone[i];
+                return (
                   <TouchableOpacity
+                    key={`ing-${i}`}
                     style={[
-                      s.stepCard,
-                      done && s.stepCardDone,
+                      s.ingredientRow,
+                      done && s.ingredientRowDone,
                       { flexDirection: isHe ? "row-reverse" : "row" },
                     ]}
-                    onPress={() => toggleStepDone(i)}
-                    activeOpacity={0.9}
+                    onPress={() => checklistMode && toggleIngredientDone(i)}
+                    activeOpacity={checklistMode ? 0.7 : 1}
                   >
-                    <View style={[s.stepBubble, done && s.stepBubbleDone]}>
-                      <Text style={s.stepBubbleText}>{done ? "✓" : i + 1}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          s.stepText,
-                          done && s.stepTextDone,
-                          { textAlign: isHe ? "right" : "left" },
-                        ]}
-                      >
-                        {step}
-                      </Text>
-                      {stepMinutes ? (
-                        <TouchableOpacity
-                          onPress={() => handleTimerStart(stepMinutes)}
-                        >
-                          <Text
-                            style={[
-                              s.stepTimerLink,
-                              { textAlign: isHe ? "right" : "left" },
-                            ]}
-                          >
-                            ⏱ {stepMinutes} {isHe ? "דקות" : "min"}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
+                    {checklistMode ? (
+                      <View style={[s.checkbox, done && s.checkboxDone]}>
+                        {done ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+                      </View>
+                    ) : (
+                      <View style={s.bullet} />
+                    )}
+                    <Text
+                      style={[
+                        s.ingredientText,
+                        done && s.ingredientTextDone,
+                        { textAlign: isHe ? "right" : "left" },
+                      ]}
+                    >
+                      {ing}
+                    </Text>
                   </TouchableOpacity>
-                </Swipeable>
-              );
-            })}
+                );
+              })
+            )}
           </View>
 
-          {!isDraft && recipe?.notes_he ? (
-            <View style={s.notesBox}>
-              <Text
-                style={[s.notesTitle, { textAlign: isHe ? "right" : "left" }]}
-              >
-                💡 {isHe ? "הערות" : "Notes"}
-              </Text>
-              <Text style={[s.notes, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? recipe.notes_he : recipe.notes_en}
-              </Text>
+          {/* ── Steps ── */}
+          <View style={s.section}>
+            <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
+              {rawSteps.length > 0 && (
+                <TouchableOpacity
+                  style={s.pillCoral}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setCookingMode(true);
+                  }}
+                >
+                  <Ionicons name="restaurant" size={13} color="#fff" />
+                  <Text style={s.pillCoralText}>{isHe ? "מצב בישול" : "Cook mode"}</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          ) : null}
 
-          <View style={{ height: 140 + insets.bottom }} />
+            {rawSteps.length === 0 ? (
+              <Text style={[s.emptyHint, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "אין שלבים — ערוך את המתכון להוספה" : "No steps — edit recipe to add"}
+              </Text>
+            ) : (
+              rawSteps.map((step, i) => {
+                const done = !!stepDone[i];
+                const stepMins = parseMinutesFromStep(step);
+                return (
+                  <Swipeable
+                    key={`step-${i}`}
+                    friction={2}
+                    rightThreshold={72}
+                    overshootRight={false}
+                    onSwipeableWillOpen={() =>
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    }
+                    onSwipeableOpen={() => toggleStepDone(i)}
+                    renderRightActions={() => (
+                      <View style={s.swipeDoneAction}>
+                        <Ionicons name="checkmark-done" size={20} color="#fff" />
+                        <Text style={s.swipeDoneText}>{isHe ? "בוצע" : "Done"}</Text>
+                      </View>
+                    )}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        s.stepCard,
+                        done && s.stepCardDone,
+                        { flexDirection: isHe ? "row-reverse" : "row" },
+                      ]}
+                      onPress={() => toggleStepDone(i)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[s.stepNumber, done && s.stepNumberDone]}>
+                        {done ? (
+                          <Ionicons name="checkmark" size={14} color="#fff" />
+                        ) : (
+                          <Text style={s.stepNumberText}>{i + 1}</Text>
+                        )}
+                      </View>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text
+                          style={[
+                            s.stepText,
+                            done && s.stepTextDone,
+                            { textAlign: isHe ? "right" : "left" },
+                          ]}
+                        >
+                          {step}
+                        </Text>
+                        {stepMins ? (
+                          <TouchableOpacity
+                            style={[s.stepTimerChip, { alignSelf: isHe ? "flex-end" : "flex-start" }]}
+                            onPress={() => handleTimerStart(stepMins)}
+                          >
+                            <Ionicons name="timer-outline" size={12} color={Colors.primary} />
+                            <Text style={s.stepTimerChipText}>
+                              {stepMins} {isHe ? "דקות" : "min"}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  </Swipeable>
+                );
+              })
+            )}
+          </View>
         </View>
       </ScrollView>
 
-      <View
-        style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 8) }]}
-      >
+      {/* ── Bottom action bar ── */}
+      <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         {isDraft ? (
-          <View
-            style={[
-              s.actionRow,
-              { flexDirection: isHe ? "row-reverse" : "row" },
-            ]}
-          >
-            <TouchableOpacity style={s.primaryAction} onPress={handleSaveDraft}>
-              <Text style={s.primaryActionText}>
-                {isHe ? "שמור מתכון" : "Save recipe"}
-              </Text>
+          <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <TouchableOpacity style={s.actionBtnPrimary} onPress={handleSaveDraft}>
+              <Ionicons name="save-outline" size={18} color="#fff" />
+              <Text style={s.actionBtnPrimaryText}>{isHe ? "שמור מתכון" : "Save recipe"}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={s.secondaryAction}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={s.secondaryActionText}>
-                {isHe ? "ביטול" : "Cancel"}
-              </Text>
+            <TouchableOpacity style={s.actionBtnSecondary} onPress={() => navigation.goBack()}>
+              <Text style={s.actionBtnSecondaryText}>{isHe ? "ביטול" : "Cancel"}</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View
-            style={[
-              s.actionRow,
-              { flexDirection: isHe ? "row-reverse" : "row" },
-            ]}
-          >
-            <TouchableOpacity
-              style={s.primaryAction}
-              onPress={() => {
-                if (!recipe) return;
-                addFromRecipe(recipe, rawIngredients);
-                showToast(
-                  isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping list 🛒",
-                );
-              }}
-            >
-              <Text style={s.primaryActionText}>
-                {isHe ? "הוסף לרשימת קניות" : "Add to shopping list"}
-              </Text>
+          <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <TouchableOpacity style={s.actionBtnPrimary} onPress={handleAddToShopping}>
+              <Ionicons name="cart-outline" size={18} color="#fff" />
+              <Text style={s.actionBtnPrimaryText}>{isHe ? "הוסף לקניות" : "Add to cart"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={s.secondaryAction}
-              onPress={() => recipe && shareRecipe(recipe)}
+              style={s.actionBtnIcon}
+              onPress={() => recipe && void shareRecipe(recipe)}
             >
-              <Text style={s.secondaryActionText}>
-                {isHe ? "שתף" : "Share"}
-              </Text>
+              <Ionicons name="share-social-outline" size={20} color={Colors.text.secondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={s.deleteAction} onPress={handleDelete}>
-              <Ionicons
-                name="trash-outline"
-                size={20}
-                color={Colors.text.primary}
-              />
+            <TouchableOpacity style={s.actionBtnIcon} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={20} color="#FF4757" />
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {cookingMode ? (
+      {/* ── Cooking mode overlay ── */}
+      {cookingMode && rawSteps.length > 0 ? (
         <CookingModeOverlay
-          steps={shownSteps}
+          steps={rawSteps}
           isHe={isHe}
           onClose={() => setCookingMode(false)}
         />
       ) : null}
 
       <Toast message={toast} />
-    </SafeAreaView>
+    </View>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingBottom: 0 },
-  hero: { width: "100%", position: "relative" },
-  heroImage: {
-    width: "100%",
-    height: "100%",
+
+  // Hero
+  hero: { width: "100%", overflow: "hidden" },
+  heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
+  heroEmoji: { fontSize: 72 },
+  heroTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    justifyContent: "space-between",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  heroIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
-  heroEmoji: { fontSize: 60 },
-  heroOverlay: { ...StyleSheet.absoluteFillObject },
-  heroTitleWrap: {
+  heroRightBtns: { gap: 8 },
+  heroBottom: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 14,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 18,
+    gap: 6,
+  },
+  sourceBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sourceBadgeText: {
+    fontSize: 10,
+    color: "#fff",
+    fontWeight: "700",
+    letterSpacing: 1,
   },
   heroTitle: {
-    ...Typography.h1,
-    color: "#fff",
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 28,
     fontWeight: "700",
+    color: "#fff",
+    lineHeight: 34,
+    letterSpacing: -0.3,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  favBtn: {
-    position: "absolute",
-    top: 16,
-    right: 12,
+  cookHistoryHero: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "500",
   },
-  favInnerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.32)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  editBtn: {
-    position: "absolute",
-    top: 16,
-    left: 12,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: { paddingHorizontal: 14, paddingTop: 12 },
 
-  quickInfoRow: {
-    alignItems: "center",
-    justifyContent: "space-between",
+  // Info strip
+  infoStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 2,
   },
-  quickInfoItem: {
+  infoChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     backgroundColor: Colors.surfaceElevated,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  quickInfoText: {
-    ...Typography.label,
-    color: Colors.text.primary,
-  },
-  infoDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginTop: 12,
-    marginBottom: 12,
-  },
-
-  servingsAdjuster: {
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  servingsLabel: {
-    ...Typography.label,
+  infoChipText: {
+    fontSize: 13,
+    fontWeight: "600",
     color: Colors.text.secondary,
   },
-  servingsBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    backgroundColor: Colors.surface,
+  difficultyDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
+  // Timer banner
+  timerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+  },
+  timerBannerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  timerCancelBtn: {
+    padding: 4,
+  },
+
+  // Body
+  body: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+
+  // Servings stepper
+  servingsRow: {
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 4,
+  },
+  servingsLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text.secondary,
+  },
+  stepper: {
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: 3,
+  },
+  stepperBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  servingsBtnText: {
-    ...Typography.h3,
+  stepperValue: {
+    fontSize: 16,
+    fontWeight: "700",
     color: Colors.text.primary,
-    fontSize: 18,
-  },
-  servingsValue: {
-    ...Typography.h3,
-    minWidth: 20,
+    minWidth: 28,
     textAlign: "center",
-    color: Colors.text.primary,
   },
   cookedBtn: {
     marginStart: "auto",
-    borderRadius: 10,
-    backgroundColor: "#FFECE3",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "#FFF0E8",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FFD3BF",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
   },
   cookedBtnText: {
-    ...Typography.caption,
-    color: "#A8512F",
+    fontSize: 13,
     fontWeight: "700",
-  },
-  cookHistory: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-    marginBottom: 8,
-  },
-  timerLive: {
-    ...Typography.label,
-    color: Colors.primary,
-    marginBottom: 8,
+    color: "#C45E2A",
   },
 
-  sectionCard: {
-    borderRadius: 18,
+  // Section card
+  section: {
     backgroundColor: Colors.surfaceElevated,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 12,
-    marginBottom: 10,
+    padding: 14,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sectionHeader: {
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sectionTitle: {
-    ...Typography.h3,
+    fontSize: 17,
+    fontWeight: "700",
     color: Colors.text.primary,
+    letterSpacing: -0.2,
   },
-  togglePill: {
+  sectionHeaderActions: { gap: 6, alignItems: "center" },
+
+  // Pills
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
-  togglePillActive: {
+  pillActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  togglePillText: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-    fontWeight: "600",
-  },
-  togglePillTextActive: { color: "#fff" },
-  addIngredientsPill: {
+  pillText: { fontSize: 12, fontWeight: "600", color: Colors.text.secondary },
+  pillTextActive: { color: "#fff" },
+  pillTeal: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#C7E9E3",
     backgroundColor: "#EAF7F5",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
-  addIngredientsPillText: {
-    ...Typography.caption,
-    color: "#2C756A",
-    fontWeight: "700",
+  pillTealText: { fontSize: 12, fontWeight: "700", color: "#2C756A" },
+  pillCoral: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+  },
+  pillCoralText: { fontSize: 12, fontWeight: "700", color: "#fff" },
+
+  // Empty hint
+  emptyHint: {
+    fontSize: 13,
+    color: Colors.text.tertiary,
+    fontStyle: "italic",
+    paddingVertical: 8,
   },
 
+  // Ingredients
   ingredientRow: {
     alignItems: "center",
     gap: 10,
-    minHeight: 46,
-    paddingVertical: 8,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border + "80",
   },
-  ingredientRowDone: {
-    opacity: 0.65,
-  },
-  ingredientCheck: {
+  ingredientRowDone: { opacity: 0.5 },
+  checkbox: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: Colors.surface,
   },
-  ingredientCheckDone: {
+  checkboxDone: {
     backgroundColor: Colors.secondary,
     borderColor: Colors.secondary,
   },
+  bullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+    marginHorizontal: 8,
+  },
   ingredientText: {
-    ...Typography.body,
     flex: 1,
+    fontSize: 15,
     color: Colors.text.primary,
-    lineHeight: 24,
+    lineHeight: 21,
   },
   ingredientTextDone: {
     textDecorationLine: "line-through",
+    color: Colors.text.tertiary,
   },
 
-  cookModeBtn: {
-    borderRadius: 10,
-    backgroundColor: "#EAF7F5",
-    borderWidth: 1,
-    borderColor: "#C7E9E3",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  cookModeBtnText: {
-    ...Typography.caption,
-    color: "#2C756A",
-    fontWeight: "700",
-  },
-  swipeDone: {
-    backgroundColor: Colors.secondary,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    width: 64,
-    marginBottom: 8,
-  },
+  // Steps
   stepCard: {
-    borderRadius: 14,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 10,
-    gap: 10,
-    marginBottom: 8,
     alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border + "80",
+    backgroundColor: Colors.surfaceElevated,
   },
-  stepCardDone: {
-    opacity: 0.68,
-  },
-  stepBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  stepCardDone: { opacity: 0.5 },
+  stepNumber: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    flexShrink: 0,
   },
-  stepBubbleDone: {
-    backgroundColor: Colors.secondary,
-  },
-  stepBubbleText: {
-    ...Typography.label,
-    color: "#fff",
-    fontWeight: "700",
-  },
+  stepNumberDone: { backgroundColor: Colors.secondary },
+  stepNumberText: { fontSize: 14, fontWeight: "700", color: "#fff" },
   stepText: {
-    ...Typography.body,
+    fontSize: 15,
     color: Colors.text.primary,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   stepTextDone: {
     textDecorationLine: "line-through",
+    color: Colors.text.tertiary,
   },
-  stepTimerLink: {
-    ...Typography.caption,
-    color: Colors.primary,
-    marginTop: 4,
-  },
-
-  notesBox: {
-    borderRadius: 14,
-    padding: 12,
+  stepTimerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#FFF0F0",
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: "#FBFBF8",
-    marginBottom: 12,
+    borderColor: "#FFCACA",
   },
-  notesTitle: {
-    ...Typography.label,
-    color: Colors.text.secondary,
-    marginBottom: 6,
-  },
-  notes: {
-    ...Typography.bodySmall,
-    color: Colors.text.secondary,
-    lineHeight: 21,
-  },
+  stepTimerChipText: { fontSize: 12, fontWeight: "600", color: Colors.primary },
 
+  // Swipe done
+  swipeDoneAction: {
+    width: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.secondary,
+    gap: 3,
+  },
+  swipeDoneText: { fontSize: 11, color: "#fff", fontWeight: "600" },
+
+  // Action bar
   actionBar: {
     position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     backgroundColor: Colors.surfaceElevated,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 10,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -8 },
+    shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 16,
+    shadowRadius: 12,
+    elevation: 12,
   },
   actionRow: {
+    alignItems: "center",
     gap: 8,
-    alignItems: "center",
   },
-  primaryAction: {
+  actionBtnPrimary: {
     flex: 1,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
-  primaryActionText: {
-    ...Typography.button,
-    color: "#fff",
-    fontSize: 14,
-  },
-  secondaryAction: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  secondaryActionText: {
-    ...Typography.button,
-    color: Colors.text.primary,
-    fontSize: 14,
-  },
-  deleteAction: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
+    gap: 8,
+    paddingVertical: 13,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+  },
+  actionBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  actionBtnSecondary: {
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
-
-  cookContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    padding: 16,
-  },
-  cookTop: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  cookProgress: {
-    ...Typography.label,
+  actionBtnSecondaryText: {
+    fontSize: 15,
+    fontWeight: "600",
     color: Colors.text.secondary,
   },
-  cookCloseBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  actionBtnIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
+// ─── Cooking Mode Styles ──────────────────────────────────────────────────────
+
+const cm = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  cookStepCard: {
+  headerTitle: {
     flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.text.primary,
+  },
+  stepCounter: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text.secondary,
+    width: 36,
+    textAlign: "right",
+  },
+
+  // Progress
+  progressTrack: {
+    height: 4,
+    backgroundColor: Colors.border,
+    marginHorizontal: 16,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 16,
+    marginBottom: 8,
+    flexWrap: "wrap",
+    paddingHorizontal: 24,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.border,
+  },
+  dotActive: {
+    backgroundColor: Colors.primary,
+    transform: [{ scale: 1.2 }],
+  },
+  dotDone: {
+    backgroundColor: Colors.secondary,
+  },
+
+  // Step card
+  stepCard: {
+    flex: 1,
+    margin: 16,
+    padding: 24,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    justifyContent: "center",
+    gap: 16,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  stepBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: Colors.primary + "18",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
-    padding: 20,
-    justifyContent: "center",
+    borderColor: Colors.primary + "40",
   },
-  cookStepText: {
-    ...Typography.h2,
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  stepText: {
+    fontSize: 22,
+    fontWeight: "500",
     color: Colors.text.primary,
-    fontSize: 28,
-    lineHeight: 38,
+    lineHeight: 32,
   },
-  cookNav: {
+  timerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#FFF0F0",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FFCACA",
+  },
+  timerChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+
+  // Navigation
+  navRow: {
+    flexDirection: "row",
     gap: 10,
-    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  cookBtn: {
-    flex: 1,
+  navBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
-    minHeight: 50,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  navBtnDisabled: { opacity: 0.4 },
+  navBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.text.primary,
+  },
+  navBtnTextDisabled: { color: Colors.text.tertiary },
+  navBtnPrimary: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
   },
-  cookBtnDisabled: {
-    opacity: 0.45,
-  },
-  cookBtnText: {
-    ...Typography.button,
+  navBtnFinish: { backgroundColor: Colors.secondary },
+  navBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: "700",
     color: "#fff",
-  },
-  cookExitBtn: {
-    marginTop: 10,
-    alignSelf: "center",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cookExitBtnText: {
-    ...Typography.label,
-    color: Colors.text.primary,
   },
 });

@@ -1,259 +1,528 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  Alert,
+  Animated,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
 import { useShoppingStore } from "../store/shoppingStore";
 import ShoppingItem from "../components/ShoppingItem";
+import AddItemSheet from "../components/AddItemSheet";
 
 export default function ShoppingScreen({ navigation }: any) {
   const { t } = useTranslation();
   const isHe = isHebrew();
+  const insets = useSafeAreaInsets();
   const { items, grouped, checkItem, removeItem, clearChecked, clearAll, addItem } =
     useShoppingStore();
-  const checkedCount = items.filter((i) => i.checked).length;
 
-  const [inputText, setInputText] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  function handleAddItem() {
-    const trimmed = inputText.trim();
-    if (!trimmed) return;
+  function openSheet() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addItem(trimmed);
-    setInputText("");
+    setSheetOpen(true);
   }
 
-  return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={88}
-      >
-        {/* Header */}
-        <View style={[s.header, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-          <Text style={s.headerTitle}>{t("shoppingList")}</Text>
-          <View style={[s.headerBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            {checkedCount > 0 && (
-              <TouchableOpacity
-                onPress={() => {
-                  void Haptics.selectionAsync();
-                  clearChecked();
-                }}
-              >
-                <Text style={s.clearBtn}>
-                  {isHe ? `נקה (${checkedCount})` : `Clear (${checkedCount})`}
-                </Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              onPress={() => {
-                void Haptics.selectionAsync();
-                navigation.navigate("Search");
-              }}
-            >
-              <View style={s.browseBtn}>
-                <Ionicons name="search" size={13} color="#fff" />
-                <Text style={s.browseBtnText}>
-                  {isHe ? "בחר מתכון" : "Browse recipes"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
+  const totalCount = items.length;
+  const checkedCount = items.filter((i) => i.checked).length;
+  const progress = totalCount > 0 ? checkedCount / totalCount : 0;
 
-        {/* List */}
-        {items.length === 0 ? (
-          <View style={s.empty}>
-            <Text style={{ fontSize: 44 }}>🛒</Text>
-            <Text style={s.emptyTitle}>{t("noItems")}</Text>
+  // Build SectionList sections from the grouped store object.
+  // Keys look like "🧀 מוצרי חלב" — emoji prefix + space + name.
+  const sections = Object.entries(grouped).map(([cat, catItems]) => ({
+    title: cat,
+    data: catItems as any[],
+  }));
+
+  function handleClearAll() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      isHe ? "נקה רשימה" : "Clear list",
+      isHe ? "האם לנקות את כל הפריטים?" : "Delete all items?",
+      [
+        { text: isHe ? "ביטול" : "Cancel", style: "cancel" },
+        {
+          text: isHe ? "נקה הכל" : "Clear all",
+          style: "destructive",
+          onPress: clearAll,
+        },
+      ],
+    );
+  }
+
+  function handleClearChecked() {
+    void Haptics.selectionAsync();
+    clearChecked();
+  }
+
+  // ── Section header ──────────────────────────────────────────────────────────
+  function renderSectionHeader({ section }: { section: { title: string; data: any[] } }) {
+    const unchecked = section.data.filter((i: any) => !i.checked).length;
+    return (
+      <View
+        style={[
+          s.sectionHeader,
+          { flexDirection: isHe ? "row-reverse" : "row" },
+        ]}
+      >
+        <View style={s.sectionAccent} />
+        <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left" }]}>
+          {section.title}
+        </Text>
+        {unchecked > 0 && (
+          <View style={s.sectionBadge}>
+            <Text style={s.sectionBadgeText}>{unchecked}</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // ── Item renderer ───────────────────────────────────────────────────────────
+  function renderItem({ item, index, section }: { item: any; index: number; section: any }) {
+    const isLast = index === section.data.length - 1;
+    return (
+      <ShoppingItem
+        item={item}
+        onCheck={() => {
+          void Haptics.selectionAsync();
+          checkItem(item.id);
+        }}
+        onDelete={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          removeItem(item.id);
+        }}
+        isHe={isHe}
+        isLast={isLast}
+      />
+    );
+  }
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  if (items.length === 0) {
+    return (
+      <View style={[s.container, { paddingTop: insets.top }]}>
+        <ScreenHeader
+          isHe={isHe}
+          checkedCount={0}
+          onClearChecked={handleClearChecked}
+          onBrowse={() => navigation.navigate("Search")}
+        />
+        <View style={s.emptyOuter}>
+          <View style={s.emptyCard}>
+            <View style={s.emptyIconWrap}>
+              <Text style={s.emptyEmoji}>🛒</Text>
+            </View>
+            <Text style={s.emptyTitle}>
+              {isHe ? "הרשימה ריקה" : "Your list is empty"}
+            </Text>
             <Text style={s.emptySub}>
               {isHe
-                ? "הוסף פריטים ידנית או דרך מתכון"
-                : "Add items below or from a recipe"}
+                ? "הוסף פריטים ידנית או ייבא ממתכון"
+                : "Add items manually or import from a recipe"}
             </Text>
-            <TouchableOpacity
-              style={s.emptyBtn}
-              onPress={() => {
-                void Haptics.selectionAsync();
-                navigation.navigate("Search");
-              }}
-            >
-              <Ionicons name="book-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={s.emptyBtnText}>
-                {isHe ? "בחר מתכון" : "Browse recipes"}
-              </Text>
-            </TouchableOpacity>
+            <View style={[s.emptyBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <TouchableOpacity style={s.emptyBtnPrimary} onPress={openSheet} activeOpacity={0.85}>
+                <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                <Text style={s.emptyBtnText}>{isHe ? "הוסף פריט" : "Add item"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.emptyBtnSecondary} onPress={() => navigation.navigate("Search")} activeOpacity={0.85}>
+                <Ionicons name="book-outline" size={16} color={Colors.primary} />
+                <Text style={s.emptyBtnSecondaryText}>{isHe ? "בחר מתכון" : "Browse"}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={{ paddingBottom: 8 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {Object.entries(grouped).map(([cat, catItems]) => (
-              <View key={cat}>
-                <Text style={[s.catHeader, { textAlign: isHe ? "right" : "left" }]}>
-                  {cat}
-                </Text>
-                {(catItems as any[]).map((item: any) => (
-                  <ShoppingItem
-                    key={item.id}
-                    item={item}
-                    onCheck={() => {
-                      void Haptics.selectionAsync();
-                      checkItem(item.id);
-                    }}
-                    onDelete={() => {
-                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      removeItem(item.id);
-                    }}
-                    isHe={isHe}
-                  />
-                ))}
-              </View>
-            ))}
-            {items.length > 0 && (
-              <TouchableOpacity
-                style={s.clearAllBtn}
-                onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  clearAll();
-                }}
-              >
-                <Text style={s.clearAllText}>
-                  {isHe ? "נקה רשימה" : "Clear list"}
+        </View>
+        <AddItemSheet
+          visible={sheetOpen}
+          isHe={isHe}
+          onAdd={(params) => addItem(params)}
+          onClose={() => setSheetOpen(false)}
+        />
+      </View>
+    );
+  }
+
+  // ── Main list ───────────────────────────────────────────────────────────────
+  return (
+    <View style={[s.container, { paddingTop: insets.top }]}>
+        <ScreenHeader
+          isHe={isHe}
+          checkedCount={checkedCount}
+          onClearChecked={handleClearChecked}
+          onBrowse={() => navigation.navigate("Search")}
+        />
+
+        {/* ── Progress strip ── */}
+        <View style={s.progressWrap}>
+          <View style={[s.progressInfo, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <Text style={s.progressLabel}>
+              {isHe
+                ? `${checkedCount} מתוך ${totalCount} פריטים`
+                : `${checkedCount} of ${totalCount} items`}
+            </Text>
+            {checkedCount > 0 && (
+              <TouchableOpacity onPress={handleClearChecked} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={s.progressClearBtn}>
+                  {isHe ? `נקה מסומנים (${checkedCount})` : `Clear checked (${checkedCount})`}
                 </Text>
               </TouchableOpacity>
             )}
-          </ScrollView>
-        )}
-
-        {/* Manual add input */}
-        <View style={[s.inputBar, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-          <TextInput
-            style={[s.input, { textAlign: isHe ? "right" : "left" }]}
-            placeholder={isHe ? "הוסף פריט..." : "Add item..."}
-            placeholderTextColor={Colors.text.tertiary}
-            value={inputText}
-            onChangeText={setInputText}
-            onSubmitEditing={handleAddItem}
-            returnKeyType="done"
-          />
-          <TouchableOpacity
-            style={[s.addBtn, !inputText.trim() && s.addBtnDisabled]}
-            onPress={handleAddItem}
-            disabled={!inputText.trim()}
-          >
-            <Ionicons name="add" size={22} color="#fff" />
-          </TouchableOpacity>
+          </View>
+          <View style={s.progressTrack}>
+            <Animated.View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
+          </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+        {/* ── Sections ── */}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderSectionHeader={renderSectionHeader}
+          renderItem={renderItem}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          showsVerticalScrollIndicator={false}
+          renderSectionFooter={() => <View style={s.sectionFooter} />}
+          ListFooterComponent={
+            <TouchableOpacity
+              style={s.clearAllBtn}
+              onPress={handleClearAll}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={16} color={Colors.primary} />
+              <Text style={s.clearAllText}>
+                {isHe ? "נקה רשימה" : "Clear list"}
+              </Text>
+            </TouchableOpacity>
+          }
+        />
+
+        {/* ── FAB: Add item ── */}
+        <TouchableOpacity
+          style={[s.fab, { bottom: Math.max(insets.bottom, 16) + 60 }]}
+          onPress={openSheet}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+
+        <AddItemSheet
+          visible={sheetOpen}
+          isHe={isHe}
+          onAdd={(params) => addItem(params)}
+          onClose={() => setSheetOpen(false)}
+        />
+    </View>
   );
 }
 
+// ─── Header ──────────────────────────────────────────────────────────────────
+
+function ScreenHeader({
+  isHe,
+  checkedCount,
+  onClearChecked,
+  onBrowse,
+}: {
+  isHe: boolean;
+  checkedCount: number;
+  onClearChecked: () => void;
+  onBrowse: () => void;
+}) {
+  return (
+    <LinearGradient
+      colors={["#FF6B6B", "#FF8E53"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={s.hero}
+    >
+      <View style={[s.heroRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "רשימת קניות" : "Shopping List"}
+          </Text>
+          <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "גרור שמאלה למחיקת פריט" : "Swipe to delete items"}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={s.browseBtn}
+          onPress={onBrowse}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="search-outline" size={15} color={Colors.primary} />
+          <Text style={s.browseBtnText}>
+            {isHe ? "בחר מתכון" : "Browse recipes"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </LinearGradient>
+  );
+}
+
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderBottomWidth: 0.5,
-    borderColor: Colors.border,
+  container: { flex: 1, backgroundColor: "#F2F0EB" },
+
+  // Hero header
+  hero: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 18,
   },
-  headerTitle: { fontSize: 18, fontWeight: "500", color: Colors.text.primary },
-  headerBtns: { gap: 10, alignItems: "center" },
-  clearBtn: { fontSize: 12, color: Colors.primary },
+  heroRow: {
+    alignItems: "center",
+    gap: 12,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: -0.3,
+  },
+  heroSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+  },
   browseBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 6,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  browseBtnText: { color: "#fff", fontSize: 12, fontWeight: "500" },
-  catHeader: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: Colors.text.secondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  browseBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+
+  // Progress
+  progressWrap: {
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 4,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EBEBEB",
+    gap: 8,
   },
-  empty: {
-    flex: 1,
+  progressInfo: {
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    padding: 32,
   },
-  emptyTitle: { fontSize: 16, fontWeight: "500", color: Colors.text.secondary },
-  emptySub: { fontSize: 13, color: Colors.text.tertiary, textAlign: "center" },
-  emptyBtn: {
+  progressLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#555",
+  },
+  progressClearBtn: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.primary,
+    textDecorationLine: "underline",
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: "#EBEBEB",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: 3,
+  },
+
+  // Section header
+  sectionHeader: {
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 6,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  sectionBadge: {
+    backgroundColor: Colors.primary + "22",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.primary + "44",
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  sectionFooter: {
+    height: 4,
+    marginHorizontal: 16,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+
+  // Clear all
+  clearAllBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginTop: 6,
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    paddingVertical: 15,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  emptyBtnText: { color: "#fff", fontWeight: "500" },
-  clearAllBtn: {
-    margin: 16,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    alignItems: "center",
-    borderWidth: 0.5,
-    borderColor: Colors.border,
+  clearAllText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
   },
-  clearAllText: { color: Colors.primary, fontWeight: "500", fontSize: 13 },
-  inputBar: {
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 0.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  input: {
-    flex: 1,
-    height: 42,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: Colors.text.primary,
-    borderWidth: 0.5,
-    borderColor: Colors.border,
-  },
-  addBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+
+  // FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  addBtnDisabled: {
-    backgroundColor: Colors.text.tertiary,
+
+  // Empty state
+  emptyOuter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  emptyCard: {
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    gap: 12,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#FFE8D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    textAlign: "center",
+  },
+  emptySub: {
+    fontSize: 15,
+    color: "#8A8A9A",
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  emptyBtns: {
+    gap: 10,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  emptyBtnPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  emptyBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  emptyBtnSecondaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
   },
 });

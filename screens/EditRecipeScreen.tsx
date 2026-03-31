@@ -22,6 +22,25 @@ import { pickRecipeImage, requestMediaPermissions } from "../lib/ocr";
 import { useRecipeStore } from "../store/recipeStore";
 
 const DRAFT_KEY = "icook.manual.draft.v1";
+
+function parseSectionLines(notes: string, section: "ingredients" | "steps") {
+  if (!notes.trim()) return [];
+  const lines = notes.split("\n").map((l) => l.trim()).filter(Boolean);
+  const ingredientMarkers = ["מרכיבים", "ingredients"];
+  const stepMarkers = ["שלבים", "steps", "הוראות"];
+  const markers = section === "ingredients" ? ingredientMarkers : stepMarkers;
+  const stopMarkers = section === "ingredients" ? stepMarkers : ingredientMarkers;
+  let inSection = false;
+  const out: string[] = [];
+  for (const line of lines) {
+    const normalized = line.toLowerCase().replace(/[:：]/g, "").trim();
+    if (markers.some((m) => normalized.includes(m))) { inSection = true; continue; }
+    if (inSection && stopMarkers.some((m) => normalized.includes(m))) break;
+    if (!inSection) continue;
+    out.push(line.replace(/^([-*•]\s*|\d+[.)]\s*)/, "").trim());
+  }
+  return out.filter(Boolean);
+}
 const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 const CATEGORIES = [
   { key: "pasta", labelHe: "פסטה", labelEn: "Pasta", id: 2 },
@@ -125,14 +144,19 @@ export default function EditRecipeScreen({ route, navigation }: any) {
       if (id) {
         const recipe = await getRecipeById(id);
         if (recipe) {
+          const notesSrc = isHe
+            ? (recipe.notes_he ?? "")
+            : (recipe.notes_en ?? recipe.notes_he ?? "");
+          const parsedIngredients = parseSectionLines(notesSrc, "ingredients");
+          const parsedSteps = parseSectionLines(notesSrc, "steps");
           const nextState: DraftState = {
             title: isHe
               ? recipe.title_he
               : (recipe.title_en ?? recipe.title_he),
             imageUri: recipe.image_uri ?? "",
             categoryKey: "pasta",
-            ingredients: [""],
-            steps: [""],
+            ingredients: parsedIngredients.length ? parsedIngredients : [""],
+            steps: parsedSteps.length ? parsedSteps : [""],
             prepTime: recipe.prep_time_min ? String(recipe.prep_time_min) : "",
             cookTime: recipe.cook_time_min ? String(recipe.cook_time_min) : "",
             servings: recipe.servings ? String(recipe.servings) : "",

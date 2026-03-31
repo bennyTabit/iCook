@@ -2,6 +2,7 @@
   "expo": {
     "name": "iCook",
     "slug": "icook",
+    "scheme": "icook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +26,10 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#FF6B6B"
       },
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"],
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -40,7 +44,8 @@
           "photosPermission": "iCook accesses your photos to add recipe images",
           "cameraPermission": "iCook uses the camera to scan recipe pages"
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

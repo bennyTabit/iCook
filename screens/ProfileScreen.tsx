@@ -1,193 +1,613 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  I18nManager,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  I18nManager,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as Google from "expo-auth-session/providers/google";
+import { makeRedirectUri } from "expo-auth-session";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as WebBrowser from "expo-web-browser";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
-import { useAuthStore } from "../store/authStore";
+import { useAuthStore, APPLE_PROFILE_KEY } from "../store/authStore";
 import i18n from "../lib/i18n";
+
+WebBrowser.maybeCompleteAuthSession();
+
+type SettingRow = {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  value?: string;
+  onPress: () => void;
+  tint?: string;
+  danger?: boolean;
+};
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const isHe = isHebrew();
-  const { user, signOut } = useAuthStore();
+  const insets = useSafeAreaInsets();
+  const { user, setUser, signOut, loading } = useAuthStore();
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const [, response, promptAsync] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    redirectUri: makeRedirectUri(),
+  });
+
+  useEffect(() => {
+    if (response?.type !== "success") return;
+    const token = response.authentication?.accessToken;
+    if (!token) return;
+    setAuthLoading(true);
+    fetch("https://www.googleapis.com/userinfo/v2/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((info) => {
+        setUser({
+          uid: info.id,
+          displayName: info.name ?? null,
+          email: info.email ?? null,
+          photoURL: info.picture ?? null,
+          provider: "google",
+        });
+      })
+      .catch(console.error)
+      .finally(() => setAuthLoading(false));
+  }, [response]);
+
+  async function handleGoogleSignIn() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await promptAsync();
+  }
+
+  async function handleAppleSignIn() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      setAuthLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const name =
+        [credential.fullName?.givenName, credential.fullName?.familyName]
+          .filter(Boolean)
+          .join(" ") || null;
+
+      // Read from the permanent Apple profile key (never deleted on sign-out)
+      const savedRaw = await AsyncStorage.getItem(APPLE_PROFILE_KEY).catch(() => null);
+      const saved = savedRaw ? JSON.parse(savedRaw) : null;
+
+      const displayName = name ?? saved?.displayName ?? null;
+      const email = credential.email ?? saved?.email ?? null;
+
+      // If we got new data from Apple, persist it permanently
+      if (name || credential.email) {
+        await AsyncStorage.setItem(
+          APPLE_PROFILE_KEY,
+          JSON.stringify({ displayName: displayName, email }),
+        ).catch(() => {});
+      }
+
+      console.log("[Apple] name from credential:", name, "| from saved:", saved?.displayName, "| final:", displayName);
+      setUser({
+        uid: credential.user,
+        displayName,
+        email,
+        photoURL: null,
+        provider: "apple",
+      });
+    } catch (e: any) {
+      if (e.code !== "ERR_REQUEST_CANCELED") console.error(e);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleSignOut() {
+    void Haptics.selectionAsync();
+    await signOut();
+  }
 
   function toggleLanguage() {
+    void Haptics.selectionAsync();
     const next = isHe ? "en" : "he";
-    i18n.changeLanguage(next);
+    void i18n.changeLanguage(next);
     I18nManager.forceRTL(next === "he");
   }
 
-  const ROWS = [
+  // Apple only sends name/email on the first ever authorization.
+  // Derive the best available label so we never show "Guest" to a signed-in user.
+  const resolvedName: string | null = user
+    ? user.displayName ??
+      (user.email ? user.email.split("@")[0] : null) ??
+      (user.provider === "apple"
+        ? isHe ? "משתמש Apple" : "Apple User"
+        : isHe ? "משתמש Google" : "Google User")
+    : null;
+
+  const avatarLetter =
+    resolvedName?.[0]?.toUpperCase() ?? (isHe ? "א" : "A");
+
+  const GENERAL_ROWS: SettingRow[] = [
     {
-      icon: "🌐",
-      label: t("language"),
+      icon: "language-outline",
+      label: isHe ? "שפה" : "Language",
       value: isHe ? "עברית" : "English",
       onPress: toggleLanguage,
     },
     {
-      icon: "☀️",
-      label: t("theme"),
+      icon: "sunny-outline",
+      label: isHe ? "ערכת נושא" : "Theme",
       value: isHe ? "בהיר" : "Light",
       onPress: () => {},
     },
     {
-      icon: "☁️",
-      label: t("backup"),
-      value: isHe ? "לא מסונכרן" : "Not synced",
-      onPress: () => {},
-    },
-    {
-      icon: "📷",
-      label: t("permissions"),
-      value: isHe ? "מצלמה, גלריה" : "Camera, Gallery",
-      onPress: () => {},
-    },
-    {
-      icon: "🥗",
-      label: t("dietary"),
+      icon: "nutrition-outline",
+      label: isHe ? "העדפות תזונה" : "Dietary",
       value: isHe ? "ללא הגבלה" : "No restriction",
       onPress: () => {},
     },
   ];
 
-  return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
-      {/* User card */}
-      <View style={s.userCard}>
-        <View style={s.avatar}>
-          <Text style={s.avatarText}>
-            {user
-              ? (user.displayName?.[0]?.toUpperCase() ?? "?")
-              : isHe
-                ? "א"
-                : "A"}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.userName, { textAlign: isHe ? "right" : "left" }]}>
-            {user?.displayName ?? (isHe ? "אורח" : "Guest")}
-          </Text>
-          <Text style={[s.userEmail, { textAlign: isHe ? "right" : "left" }]}>
-            {user?.email ?? (isHe ? "לא מחובר" : "Not signed in")}
-          </Text>
-        </View>
-      </View>
+  const DATA_ROWS: SettingRow[] = [
+    {
+      icon: "cloud-upload-outline",
+      label: isHe ? "גיבוי ענן" : "Cloud Backup",
+      value: user ? (isHe ? "מסונכרן" : "Synced") : (isHe ? "לא מחובר" : "Not connected"),
+      tint: user ? Colors.secondary : undefined,
+      onPress: () => {},
+    },
+    {
+      icon: "download-outline",
+      label: isHe ? "ייצוא מתכונים" : "Export Recipes",
+      onPress: () => {},
+    },
+  ];
 
-      {/* Settings rows */}
-      <View style={s.section}>
-        {ROWS.map((row, i) => (
-          <TouchableOpacity
-            key={row.label}
-            style={[
-              s.row,
-              i < ROWS.length - 1 && s.rowBorder,
-              { flexDirection: isHe ? "row-reverse" : "row" },
-            ]}
-            onPress={row.onPress}
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: 18, width: 28 }}>{row.icon}</Text>
-            <Text
+  if (loading) {
+    return (
+      <View style={s.centered}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+      >
+        {/* ── Hero banner ── */}
+        <LinearGradient
+          colors={["#FF6B6B", "#FF8E53"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[s.hero, { paddingTop: insets.top + 20 }]}
+        >
+          {/* Avatar */}
+          <View style={s.avatarRing}>
+            <View
               style={[
-                s.rowLabel,
-                { flex: 1, textAlign: isHe ? "right" : "left" },
+                s.avatar,
+                {
+                  backgroundColor: user
+                    ? user.provider === "google"
+                      ? "#4285F4"
+                      : "#1A1A1A"
+                    : "rgba(255,255,255,0.3)",
+                },
               ]}
             >
-              {row.label}
-            </Text>
-            <Text style={s.rowValue}>{row.value} ›</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Auth */}
-      <View style={s.section}>
-        {user ? (
-          <TouchableOpacity style={s.signOutBtn} onPress={signOut}>
-            <Text style={s.signOutText}>{t("signOut")}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={s.signInCard}>
-            <Text
-              style={[s.signInTitle, { textAlign: isHe ? "right" : "left" }]}
-            >
-              {t("signIn")}
-            </Text>
-            <Text style={[s.signInSub, { textAlign: isHe ? "right" : "left" }]}>
-              {t("signInSub")}
-            </Text>
-            {[
-              { key: "google", label: t("withGoogle") },
-              { key: "apple", label: t("withApple") },
-              { key: "phone", label: t("withPhone") },
-            ].map((opt) => (
-              <TouchableOpacity key={opt.key} style={s.authBtn}>
-                <Text style={s.authBtnText}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
+              <Text style={s.avatarText}>{avatarLetter}</Text>
+            </View>
           </View>
-        )}
-      </View>
-    </SafeAreaView>
+
+          {/* Name + email */}
+          <Text style={s.heroName} numberOfLines={1}>
+            {resolvedName ?? (isHe ? "אורח" : "Guest")}
+          </Text>
+          <Text style={s.heroEmail} numberOfLines={1}>
+            {user?.email ?? (user ? (isHe ? "מחובר" : "Signed in") : (isHe ? "לא מחובר" : "Not signed in"))}
+          </Text>
+
+          {/* Provider badge */}
+          {user ? (
+            <View style={s.providerBadge}>
+              <Ionicons
+                name={user.provider === "google" ? "logo-google" : "logo-apple"}
+                size={12}
+                color="rgba(255,255,255,0.9)"
+              />
+              <Text style={s.providerText}>
+                {user.provider === "google" ? "Google" : "Apple"}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Wave bottom */}
+          <View style={s.heroWave} />
+        </LinearGradient>
+
+        <View style={s.body}>
+          {/* ── Sign-in card (guest only) ── */}
+          {!user && (
+            <View style={s.signInCard}>
+              <View style={s.signInIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={28} color={Colors.primary} />
+              </View>
+              <Text style={[s.signInTitle, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "גבה את המתכונים שלך" : "Back up your recipes"}
+              </Text>
+              <Text style={[s.signInSub, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe
+                  ? "התחבר כדי לשמור את המתכונים בענן ולגשת אליהם מכל מכשיר"
+                  : "Sign in to save your recipes to the cloud and access them on any device"}
+              </Text>
+
+              {authLoading ? (
+                <ActivityIndicator color={Colors.primary} style={{ marginTop: 8 }} />
+              ) : (
+                <View style={s.authBtns}>
+                  <TouchableOpacity
+                    style={[s.authBtn, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                    onPress={handleGoogleSignIn}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.authBtnIcon}>
+                      <Ionicons name="logo-google" size={18} color="#4285F4" />
+                    </View>
+                    <Text style={s.authBtnText}>
+                      {isHe ? "המשך עם Google" : "Continue with Google"}
+                    </Text>
+                    <Ionicons
+                      name={isHe ? "chevron-back" : "chevron-forward"}
+                      size={16}
+                      color={Colors.text.tertiary}
+                      style={{ marginStart: "auto" }}
+                    />
+                  </TouchableOpacity>
+
+                  {Platform.OS === "ios" && (
+                    <TouchableOpacity
+                      style={[s.authBtn, s.authBtnApple, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                      onPress={handleAppleSignIn}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[s.authBtnIcon, s.authBtnIconDark]}>
+                        <Ionicons name="logo-apple" size={18} color="#fff" />
+                      </View>
+                      <Text style={[s.authBtnText, { color: "#fff" }]}>
+                        {isHe ? "המשך עם Apple" : "Continue with Apple"}
+                      </Text>
+                      <Ionicons
+                        name={isHe ? "chevron-back" : "chevron-forward"}
+                        size={16}
+                        color="rgba(255,255,255,0.5)"
+                        style={{ marginStart: "auto" }}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── General settings ── */}
+          <View style={s.sectionGroup}>
+            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+              {isHe ? "כללי" : "General"}
+            </Text>
+            <View style={s.card}>
+              {GENERAL_ROWS.map((row, i) => (
+                <TouchableOpacity
+                  key={row.label}
+                  style={[
+                    s.row,
+                    { flexDirection: isHe ? "row-reverse" : "row" },
+                    i < GENERAL_ROWS.length - 1 && s.rowBorder,
+                  ]}
+                  onPress={row.onPress}
+                  activeOpacity={0.65}
+                >
+                  <View style={[s.rowIconWrap, { backgroundColor: "#F0F0F0" }]}>
+                    <Ionicons name={row.icon} size={16} color={Colors.text.secondary} />
+                  </View>
+                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                    {row.label}
+                  </Text>
+                  {row.value ? <Text style={s.rowValue}>{row.value}</Text> : null}
+                  <Ionicons
+                    name={isHe ? "chevron-back" : "chevron-forward"}
+                    size={14}
+                    color={Colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* ── Data & Sync settings ── */}
+          <View style={s.sectionGroup}>
+            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+              {isHe ? "נתונים וסנכרון" : "Data & Sync"}
+            </Text>
+            <View style={s.card}>
+              {DATA_ROWS.map((row, i) => (
+                <TouchableOpacity
+                  key={row.label}
+                  style={[
+                    s.row,
+                    { flexDirection: isHe ? "row-reverse" : "row" },
+                    i < DATA_ROWS.length - 1 && s.rowBorder,
+                  ]}
+                  onPress={row.onPress}
+                  activeOpacity={0.65}
+                >
+                  <View
+                    style={[
+                      s.rowIconWrap,
+                      { backgroundColor: row.tint ? row.tint + "20" : "#F0F0F0" },
+                    ]}
+                  >
+                    <Ionicons
+                      name={row.icon}
+                      size={16}
+                      color={row.tint ?? Colors.text.secondary}
+                    />
+                  </View>
+                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                    {row.label}
+                  </Text>
+                  {row.value ? (
+                    <Text style={[s.rowValue, row.tint ? { color: row.tint } : null]}>
+                      {row.value}
+                    </Text>
+                  ) : null}
+                  <Ionicons
+                    name={isHe ? "chevron-back" : "chevron-forward"}
+                    size={14}
+                    color={Colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* ── Sign out ── */}
+          {user ? (
+            <View style={s.sectionGroup}>
+              <View style={s.card}>
+                <TouchableOpacity
+                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                  onPress={handleSignOut}
+                  activeOpacity={0.65}
+                >
+                  <View style={[s.rowIconWrap, { backgroundColor: "#FFF0F0" }]}>
+                    <Ionicons name="log-out-outline" size={16} color="#FF4757" />
+                  </View>
+                  <Text
+                    style={[
+                      s.rowLabel,
+                      { flex: 1, color: "#FF4757", textAlign: isHe ? "right" : "left" },
+                    ]}
+                  >
+                    {isHe ? "התנתקות" : "Sign out"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── App version ── */}
+          <Text style={s.version}>iCook v1.0.0</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  userCard: {
-    flexDirection: "row",
+  container: { flex: 1, backgroundColor: "#F2F0EB" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // Hero
+  hero: {
     alignItems: "center",
-    gap: 14,
-    margin: 16,
-    padding: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: Colors.border,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+  },
+  avatarRing: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.secondary,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 20, color: "#fff", fontWeight: "500" },
-  userName: { fontSize: 16, fontWeight: "500", color: Colors.text.primary },
-  userEmail: { fontSize: 12, color: Colors.text.secondary, marginTop: 2 },
-  section: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: Colors.border,
-    overflow: "hidden",
+  avatarText: { fontSize: 32, color: "#fff", fontWeight: "700" },
+  heroName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: -0.3,
   },
-  row: { alignItems: "center", padding: 14, gap: 10 },
-  rowBorder: { borderBottomWidth: 0.5, borderColor: Colors.border },
-  rowLabel: { fontSize: 13, color: Colors.text.primary },
-  rowValue: { fontSize: 12, color: Colors.text.secondary },
-  signOutBtn: { padding: 14, alignItems: "center" },
-  signOutText: { fontSize: 14, color: Colors.primary, fontWeight: "500" },
-  signInCard: { padding: 16, gap: 10 },
-  signInTitle: { fontSize: 15, fontWeight: "500", color: Colors.text.primary },
-  signInSub: { fontSize: 12, color: Colors.text.secondary, marginBottom: 4 },
-  authBtn: {
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    padding: 12,
+  heroEmail: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 3,
+  },
+  providerBadge: {
+    flexDirection: "row",
     alignItems: "center",
-    borderWidth: 0.5,
-    borderColor: Colors.border,
+    gap: 5,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20,
   },
-  authBtnText: { fontSize: 13, fontWeight: "500", color: Colors.text.primary },
+  providerText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.95)",
+    fontWeight: "600",
+  },
+  heroWave: {
+    position: "absolute",
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 24,
+    backgroundColor: "#F2F0EB",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+
+  // Body
+  body: { paddingHorizontal: 16, paddingTop: 8, gap: 6 },
+
+  // Sign-in card
+  signInCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E8E8E3",
+    padding: 20,
+    gap: 10,
+    marginBottom: 8,
+    shadowColor: "#1A1A1A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  signInIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#FFF0F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  signInTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1A1A1A",
+  },
+  signInSub: {
+    fontSize: 13,
+    color: "#6B6B65",
+    lineHeight: 19,
+  },
+  authBtns: { gap: 8, marginTop: 4 },
+  authBtn: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    backgroundColor: "#F5F3EE",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E8E8E3",
+  },
+  authBtnApple: {
+    backgroundColor: "#1A1A1A",
+    borderColor: "#1A1A1A",
+  },
+  authBtnIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authBtnIconDark: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  authBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1A1A1A",
+  },
+
+  // Section groups
+  sectionGroup: { gap: 6 },
+  groupLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#A0A09A",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    paddingHorizontal: 4,
+    marginTop: 10,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E8E8E3",
+    overflow: "hidden",
+    shadowColor: "#1A1A1A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  row: {
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 12,
+    backgroundColor: "#fff",
+  },
+  rowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0EC",
+  },
+  rowIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowLabel: { fontSize: 15, color: "#1A1A1A", fontWeight: "500" },
+  rowValue: { fontSize: 13, color: "#A0A09A", fontWeight: "500" },
+
+  // Version
+  version: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#C0BFBA",
+    marginTop: 16,
+    fontWeight: "500",
+  },
 });
