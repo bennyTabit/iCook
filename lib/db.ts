@@ -161,86 +161,230 @@ async function seedDefaults() {
     `);
   }
 
-  const recipes = await db.getAllAsync("SELECT id FROM recipes LIMIT 1");
-  if (recipes.length > 0) return;
+  // Detect old placeholder demo data and replace it once with real recipes.
+  // After replacement the new titles exist and future startups skip the block.
+  const oldDemo = await db.getAllAsync(
+    "SELECT id FROM recipes WHERE title_he = 'פסטה רוזה מהירה' LIMIT 1",
+  );
+  const newDemo = await db.getAllAsync(
+    "SELECT id FROM recipes WHERE title_he = 'מרק בצל' LIMIT 1",
+  );
+  if (oldDemo.length > 0) {
+    await db.execAsync("DELETE FROM recipes;");
+  } else if (newDemo.length > 0) {
+    return; // already seeded with real recipes
+  }
 
-  await db.execAsync(`
-    INSERT INTO recipes (
-      title_he, title_en, description_he, description_en, category_id,
-      difficulty, prep_time_min, cook_time_min, servings, source_type,
-      notes_he, notes_en, is_favorite
-    ) VALUES
-      (
-        'פסטה רוזה מהירה', 'Quick Rose Pasta',
-        'פסטה שמנת-עגבניות זריזה לארוחת ערב.', 'Creamy tomato pasta for a fast dinner.',
-        (SELECT id FROM categories WHERE name_en = 'Pasta'),
-        'easy', 10, 20, 4, 'manual',
-        'להגיש עם בזיליקום טרי.', 'Serve with fresh basil.', 1
-      ),
-      (
-        'סלט קינואה ועשבי תיבול', 'Herb Quinoa Salad',
-        'סלט רענן עם ירקות, עשבים ולימון.', 'Fresh salad with herbs, vegetables and lemon.',
-        (SELECT id FROM categories WHERE name_en = 'Salads'),
-        'easy', 15, 15, 3, 'manual',
-        'טעים גם קר מהמקרר.', 'Great served chilled.', 0
-      ),
-      (
-        'בראוניז שוקולד רכים', 'Fudgy Chocolate Brownies',
-        'בראוניז עשירים עם מרכז רך.', 'Rich brownies with a soft center.',
-        (SELECT id FROM categories WHERE name_en = 'Desserts'),
-        'medium', 15, 28, 8, 'manual',
-        'לא לאפות יותר מדי.', 'Do not overbake.', 1
-      ),
-      (
-        'מרק כתום ביתי', 'Roasted Orange Soup',
-        'מרק גזר ובטטה סמיך ומנחם.', 'Comforting carrot and sweet potato soup.',
-        (SELECT id FROM categories WHERE name_en = 'Soups'),
-        'easy', 15, 35, 5, 'manual',
-        'להוסיף קרם קוקוס להגשה.', 'Finish with coconut cream.', 0
-      ),
-      (
-        'קציצות ברוטב עגבניות', 'Meatballs in Tomato Sauce',
-        'קציצות עסיסיות לארוחה משפחתית.', 'Juicy meatballs for a family meal.',
-        (SELECT id FROM categories WHERE name_en = 'Meat'),
-        'medium', 20, 40, 5, 'manual',
-        'מומלץ ליד אורז לבן.', 'Best served with rice.', 0
-      ),
-      (
-        'דג אפוי עם לימון', 'Baked Lemon Fish',
-        'פילה דג בתנור עם עשבי תיבול ולימון.', 'Oven baked fish fillet with herbs and lemon.',
-        (SELECT id FROM categories WHERE name_en = 'Fish'),
-        'easy', 10, 18, 2, 'manual',
-        'להגיש עם סלט ירוק.', 'Serve with a green salad.', 0
-      ),
-      (
-        'קציצות עדשים אפויות', 'Baked Lentil Patties',
-        'קציצות עדשים וצמחי תבלין בתנור.', 'Lentil patties with herbs baked in the oven.',
-        (SELECT id FROM categories WHERE name_en = 'Veggie'),
-        'medium', 20, 25, 4, 'manual',
-        'מעולה עם טחינה.', 'Excellent with tahini.', 1
-      ),
-      (
-        'שקשוקה קלאסית', 'Classic Shakshuka',
-        'ארוחת בוקר ישראלית עם ביצים ברוטב עגבניות.', 'Israeli breakfast with eggs in tomato sauce.',
-        (SELECT id FROM categories WHERE name_en = 'Breakfast'),
-        'easy', 10, 15, 2, 'manual',
-        'להגיש עם חלה או לחם טוב.', 'Serve with challah or crusty bread.', 1
-      ),
-      (
-        'פסטה פטריות ושום', 'Garlic Mushroom Pasta',
-        'פסטה מהירה עם פטריות, שום ושמן זית.', 'Quick pasta with mushrooms, garlic and olive oil.',
-        (SELECT id FROM categories WHERE name_en = 'Pasta'),
-        'easy', 10, 18, 3, 'manual',
-        'להוסיף פרמזן בהגשה.', 'Finish with parmesan.', 0
-      ),
-      (
-        'סלט קצוץ ישראלי', 'Israeli Chopped Salad',
-        'סלט קלאסי עם עגבניות, מלפפון, בצל ולימון.', 'Classic chopped salad with tomato, cucumber, onion and lemon.',
-        (SELECT id FROM categories WHERE name_en = 'Salads'),
-        'easy', 12, 0, 4, 'manual',
-        'להוסיף נענע אם יש.', 'Add mint if available.', 0
-      );
-  `);
+  const onionSoupHe = [
+    "מרכיבים:",
+    "- 4 בצלים גדולים, פרוסים דק",
+    "- 3 כפות חמאה",
+    "- 1 כף שמן זית",
+    "- 1 כפית סוכר",
+    "- 1 כוס יין לבן יבש",
+    "- 1.5 ליטר מרק עוף או ירקות",
+    "- מלח ופלפל שחור לפי הטעם",
+    "- 4 פרוסות לחם שאור קלויות",
+    "- 150 גרם גבינת גרויר מגוררת",
+    "",
+    "שלבים:",
+    "- לחמם חמאה ושמן זית בסיר כבד על אש בינונית-נמוכה",
+    "- להוסיף את הבצלים עם קמצוץ מלח ולבשל 45 דקות תוך ערבוב תדיר עד שמתקרמלים ומשחימים לחלוטין",
+    "- להוסיף את הסוכר ולערבב עוד 5 דקות",
+    "- לשפוך את היין הלבן ולבשל 3 דקות עד שמתאדה",
+    "- להוסיף את המרק, להביא לרתיחה ולבשל 15 דקות על אש נמוכה. לתבל במלח ופלפל",
+    "- לחלק למנות בקערות חסינות חום, להניח פרוסת לחם קלוי מעל ולפזר גבינה בנדיבות",
+    "- להכניס לתנור על גריל ב-200° כ-5 דקות עד שהגבינה מבעבעת ומשחימה",
+  ].join("\n");
+
+  const pumpkinSoupHe = [
+    "מרכיבים:",
+    "- 1 ק\"ג דלעת, קלופה וחתוכה לקוביות",
+    "- 2 גזרים, קלופים וחתוכים",
+    "- 1 בצל גדול, קצוץ",
+    "- 3 שיני שום כתושות",
+    "- 2 כפות שמן זית",
+    "- 1 ליטר מרק ירקות",
+    "- 1/2 כפית כמון",
+    "- מלח ופלפל לפי הטעם",
+    "- קרם קוקוס וגרעיני דלעת להגשה",
+    "",
+    "שלבים:",
+    "- לחמם שמן זית בסיר גדול ולטגן את הבצל 5 דקות עד שמזהיב",
+    "- להוסיף שום, גזרים ודלעת ולטגן עוד 3 דקות תוך ערבוב",
+    "- לשפוך את מרק הירקות ולהביא לרתיחה",
+    "- לבשל על אש נמוכה 30 דקות עד שהירקות מתרככים לגמרי",
+    "- לטחון עם בלנדר מוט עד לקבלת מרקם קטיפתי וחלק",
+    "- לתבל במלח, פלפל וכמון",
+    "- להגיש עם פיזור קרם קוקוס וגרעיני דלעת קלויים מעל",
+  ].join("\n");
+
+  const tofuNoodlesHe = [
+    "מרכיבים:",
+    "- 250 גרם אטריות אורז",
+    "- 400 גרם טופו קשה, חתוך לקוביות",
+    "- 3 כפות רוטב סויה",
+    "- 1 כף שמן שומשום",
+    "- 2 כפות מיץ לימון",
+    "- 2 שיני שום כתושות",
+    "- 1 כפית ג'ינג'ר טרי מגורר",
+    "- 2 כפות שמן קוקוס",
+    "- 2 גבעולי בצל ירוק, קצוץ",
+    "- שומשום קלוי לקישוט",
+    "",
+    "שלבים:",
+    "- לבשל את האטריות לפי הוראות האריזה, לסנן ולשמור בצד",
+    "- לייבש את הטופו היטב עם נייר מטבח לחות",
+    "- לחמם שמן קוקוס במחבת גדולה על אש גבוהה ולטגן את הטופו 8-10 דקות עד שמשחים מכל הצדדים",
+    "- לערבב בקערה קטנה: רוטב סויה, שמן שומשום, מיץ לימון, שום וג'ינג'ר",
+    "- להוסיף את האטריות למחבת עם הטופו, לשפוך את הרוטב ולבחוש 2-3 דקות על אש בינונית",
+    "- להגיש מיד עם פיזור בצל ירוק ושומשום קלוי מעל",
+  ].join("\n");
+
+  const tahinicookiesHe = [
+    "מרכיבים:",
+    "- 1 כוס טחינה גולמית",
+    "- 3/4 כוס סוכר",
+    "- 1 ביצה גדולה",
+    "- 1 כפית תמצית וניל",
+    "- 1/2 כפית אבקת אפייה",
+    "- קמצוץ מלח",
+    "- שומשום לקישוט",
+    "",
+    "שלבים:",
+    "- לחמם תנור ל-170° ולרפד תבנית בנייר אפייה",
+    "- לערבב בקערה טחינה, סוכר, ביצה, וניל, אבקת אפייה ומלח עד לבצק אחיד ורך",
+    "- לגלגל כפות בצק לכדורים בקוטר 3 ס\"מ ולהניח על התבנית במרווחים",
+    "- להשטיח מעט עם כף ולפזר שומשום מעל כל עוגייה",
+    "- לאפות 13-15 דקות עד שהשוליים מזהיבים — המרכז ייראה עוד רך",
+    "- להניח לצינון מלא על התבנית — העוגיות מתקשות בזמן הצינון",
+  ].join("\n");
+
+  const sahrononimHe = [
+    "מרכיבים:",
+    "- 250 גרם חמאה רכה בטמפרטורת החדר",
+    "- 200 גרם גבינת שמנת",
+    "- 2 כוסות קמח לבן",
+    "- קמצוץ מלח",
+    "- 1/2 כוס ריבת משמש",
+    "- 1/2 כוס אגוזי מלך כתושים גס",
+    "- 1/2 כוס צימוקים",
+    "- 1 כפית קינמון",
+    "- 1/4 כוס סוכר",
+    "- 1 ביצה טרופה לסיכה",
+    "",
+    "שלבים:",
+    "- לערבב חמאה רכה וגבינת שמנת עד לתערובת חלקה ואחידה",
+    "- להוסיף קמח ומלח ולגבש לבצק. לעטוף בניילון ולקרר במקרר שעה לפחות",
+    "- לחמם תנור ל-180° ולרפד שתי תבניות בנייר אפייה",
+    "- לחלק את הבצק ל-3 חלקים. לפרוס כל חלק על משטח מקומח לעיגול דק",
+    "- למרוח שכבה דקה של ריבה ולפזר אגוזים, צימוקים, סוכר וקינמון",
+    "- לחתוך לחתיכות משולשות (כמו פרוסות פיצה) ולגלגל כל משולש מהקצה הרחב פנימה לצורת סהר",
+    "- לסדר על התבניות, לסוך בביצה טרופה ולאפות 20-22 דקות עד הזהבה יפה",
+  ].join("\n");
+
+  const cheesecakeHe = [
+    "מרכיבים:",
+    "- 200 גרם ביסקוויטים (לוטוס או פתי-בר)",
+    "- 100 גרם חמאה מומסת",
+    "- 800 גרם גבינת שמנת (קרם צ'יז) בטמפרטורת החדר",
+    "- 200 גרם שמנת חמוצה 15%",
+    "- 4 ביצים גדולות",
+    "- 150 גרם סוכר",
+    "- 2 כפות קמח",
+    "- 1 כפית תמצית וניל",
+    "- גרידת לימון אחד",
+    "",
+    "שלבים:",
+    "- לטחון ביסקוויטים למחית עדינה ולערבב עם חמאה מומסת",
+    "- להדק את תערובת הביסקוויטים לתחתית תבנית קפיץ 24 ס\"מ ולקרר 20 דקות במקפיא",
+    "- לחמם תנור ל-160° (חום עליון ותחתון, לא טורבו)",
+    "- לטרוף גבינת שמנת עם סוכר עד לתערובת חלקה — לא לערבב יתר על המידה",
+    "- להוסיף ביצה אחת בכל פעם ולערבב בעדינות אחרי כל אחת",
+    "- להוסיף שמנת חמוצה, קמח, וניל וגרידת לימון ולערבב בעדינות רק עד לאיחוד",
+    "- לשפוך על הקרסט הקר ולהחליק את הפני השטח",
+    "- לאפות 55-60 דקות עד שהשוליים מוצקים והמרכז עוד רוטט מעט כשמנענעים",
+    "- לכבות את התנור ולהשאיר את העוגה בפנים עם דלת פתוחה חצי שעה",
+    "- לצנן לטמפרטורת החדר ואז לקרר במקרר לפחות 4 שעות — עדיף ללילה",
+  ].join("\n");
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Soups'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "מרק בצל", "French Onion Soup",
+      "מרק בצל צרפתי קלאסי עם גבינה מבעבעת", "Classic French onion soup with bubbling cheese",
+      "medium", 15, 60, 4, "manual", onionSoupHe, 1,
+    ],
+  );
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Soups'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "מרק דלעת", "Pumpkin Soup",
+      "מרק דלעת קטיפתי ומנחם עם קרם קוקוס", "Silky comforting pumpkin soup with coconut cream",
+      "easy", 15, 40, 6, "manual", pumpkinSoupHe, 0,
+    ],
+  );
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Veggie'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "נודלס טופו", "Tofu Noodles",
+      "נודלס אורז עם טופו מוזהב ורוטב אסייתי", "Rice noodles with golden tofu and Asian sauce",
+      "easy", 15, 20, 3, "manual", tofuNoodlesHe, 0,
+    ],
+  );
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Desserts'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "עוגיות טחינה", "Tahini Cookies",
+      "עוגיות טחינה פריכות ועשירות בטעם", "Rich and crispy tahini cookies",
+      "easy", 10, 15, 24, "manual", tahinicookiesHe, 1,
+    ],
+  );
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Desserts'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "סהרונים", "Rugelach",
+      "סהרונים מתפוררים במילוי ריבה ואגוזים", "Crumbly rugelach with jam and walnut filling",
+      "medium", 30, 22, 30, "manual", sahrononimHe, 1,
+    ],
+  );
+
+  await db.runAsync(
+    `INSERT INTO recipes (title_he, title_en, description_he, description_en, category_id,
+      difficulty, prep_time_min, cook_time_min, servings, source_type, notes_he, is_favorite)
+     VALUES (?,?,?,?,
+       (SELECT id FROM categories WHERE name_en = 'Desserts'),
+       ?,?,?,?,?,?,?)`,
+    [
+      "עוגת גבינה אפויה", "Baked Cheesecake",
+      "עוגת גבינה אפויה קלאסית עם קרסט ביסקוויטים", "Classic baked cheesecake with biscuit crust",
+      "hard", 20, 60, 12, "manual", cheesecakeHe, 1,
+    ],
+  );
 }
 
 export type Recipe = {
