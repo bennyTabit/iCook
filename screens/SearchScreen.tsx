@@ -226,7 +226,7 @@ export default function SearchScreen({ navigation }: any) {
         <Text style={s.resultsCount}>{resultLabel}</Text>
         {recipes.length > 0 && (
           <Text style={s.resultsHint}>
-            {isHe ? "החלק ימינה למחיקת מתכון" : "Swipe left to delete"}
+            {isHe ? "החלק שמאלה למחיקה" : "Swipe left to delete"}
           </Text>
         )}
       </View>

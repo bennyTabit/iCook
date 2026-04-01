@@ -402,7 +402,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Search"
           component={SearchScreen}
-          options={{ title: t("search") }}
+          options={{ title: t("search"), headerShown: false }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -438,7 +438,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Shopping"
           component={ShoppingScreen}
-          options={{ title: t("shopping") }}
+          options={{ title: t("shopping"), headerShown: false }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -448,7 +448,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Profile"
           component={ProfileScreen}
-          options={{ title: t("profile") }}
+          options={{ title: t("profile"), headerShown: false }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
