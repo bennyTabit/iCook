@@ -3,7 +3,6 @@ import {
   Animated,
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -304,8 +303,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const [cookHistory, setCookHistory] = useState(0);
 
   const favScale = useRef(new Animated.Value(1)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
   const timerWasRunningRef = useRef(false);
-  const heroHeight = Math.max(300, Math.round(height * 0.42));
+  const heroHeight = Math.max(240, Math.round(height * 0.36));
 
   async function loadRecipe() {
     if (!id) return;
@@ -518,123 +518,138 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  const stickyHeaderOpacity = scrollY.interpolate({
+    inputRange: [heroHeight - 70, heroHeight - 20],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
   return (
     <View style={s.container}>
-      <ScrollView
+      {/* ── Sticky title header (appears on scroll) ── */}
+      <Animated.View
+        style={[
+          s.stickyHeader,
+          { paddingTop: insets.top + 6, opacity: stickyHeaderOpacity },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={s.stickyHeaderTitle} numberOfLines={1}>
+          {title}
+        </Text>
+      </Animated.View>
+
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
       >
         {/* ── Hero ── */}
-        <View style={[s.hero, { height: heroHeight }]}>
-          {recipe?.image_uri ? (
+        {recipe?.image_uri ? (
+          /* ── Full photo hero ── */
+          <View style={[s.hero, { height: heroHeight }]}>
             <Image
               source={{ uri: recipe.image_uri }}
               style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
-          ) : (
             <LinearGradient
-              colors={["#FFD8CD", "#FBBF9F", "#F5A473"]}
+              colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0)", "rgba(0,0,0,0.7)"]}
               style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              locations={[0, 0.35, 1]}
+            />
+            <View
+              style={[s.heroTopBar, { paddingTop: insets.top + 8, flexDirection: isHe ? "row-reverse" : "row" }]}
             >
-              <View style={s.heroPlaceholder}>
-                <Text style={s.heroEmoji}>🍽️</Text>
-              </View>
-            </LinearGradient>
-          )}
-
-          {/* Gradient overlay */}
-          <LinearGradient
-            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0)", "rgba(0,0,0,0.7)"]}
-            style={StyleSheet.absoluteFill}
-            locations={[0, 0.35, 1]}
-          />
-
-          {/* Top controls */}
-          <View
-            style={[
-              s.heroTopBar,
-              {
-                paddingTop: insets.top + 8,
-                flexDirection: isHe ? "row-reverse" : "row",
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={s.heroIconBtn}
-              onPress={() => {
-                void Haptics.selectionAsync();
-                navigation.goBack();
-              }}
-            >
-              <Ionicons
-                name={isHe ? "chevron-forward" : "chevron-back"}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
-
-            <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              {!isDraft && (
-                <>
-                  <TouchableOpacity
-                    style={s.heroIconBtn}
-                    onPress={() => recipe && void shareRecipe(recipe)}
-                  >
-                    <Ionicons name="share-outline" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={s.heroIconBtn}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      navigation.navigate("EditRecipe", { id });
-                    }}
-                  >
-                    <Ionicons name="create-outline" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <Animated.View style={{ transform: [{ scale: favScale }] }}>
-                    <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
-                      <Ionicons
-                        name={isFav ? "heart" : "heart-outline"}
-                        size={20}
-                        color={isFav ? "#FF4757" : "#fff"}
-                      />
+              <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}>
+                <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
+              </TouchableOpacity>
+              <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+                {!isDraft && (
+                  <>
+                    <TouchableOpacity style={s.heroIconBtn} onPress={() => recipe && void shareRecipe(recipe)}>
+                      <Ionicons name="share-outline" size={20} color="#fff" />
                     </TouchableOpacity>
-                  </Animated.View>
-                </>
-              )}
+                    <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}>
+                      <Ionicons name="create-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
+                    <Animated.View style={{ transform: [{ scale: favScale }] }}>
+                      <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
+                        <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </>
+                )}
+              </View>
+            </View>
+            <View style={[s.heroBottom, { paddingBottom: 20 }]}>
+              {recipe?.source_type && recipe.source_type !== "manual" ? (
+                <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
+              ) : null}
+              <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>{title}</Text>
+              {cookHistory > 0 ? (
+                <Text style={[s.cookHistoryHero, { textAlign: isHe ? "right" : "left" }]}>
+                  {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
+                </Text>
+              ) : null}
             </View>
           </View>
+        ) : (
+          /* ── Compact no-photo header ── */
+          <LinearGradient
+            colors={["#FF6B6B", "#FF8E53"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[s.compactHero, { paddingTop: insets.top + 8 }]}
+          >
+            {/* Decorative emoji watermark */}
+            <Text style={s.compactHeroWatermark}>🍽️</Text>
 
-          {/* Title at bottom of hero */}
-          <View style={[s.heroBottom, { paddingBottom: 20 }]}>
-            {recipe?.source_type && recipe.source_type !== "manual" ? (
-              <View style={s.sourceBadge}>
-                <Text style={s.sourceBadgeText}>
-                  {recipe.source_type.toUpperCase()}
-                </Text>
+            {/* Top bar */}
+            <View style={[s.heroTopBar, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}>
+                <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
+              </TouchableOpacity>
+              <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+                {!isDraft && (
+                  <>
+                    <TouchableOpacity style={s.heroIconBtn} onPress={() => recipe && void shareRecipe(recipe)}>
+                      <Ionicons name="share-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}>
+                      <Ionicons name="create-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
+                    <Animated.View style={{ transform: [{ scale: favScale }] }}>
+                      <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
+                        <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </>
+                )}
               </View>
-            ) : null}
-            <Text
-              style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}
-              numberOfLines={2}
-            >
-              {title}
-            </Text>
-            {cookHistory > 0 ? (
-              <Text style={[s.cookHistoryHero, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
-              </Text>
-            ) : null}
-          </View>
-        </View>
+            </View>
+
+            {/* Title block */}
+            <View style={[s.compactHeroTitle, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
+              {recipe?.source_type && recipe.source_type !== "manual" ? (
+                <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
+              ) : null}
+              <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>{title}</Text>
+              {cookHistory > 0 ? (
+                <Text style={[s.cookHistoryHero, { textAlign: isHe ? "right" : "left" }]}>
+                  {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
+                </Text>
+              ) : null}
+            </View>
+          </LinearGradient>
+        )}
 
         {/* ── Info chips ── */}
-        <View style={s.infoStrip}>
+        <View style={[s.infoStrip, { flexDirection: isHe ? "row-reverse" : "row" }]}>
           {totalMin > 0 ? (
             <TouchableOpacity
               style={s.infoChip}
@@ -713,7 +728,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           {/* ── Ingredients ── */}
           <View style={s.section}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <Text style={s.sectionTitle}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={s.sectionTitle}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
+                {shownIngredients.length > 0 && (
+                  <View style={s.countBadge}>
+                    <Text style={s.countBadgeText}>{shownIngredients.length}</Text>
+                  </View>
+                )}
+              </View>
               <View style={[s.sectionHeaderActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 <TouchableOpacity
                   style={[s.pill, checklistMode && s.pillActive]}
@@ -788,7 +810,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           {/* ── Steps ── */}
           <View style={s.section}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
+                {rawSteps.length > 0 && (
+                  <View style={s.countBadge}>
+                    <Text style={s.countBadgeText}>{rawSteps.length}</Text>
+                  </View>
+                )}
+              </View>
               {rawSteps.length > 0 && (
                 <TouchableOpacity
                   style={s.pillCoral}
@@ -873,7 +902,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             )}
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ── Bottom action bar ── */}
       <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -925,8 +954,50 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
+  // Sticky header
+  stickyHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  stickyHeaderTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.text.primary,
+    letterSpacing: -0.2,
+  },
+
   // Hero
   hero: { width: "100%", overflow: "hidden" },
+  compactHero: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingBottom: 18,
+    gap: 12,
+    overflow: "hidden",
+  },
+  compactHeroWatermark: {
+    position: "absolute",
+    right: 16,
+    bottom: 10,
+    fontSize: 80,
+    opacity: 0.18,
+  },
+  compactHeroTitle: {
+    paddingHorizontal: 4,
+    gap: 6,
+  },
   heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   heroEmoji: { fontSize: 72 },
   heroTopBar: {
@@ -1159,6 +1230,19 @@ const s = StyleSheet.create({
   },
   pillCoralText: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
+  // Count badge (ingredient/step count in section header)
+  countBadge: {
+    backgroundColor: Colors.primary + "20",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+
   // Empty hint
   emptyHint: {
     fontSize: 13,
@@ -1191,11 +1275,12 @@ const s = StyleSheet.create({
     borderColor: Colors.secondary,
   },
   bullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: Colors.primary,
     marginHorizontal: 8,
+    opacity: 0.7,
   },
   ingredientText: {
     flex: 1,

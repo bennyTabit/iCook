@@ -172,13 +172,22 @@ export default function ShoppingScreen({ navigation }: any) {
                 ? `${checkedCount} מתוך ${totalCount} פריטים`
                 : `${checkedCount} of ${totalCount} items`}
             </Text>
-            {checkedCount > 0 && (
-              <TouchableOpacity onPress={handleClearChecked} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={s.progressClearBtn}>
-                  {isHe ? `נקה מסומנים (${checkedCount})` : `Clear checked (${checkedCount})`}
-                </Text>
+            <View style={[s.progressActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              {checkedCount > 0 && (
+                <TouchableOpacity onPress={handleClearChecked} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={s.progressClearBtn}>
+                    {isHe ? `נקה מסומנים (${checkedCount})` : `Clear checked (${checkedCount})`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={handleClearAll}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={s.clearAllIconBtn}
+              >
+                <Ionicons name="trash-outline" size={16} color="#E53935" />
               </TouchableOpacity>
-            )}
+            </View>
           </View>
           <View style={s.progressTrack}>
             <Animated.View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
@@ -192,21 +201,9 @@ export default function ShoppingScreen({ navigation }: any) {
           renderSectionHeader={renderSectionHeader}
           renderItem={renderItem}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingBottom: 16 }}
+          contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
           showsVerticalScrollIndicator={false}
           renderSectionFooter={() => <View style={s.sectionFooter} />}
-          ListFooterComponent={
-            <TouchableOpacity
-              style={s.clearAllBtn}
-              onPress={handleClearAll}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={16} color={Colors.primary} />
-              <Text style={s.clearAllText}>
-                {isHe ? "נקה רשימה" : "Clear list"}
-              </Text>
-            </TouchableOpacity>
-          }
         />
 
         {/* ── FAB: Add item ── */}
@@ -399,7 +396,23 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 14,
   },
 
-  // Clear all
+  // Progress actions row
+  progressActions: {
+    alignItems: "center",
+    gap: 12,
+  },
+  clearAllIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#FFF0F0",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FFCDD2",
+  },
+
+  // Clear all (footer - kept for reference but no longer rendered)
   clearAllBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -20,6 +20,34 @@ import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
 import { useAuthStore } from "../store/authStore";
 
+const CATEGORY_EMOJI: Record<string, string> = {
+  pasta: "🍝",
+  salads: "🥗",
+  desserts: "🍰",
+  soups: "🍜",
+  meat: "🥩",
+  fish: "🐟",
+  breakfast: "🍳",
+  veggie: "🥦",
+};
+
+const CATEGORY_BG: Record<string, string> = {
+  pasta: "#FFF3D6",
+  salads: "#E6F7EF",
+  desserts: "#FDE8F0",
+  soups: "#FFF0E0",
+  meat: "#FCE8E8",
+  fish: "#E5F2FB",
+  breakfast: "#FFF8E1",
+  veggie: "#E8F5E9",
+};
+
+const DIFFICULTY_LABEL: Record<string, { he: string; en: string }> = {
+  easy: { he: "קל", en: "Easy" },
+  medium: { he: "בינוני", en: "Medium" },
+  hard: { he: "קשה", en: "Hard" },
+};
+
 type QuickCategory = {
   key: string;
   label: string;
@@ -171,11 +199,12 @@ export default function HomeFeedScreen({ navigation }: any) {
           }}
         >
           <LinearGradient
-            colors={["#FFD8CD", "#FFE9DA"]}
+            colors={["#FFCAB3", "#FFE3D0"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={s.hero}
           >
+            <Text style={s.heroDecor}>🍳</Text>
             <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
               {isHe
                 ? `מה בא לך לבשל היום${firstName ? `, ${firstName}` : ""}?`
@@ -285,8 +314,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                 }}
                 activeOpacity={0.92}
               >
-                <View style={s.continueThumb}>
-                  <Ionicons name="restaurant-outline" size={24} color="#9C6B5A" />
+                <View style={[s.continueThumb, { backgroundColor: CATEGORY_BG[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
+                  <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.continueName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
@@ -307,13 +336,14 @@ export default function HomeFeedScreen({ navigation }: any) {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.chipsWrap}
+            style={isHe ? { transform: [{ scaleX: -1 }] } : undefined}
           >
             {quickCategories.map((cat) => {
               const selected = selectedCat === cat.key;
               return (
                 <TouchableOpacity
                   key={cat.key}
-                  style={[s.chip, selected && s.chipSelected]}
+                  style={[s.chip, selected && s.chipSelected, isHe ? { transform: [{ scaleX: -1 }] } : undefined]}
                   onPress={cat.onPress}
                   activeOpacity={0.9}
                 >
@@ -367,8 +397,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                   }}
                   activeOpacity={0.9}
                 >
-                  <View style={s.favoriteImage}>
-                    <Ionicons name="restaurant-outline" size={30} color="#B2714D" />
+                  <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
+                    <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
                   </View>
                   <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>
                     {isHe ? r.title_he : r.title_en}
@@ -395,7 +425,7 @@ export default function HomeFeedScreen({ navigation }: any) {
                 }}
                 activeOpacity={0.9}
               >
-                <Text style={s.suggestionIcon}>🥘</Text>
+                <Text style={s.suggestionIcon}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🥘"}</Text>
                 <Text style={[s.suggestionText, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
                   {isHe ? r.title_he : r.title_en}
                 </Text>
@@ -425,8 +455,8 @@ export default function HomeFeedScreen({ navigation }: any) {
               }}
               activeOpacity={0.92}
             >
-              <View style={s.recentThumb}>
-                <Ionicons name="restaurant-outline" size={24} color="#A26D58" />
+              <View style={[s.recentThumb, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
+                <Text style={s.recentThumbEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
               </View>
 
               <View style={{ flex: 1 }}>
@@ -434,7 +464,7 @@ export default function HomeFeedScreen({ navigation }: any) {
                   {isHe ? r.title_he : r.title_en}
                 </Text>
                 <Text style={[s.recentMeta, { textAlign: isHe ? "right" : "left" }]}>
-                  ⏱ {r.cook_time_min ?? 0} {isHe ? "דקות" : "min"}  |  🍽 {r.servings ?? 2} {isHe ? "מנות" : "servings"}  |  ⚡ {isHe ? "קל" : "easy"}
+                  ⏱ {r.cook_time_min ?? 0} {isHe ? "דקות" : "min"}  |  🍽 {r.servings ?? 2} {isHe ? "מנות" : "servings"}{r.difficulty ? `  |  ${DIFFICULTY_LABEL[r.difficulty]?.[isHe ? "he" : "en"] ?? ""}` : ""}
                 </Text>
               </View>
 
@@ -465,6 +495,15 @@ const s = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 16,
+    overflow: "hidden",
+  },
+  heroDecor: {
+    position: "absolute",
+    right: 14,
+    bottom: -6,
+    fontSize: 84,
+    opacity: 0.18,
+    transform: [{ rotate: "15deg" }],
   },
   heroTitle: {
     ...Typography.h2,
@@ -575,7 +614,6 @@ const s = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: "#FFE6DA",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -630,13 +668,18 @@ const s = StyleSheet.create({
     borderColor: Colors.border,
     overflow: "hidden",
     paddingBottom: 10,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
   },
   favoriteImage: {
     height: 98,
-    backgroundColor: "#FFE8D5",
     alignItems: "center",
     justifyContent: "center",
   },
+  favoriteEmoji: { fontSize: 38 },
   favoriteName: {
     ...Typography.bodySmall,
     color: Colors.text.primary,
@@ -713,10 +756,10 @@ const s = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 14,
-    backgroundColor: "#FFE8D5",
     alignItems: "center",
     justifyContent: "center",
   },
+  recentThumbEmoji: { fontSize: 28 },
   recentTitle: {
     ...Typography.body,
     color: Colors.text.primary,

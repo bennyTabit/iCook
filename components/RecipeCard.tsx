@@ -29,9 +29,9 @@ const CATEGORY_BG: Record<string, string> = {
 };
 
 const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: "#2ECC71",
-  medium: "#F39C12",
-  hard: "#E74C3C",
+  easy: Colors.difficulty.easy,
+  medium: Colors.difficulty.medium,
+  hard: Colors.difficulty.hard,
 };
 
 const DIFFICULTY_LABEL: Record<string, { he: string; en: string }> = {

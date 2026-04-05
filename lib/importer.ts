@@ -70,9 +70,19 @@ async function fetchHtml(url: string): Promise<string> {
     res.url.includes("googleads.g.doubleclick.net") ||
     /NO_DATA/i.test(html)
   ) {
-    throw new Error(
-      "Source blocked automated fetch. Try another URL or use Scan OCR.",
-    );
+    throw new Error("BLOCKED");
+  }
+
+  // Detect bot-protection / JS challenge pages (Cloudflare, DataDome, custom, etc.)
+  const isBotChallenge =
+    /please wait while your request is being verified/i.test(html) ||
+    /checking your browser/i.test(html) ||
+    /cf-browser-verification/i.test(html) ||
+    /window\.webdriver/i.test(html) ||
+    /\/z0[a-f0-9]{20,}/i.test(html) ||
+    (/window\.location\.reload/i.test(html) && !/<article|<main|recipe/i.test(html));
+  if (isBotChallenge) {
+    throw new Error("BLOCKED");
   }
   return html;
 }

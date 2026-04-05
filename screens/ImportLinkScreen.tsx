@@ -19,6 +19,7 @@ import { isHebrew } from "../lib/i18n";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import type { ImportedRecipe } from "../lib/importer";
+import WebViewImporter from "../components/WebViewImporter";
 
 export default function ImportLinkScreen({ navigation }: any) {
   const isHe = isHebrew();
@@ -28,6 +29,7 @@ export default function ImportLinkScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportedRecipe | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showWebView, setShowWebView] = useState(false);
 
   const canImport = useMemo(
     () => url.trim().length > 0 && !loading,
@@ -47,12 +49,17 @@ export default function ImportLinkScreen({ navigation }: any) {
 
     try {
       const imported = await importFromUrl(url.trim());
+      // Fast path succeeded — site doesn't block automated fetch
       setResult(imported);
     } catch (e: any) {
-      setError(
-        e?.message ??
-          (isHe ? "לא הצלחנו לקרוא את המתכון 😕" : "Could not parse recipe 😕"),
-      );
+      const msg: string = e?.message ?? "";
+      if (msg === "BLOCKED") {
+        // Site blocks automated fetch → use WebView (real browser)
+        setLoading(false);
+        setShowWebView(true);
+        return;
+      }
+      setError(msg || (isHe ? "לא הצלחנו לקרוא את המתכון" : "Could not parse recipe"));
     } finally {
       setLoading(false);
     }
@@ -103,7 +110,34 @@ export default function ImportLinkScreen({ navigation }: any) {
     );
   }
 
+  function handleWebViewResult(recipe: Omit<ImportedRecipe, "sourceUrl" | "sourceName">) {
+    console.log("[Import] classes:", (recipe as any)._debug_classes);
+    console.log("[Import] li items:", (recipe as any)._debug_li);
+    console.log("[Import] ingredients:", recipe.ingredients.length, "steps:", recipe.steps.length);
+    setShowWebView(false);
+    const full: ImportedRecipe = {
+      ...recipe,
+      sourceUrl: url.trim(),
+      sourceName: new URL(url.trim()).hostname.replace("www.", ""),
+    };
+    if (recipe.ingredients.length === 0 && recipe.steps.length === 0) {
+      setError("EMPTY");
+    } else {
+      setResult(full);
+    }
+  }
+
   return (
+    <>
+    {showWebView && (
+      <WebViewImporter
+        url={url.trim()}
+        sourceName={new URL(url.trim()).hostname.replace("www.", "")}
+        isHe={isHe}
+        onResult={handleWebViewResult}
+        onCancel={() => setShowWebView(false)}
+      />
+    )}
     <ScrollView
       style={s.container}
       contentContainerStyle={s.content}
@@ -157,21 +191,35 @@ export default function ImportLinkScreen({ navigation }: any) {
       {error && (
         <View style={s.errorBox}>
           <Text style={[s.errorTitle, { textAlign: isHe ? "right" : "left" }]}>
-            {isHe
-              ? "לא הצלחנו לקרוא את המתכון 😕"
-              : "Could not parse this recipe 😕"}
+            {error === "EMPTY"
+              ? (isHe ? "לא הצלחנו לחלץ מרכיבים 😕" : "Could not extract recipe data 😕")
+              : (isHe ? "לא הצלחנו לקרוא את המתכון 😕" : "Could not parse this recipe 😕")}
           </Text>
           <Text style={[s.errorSub, { textAlign: isHe ? "right" : "left" }]}>
-            {error}
+            {error === "EMPTY"
+              ? (isHe
+                  ? "האתר נטען אך לא הצלחנו לחלץ מרכיבים. נסה לסרוק עם המצלמה."
+                  : "The page loaded but we couldn't extract ingredients. Try scanning with camera instead.")
+              : error}
           </Text>
-          <TouchableOpacity
-            style={s.errorAction}
-            onPress={() => navigation.navigate("EditRecipe", { id: null })}
-          >
-            <Text style={s.errorActionText}>
-              {isHe ? "עבר להזנה ידנית" : "Switch to manual entry"}
-            </Text>
-          </TouchableOpacity>
+          <View style={s.errorActions}>
+            <TouchableOpacity
+              style={[s.errorAction, s.errorActionPrimary]}
+              onPress={() => navigation.navigate("AddRecipe")}
+            >
+              <Text style={[s.errorActionText, { color: "#fff" }]}>
+                {isHe ? "סרוק עם מצלמה" : "Scan with camera"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.errorAction}
+              onPress={() => navigation.navigate("EditRecipe", { id: null })}
+            >
+              <Text style={s.errorActionText}>
+                {isHe ? "הזנה ידנית" : "Manual entry"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -182,6 +230,24 @@ export default function ImportLinkScreen({ navigation }: any) {
           >
             {isHe ? "תצוגה לפני שמירה" : "Preview before save"}
           </Text>
+
+          {result.ingredients.length === 0 && result.steps.length === 0 && (
+            <View style={s.warnBox}>
+              <Text style={[s.warnText, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe
+                  ? "⚠️ האתר הזה חוסם ייבוא אוטומטי — לא הצלחנו לחלץ מרכיבים ושלבים. אפשר לסרוק צילום מסך עם המצלמה."
+                  : "⚠️ This site blocks automated import — ingredients and steps could not be extracted. Try scanning a screenshot instead."}
+              </Text>
+              <TouchableOpacity
+                style={s.warnAction}
+                onPress={() => navigation.navigate("AddRecipe")}
+              >
+                <Text style={s.warnActionText}>
+                  {isHe ? "סרוק עם מצלמה" : "Scan with camera"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {result.imageUrl ? (
             <Image
@@ -215,6 +281,7 @@ export default function ImportLinkScreen({ navigation }: any) {
         </View>
       )}
     </ScrollView>
+    </>
   );
 }
 
@@ -299,8 +366,13 @@ const s = StyleSheet.create({
     ...Typography.caption,
     color: "#9D5447",
   },
-  errorAction: {
+  errorActions: {
+    flexDirection: "row",
+    gap: 8,
     marginTop: 10,
+    flexWrap: "wrap",
+  },
+  errorAction: {
     alignSelf: "flex-start",
     borderRadius: 10,
     backgroundColor: "#fff",
@@ -308,6 +380,10 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: "#F3B8AD",
+  },
+  errorActionPrimary: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   errorActionText: {
     ...Typography.label,
@@ -353,6 +429,34 @@ const s = StyleSheet.create({
     ...Typography.caption,
     color: Colors.text.secondary,
     marginBottom: 12,
+  },
+  warnBox: {
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#F6CC6A",
+    marginBottom: 12,
+    gap: 8,
+  },
+  warnText: {
+    ...Typography.caption,
+    color: "#92650A",
+    lineHeight: 17,
+  },
+  warnAction: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#F6CC6A",
+  },
+  warnActionText: {
+    ...Typography.label,
+    color: "#92650A",
+    fontSize: 12,
   },
   saveBtn: {
     minHeight: 48,
