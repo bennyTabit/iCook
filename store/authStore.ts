@@ -25,12 +25,22 @@ export const useAuthStore = create<AuthStore>((set) => {
   AsyncStorage.getItem(AUTH_KEY)
     .then((raw) => {
       if (raw) {
-        set({ user: JSON.parse(raw) as AuthUser, loading: false });
+        try {
+          set({ user: JSON.parse(raw) as AuthUser, loading: false });
+        } catch (parseErr) {
+          // Corrupted stored value — clear it and continue as signed-out
+          console.warn('[authStore] Corrupted auth data, clearing.', parseErr);
+          AsyncStorage.removeItem(AUTH_KEY).catch(() => {});
+          set({ loading: false });
+        }
       } else {
         set({ loading: false });
       }
     })
-    .catch(() => set({ loading: false }));
+    .catch((err) => {
+      console.warn('[authStore] AsyncStorage read failed, continuing as signed-out.', err);
+      set({ loading: false });
+    });
 
   return {
     user: null,
@@ -38,13 +48,19 @@ export const useAuthStore = create<AuthStore>((set) => {
 
     setUser: (user) => {
       if (user) {
-        AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user)).catch(() => {});
+        AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user)).catch((err) => {
+          console.warn('[authStore] Failed to persist auth user.', err);
+        });
       }
       set({ user, loading: false });
     },
 
     signOut: async () => {
-      await AsyncStorage.removeItem(AUTH_KEY);
+      try {
+        await AsyncStorage.removeItem(AUTH_KEY);
+      } catch (err) {
+        console.warn('[authStore] Failed to remove auth key on sign-out.', err);
+      }
       set({ user: null });
     },
   };
