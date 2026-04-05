@@ -8,11 +8,12 @@
 ## PHASE 1 — Stability & Bug Fixes
 **Goal:** Fix what breaks before adding anything new.
 
-### 1.1 Error Boundaries & Crash Recovery ✅
+### 1.1 Error Boundaries & Crash Recovery ✅ — committed 6d24aaf
 - [x] Add React error boundary wrapping the entire app (white screen → friendly error UI)
-- [x] Per-screen try/catch with user-facing error messages (Hebrew + English)
-- [x] Handle `AsyncStorage` failures gracefully (currently silent)
-- [x] Handle SQLite initialization failures (app unusable if `initDB()` throws)
+- [x] Bilingual (He/En) error screen with retry button + dev-only stack trace
+- [x] Handle `AsyncStorage` failures gracefully — log, clear corrupted data, continue
+- [x] Handle SQLite initialization failures — visible error screen + retry instead of silent crash
+- [x] ActivityIndicator while DB initialises (no more blank first frame)
 
 ### 1.2 Input Validation ⬜
 - [ ] Enforce recipe title non-empty at store/DB level, not just UI
@@ -242,7 +243,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| 1 — Stability | 🔄 In Progress | 25% (1.1 done) |
+| 1 — Stability | 🔄 In Progress | 25% (1.1 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | ⬜ Not Started | 0% |
