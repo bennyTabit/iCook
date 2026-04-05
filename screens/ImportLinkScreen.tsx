@@ -27,6 +27,7 @@ export default function ImportLinkScreen({ navigation }: any) {
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<ImportedRecipe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWebView, setShowWebView] = useState(false);
@@ -80,7 +81,8 @@ export default function ImportLinkScreen({ navigation }: any) {
   }
 
   async function handleSave() {
-    if (!result) return;
+    if (!result || saving) return;
+    setSaving(true);
 
     const normalizedTitle = result.title.trim();
     const id = await insertRecipe({
@@ -111,17 +113,21 @@ export default function ImportLinkScreen({ navigation }: any) {
         .trim(),
     });
 
-    await loadRecipes();
-    Alert.alert(
-      isHe ? "🎉 המתכון נוסף בהצלחה!" : "🎉 Recipe added successfully!",
-      undefined,
-      [
-        {
-          text: isHe ? "לצפייה במתכון" : "View recipe",
-          onPress: () => navigation.navigate("RecipeDetail", { id }),
-        },
-      ],
-    );
+    try {
+      await loadRecipes();
+      Alert.alert(
+        isHe ? "🎉 המתכון נוסף בהצלחה!" : "🎉 Recipe added successfully!",
+        undefined,
+        [
+          {
+            text: isHe ? "לצפייה במתכון" : "View recipe",
+            onPress: () => navigation.navigate("RecipeDetail", { id }),
+          },
+        ],
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleWebViewResult(recipe: Omit<ImportedRecipe, "sourceUrl" | "sourceName">) {
@@ -291,9 +297,15 @@ export default function ImportLinkScreen({ navigation }: any) {
             {result.servings ?? 2} {isHe ? "מנות" : "servings"}
           </Text>
 
-          <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+          <TouchableOpacity
+            style={[s.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
             <Text style={s.saveBtnText}>
-              {isHe ? "שמור מתכון" : "Save recipe"}
+              {saving
+                ? (isHe ? "שומר..." : "Saving...")
+                : (isHe ? "שמור מתכון" : "Save recipe")}
             </Text>
           </TouchableOpacity>
         </View>

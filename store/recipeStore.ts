@@ -14,6 +14,11 @@ type RecipeStore = {
   removeRecipe: (id: number) => Promise<void>;
 };
 
+// Monotonically increasing counter — each call to loadRecipes() claims the
+// current generation. If a newer call starts before an older one resolves,
+// the older result is discarded so stale data never overwrites fresh data.
+let loadGeneration = 0;
+
 export const useRecipeStore = create<RecipeStore>((set, get) => ({
   recipes: [],
   filters: { ...DEFAULT_FILTERS },
@@ -30,11 +35,15 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
   },
 
   loadRecipes: async () => {
+    const gen = ++loadGeneration;
     set({ loading: true });
     try {
       const results = await searchRecipes(get().filters);
+      // Discard result if a newer load has already started
+      if (gen !== loadGeneration) return;
       set({ recipes: results, loading: false });
     } catch (e) {
+      if (gen !== loadGeneration) return;
       console.error('loadRecipes error:', e);
       set({ loading: false });
     }

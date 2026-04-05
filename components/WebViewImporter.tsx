@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -205,6 +205,16 @@ export default function WebViewImporter({ url, sourceName, onResult, onCancel, i
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasExtracted = useRef(false);
   const currentUrl = useRef(url);
+
+  // Clear pending timer when the modal is closed / component unmounts
+  useEffect(() => {
+    return () => {
+      if (loadTimer.current) {
+        clearTimeout(loadTimer.current);
+        loadTimer.current = null;
+      }
+    };
+  }, []);
 
   function scheduleExtract() {
     if (hasExtracted.current) return;
