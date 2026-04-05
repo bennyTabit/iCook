@@ -500,6 +500,25 @@ export async function deleteRecipe(id: number) {
   await db.runAsync("DELETE FROM recipes WHERE id = ?", [id]);
 }
 
+/**
+ * Associate a tag with a recipe. Safe to call multiple times — the PRIMARY KEY
+ * constraint on recipe_tags means a duplicate is silently ignored (INSERT OR IGNORE).
+ */
+export async function insertRecipeTag(recipeId: number, tagId: number): Promise<void> {
+  await db.runAsync(
+    "INSERT OR IGNORE INTO recipe_tags (recipe_id, tag_id) VALUES (?, ?)",
+    [recipeId, tagId],
+  );
+}
+
+/** Remove all tag associations for a recipe then re-insert the given set. */
+export async function setRecipeTags(recipeId: number, tagIds: number[]): Promise<void> {
+  await db.runAsync("DELETE FROM recipe_tags WHERE recipe_id = ?", [recipeId]);
+  for (const tagId of tagIds) {
+    await insertRecipeTag(recipeId, tagId);
+  }
+}
+
 export async function searchRecipes(query: string): Promise<Recipe[]> {
   const q = `%${query}%`;
   return db.getAllAsync<Recipe>(

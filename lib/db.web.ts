@@ -39,6 +39,10 @@ const categories: Category[] = [
 ];
 
 let nextId = 2;
+
+// tag store: recipeId → Set<tagId>
+const recipeTagsStore = new Map<number, Set<number>>();
+
 let recipes: Recipe[] = [
   {
     id: 1,
@@ -74,6 +78,9 @@ export async function getRecipeById(id: number): Promise<Recipe | null> {
 }
 
 export async function insertRecipe(recipe: Recipe): Promise<number> {
+  if (!recipe.title_he?.trim()) {
+    throw new Error("כותרת המתכון לא יכולה להיות ריקה / Recipe title cannot be empty");
+  }
   const id = nextId++;
   const now = new Date().toISOString();
   recipes.unshift({
@@ -97,6 +104,20 @@ export async function toggleFavorite(id: number, current: number) {
 
 export async function deleteRecipe(id: number) {
   recipes = recipes.filter(r => r.id !== id);
+  recipeTagsStore.delete(id);
+}
+
+export async function insertRecipeTag(recipeId: number, tagId: number): Promise<void> {
+  if (!recipeTagsStore.has(recipeId)) recipeTagsStore.set(recipeId, new Set());
+  recipeTagsStore.get(recipeId)!.add(tagId);
+}
+
+export async function setRecipeTags(recipeId: number, tagIds: number[]): Promise<void> {
+  recipeTagsStore.set(recipeId, new Set(tagIds));
+}
+
+export function getTagIdsForRecipe(recipeId: number): number[] {
+  return Array.from(recipeTagsStore.get(recipeId) ?? []);
 }
 
 export async function searchRecipes(query: string): Promise<Recipe[]> {
