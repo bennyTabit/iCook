@@ -31,9 +31,23 @@ export default function ImportLinkScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [showWebView, setShowWebView] = useState(false);
 
+  const urlValidationError = useMemo(() => {
+    const trimmed = url.trim();
+    if (!trimmed) return null; // no input yet — no error shown
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return isHe ? "כתובת חייבת להתחיל ב-http או https" : "URL must start with http or https";
+      }
+      return null;
+    } catch {
+      return isHe ? "כתובת URL לא תקינה" : "Invalid URL format";
+    }
+  }, [url, isHe]);
+
   const canImport = useMemo(
-    () => url.trim().length > 0 && !loading,
-    [url, loading],
+    () => url.trim().length > 0 && !loading && urlValidationError === null,
+    [url, loading, urlValidationError],
   );
 
   async function handlePaste() {
@@ -170,6 +184,10 @@ export default function ImportLinkScreen({ navigation }: any) {
           <Text style={s.pasteBtnText}>{isHe ? "הדבק" : "Paste"}</Text>
         </TouchableOpacity>
       </View>
+
+      {urlValidationError !== null && (
+        <Text style={s.urlError}>{urlValidationError}</Text>
+      )}
 
       <TouchableOpacity
         style={[s.cta, !canImport && s.ctaDisabled]}
@@ -338,6 +356,13 @@ const s = StyleSheet.create({
   },
   ctaDisabled: {
     opacity: 0.45,
+  },
+  urlError: {
+    fontSize: 12,
+    color: Colors.primary,
+    marginTop: -8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
   ctaText: {
     ...Typography.button,

@@ -42,8 +42,18 @@ export default function ProfileScreen() {
   const { user, setUser, signOut, loading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
 
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const isGoogleConfigured = Boolean(googleClientId);
+
+  if (!isGoogleConfigured) {
+    console.warn(
+      "[ProfileScreen] EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set. " +
+      "Google Sign In will not work. Copy .env.example to .env and fill in the value."
+    );
+  }
+
   const [, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    clientId: googleClientId,
     redirectUri: makeRedirectUri(),
   });
 
@@ -266,10 +276,20 @@ export default function ProfileScreen() {
                 <ActivityIndicator color={Colors.primary} style={{ marginTop: 8 }} />
               ) : (
                 <View style={s.authBtns}>
+                  {!isGoogleConfigured && (
+                    <View style={s.configWarning}>
+                      <Ionicons name="warning-outline" size={14} color={Colors.primary} />
+                      <Text style={s.configWarningText}>
+                        {isHe
+                          ? "Google Sign In לא מוגדר — הוסף EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ל-.env"
+                          : "Google Sign In not configured — add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to .env"}
+                      </Text>
+                    </View>
+                  )}
                   <TouchableOpacity
-                    style={[s.authBtn, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                    onPress={handleGoogleSignIn}
-                    activeOpacity={0.85}
+                    style={[s.authBtn, { flexDirection: isHe ? "row-reverse" : "row" }, !isGoogleConfigured && s.authBtnDisabled]}
+                    onPress={isGoogleConfigured ? handleGoogleSignIn : undefined}
+                    activeOpacity={isGoogleConfigured ? 0.85 : 1}
                   >
                     <View style={s.authBtnIcon}>
                       <Ionicons name="logo-google" size={18} color="#4285F4" />
@@ -527,6 +547,21 @@ const s = StyleSheet.create({
     lineHeight: 19,
   },
   authBtns: { gap: 8, marginTop: 4 },
+  authBtnDisabled: { opacity: 0.4 },
+  configWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFF3F3",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 4,
+  },
+  configWarningText: {
+    fontSize: 11,
+    color: Colors.primary,
+    flex: 1,
+  },
   authBtn: {
     alignItems: "center",
     gap: 10,

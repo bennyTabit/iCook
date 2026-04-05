@@ -423,6 +423,9 @@ export async function getRecipeById(id: number): Promise<Recipe | null> {
 }
 
 export async function insertRecipe(recipe: Recipe): Promise<number> {
+  if (!recipe.title_he?.trim()) {
+    throw new Error("כותרת המתכון לא יכולה להיות ריקה / Recipe title cannot be empty");
+  }
   const res = await db.runAsync(
     `INSERT INTO recipes
       (title_he, title_en, description_he, description_en, category_id, difficulty,
