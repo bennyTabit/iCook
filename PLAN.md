@@ -15,10 +15,10 @@
 - [x] Handle SQLite initialization failures — visible error screen + retry instead of silent crash
 - [x] ActivityIndicator while DB initialises (no more blank first frame)
 
-### 1.2 Input Validation ⬜
-- [ ] Enforce recipe title non-empty at store/DB level, not just UI
-- [ ] Validate URLs before sending to importer (fails silently on malformed URLs)
-- [ ] Validate Google Client ID is set at boot — auth silently fails if `.env` missing
+### 1.2 Input Validation ✅ — committed 432d277
+- [x] Enforce recipe title non-empty at DB level — `insertRecipe()` throws bilingual error
+- [x] Real-time URL format validation in ImportLinkScreen with inline error hint; import button disabled until URL is valid http/https
+- [x] Google Client ID check in ProfileScreen — console.warn + visible in-UI banner when `.env` not configured
 
 ### 1.3 Race Conditions & Memory Leaks ⬜
 - [ ] Debounce `loadRecipes()` in search store — currently fires on every keystroke to SQLite
@@ -243,7 +243,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| 1 — Stability | 🔄 In Progress | 25% (1.1 ✅) |
+| 1 — Stability | 🔄 In Progress | 50% (1.1 ✅, 1.2 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | ⬜ Not Started | 0% |
