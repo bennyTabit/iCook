@@ -25,10 +25,12 @@
 - [x] ImportLinkScreen: `saving` guard + disabled button prevents duplicate recipe inserts on double-tap
 - [x] WebViewImporter: `useEffect` cleanup clears `loadTimer` on unmount — no more setState on unmounted component
 
-### 1.4 Web Platform Parity ⬜
-- [ ] Fix tag filtering on web (returns empty always — `lib/search.web.ts`)
-- [ ] Implement ingredient search on web
-- [ ] Match `lib/search.web.ts` behavior to native `lib/search.ts`
+### 1.4 Web Platform Parity ✅ — committed 74dd6a9
+- [x] Fix tag filtering on web — `db.web.ts` now has a real tag store; `search.web.ts` populates `tag_ids` and applies same every()-logic as native
+- [x] Fix ingredient/description search on web — notes_he/en and description_he/en now included in text search (ingredients live in notes)
+- [x] `search.web.ts` fully rewritten to match native `search.ts` behaviour: category filter, sort with null-safe cook_time, tag filtering
+- [x] Add `insertRecipeTag` / `setRecipeTags` to both native `db.ts` and `db.web.ts` — ready for Phase 3 tag UI
+- [x] `db.web.ts` `insertRecipe` now validates title (matches native guard from 1.2)
 
 ---
 
@@ -243,7 +245,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| 1 — Stability | 🔄 In Progress | 75% (1.1 ✅, 1.2 ✅, 1.3 ✅) |
+| 1 — Stability | ✅ Complete | 100% (1.1 ✅, 1.2 ✅, 1.3 ✅, 1.4 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | ⬜ Not Started | 0% |
