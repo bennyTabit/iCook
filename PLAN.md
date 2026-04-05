@@ -20,10 +20,10 @@
 - [x] Real-time URL format validation in ImportLinkScreen with inline error hint; import button disabled until URL is valid http/https
 - [x] Google Client ID check in ProfileScreen — console.warn + visible in-UI banner when `.env` not configured
 
-### 1.3 Race Conditions & Memory Leaks ⬜
-- [ ] Debounce `loadRecipes()` in search store — currently fires on every keystroke to SQLite
-- [ ] Clean up animation refs and WebView message listeners on unmount
-- [ ] Prevent duplicate recipe inserts on rapid tapping of save button
+### 1.3 Race Conditions & Memory Leaks ✅ — committed f1caafd
+- [x] recipeStore: load generation counter discards stale concurrent searchRecipes() results
+- [x] ImportLinkScreen: `saving` guard + disabled button prevents duplicate recipe inserts on double-tap
+- [x] WebViewImporter: `useEffect` cleanup clears `loadTimer` on unmount — no more setState on unmounted component
 
 ### 1.4 Web Platform Parity ⬜
 - [ ] Fix tag filtering on web (returns empty always — `lib/search.web.ts`)
@@ -243,7 +243,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| 1 — Stability | 🔄 In Progress | 50% (1.1 ✅, 1.2 ✅) |
+| 1 — Stability | 🔄 In Progress | 75% (1.1 ✅, 1.2 ✅, 1.3 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | ⬜ Not Started | 0% |
