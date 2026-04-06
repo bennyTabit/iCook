@@ -132,6 +132,21 @@ function scaleIngredientText(text: string, factor: number) {
   );
 }
 
+// Extracts the leading quantity token from an ingredient string so we can
+// display original vs scaled side-by-side when the ratio has changed.
+// e.g. "2 cups flour" → { qtyStr: "2", value: 2, rest: " cups flour" }
+// e.g. "1 1/2 כפות שמן" → { qtyStr: "1 1/2", value: 1.5, rest: " כפות שמן" }
+function parseLeadingQty(text: string): { qtyStr: string; value: number; rest: string } | null {
+  const m = text.match(
+    /^(\d+\s+\d+\/\d+|\d+[¼½¾⅓⅔⅛⅜⅝⅞]|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\/\d+|\d+(?:[.,]\d+)?)/,
+  );
+  if (!m) return null;
+  const qtyStr = m[0];
+  const value = parseNumericToken(qtyStr);
+  if (value == null || value <= 0) return null;
+  return { qtyStr, value, rest: text.slice(qtyStr.length) };
+}
+
 function parseMinutesFromStep(step: string) {
   const m = step.match(/(\d+)\s*(דקות|דקה|min|minutes)/i);
   if (!m) return null;
@@ -689,10 +704,11 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           ) : null}
 
-          <View style={s.infoChip}>
-            <Ionicons name="people-outline" size={15} color={Colors.text.secondary} />
-            <Text style={s.infoChipText}>
-              {servings} {isHe ? "מנות" : "servings"}
+          <View style={[s.infoChip, ratio !== 1 && { borderColor: Colors.primary + "44", backgroundColor: Colors.primary + "12" }]}>
+            <Ionicons name="people-outline" size={15} color={ratio !== 1 ? Colors.primary : Colors.text.secondary} />
+            <Text style={[s.infoChipText, ratio !== 1 && { color: Colors.primary }]}>
+              {formatScaled(servings)} {isHe ? "מנות" : "servings"}
+              {ratio !== 1 ? ` (×${formatScaled(ratio)})` : ""}
             </Text>
           </View>
 
@@ -722,23 +738,42 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         <View style={s.body}>
           {/* ── Servings stepper + cooked ── */}
           <View style={[s.servingsRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <Text style={s.servingsLabel}>{isHe ? "מנות" : "Servings"}</Text>
+            <View style={{ alignItems: isHe ? "flex-end" : "flex-start" }}>
+              <Text style={s.servingsLabel}>{isHe ? "מנות" : "Servings"}</Text>
+              {ratio !== 1 && (
+                <TouchableOpacity
+                  onPress={() => { void Haptics.selectionAsync(); setServings(baseServings); }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={s.servingsReset}>
+                    {isHe ? "איפוס" : "Reset"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={[s.stepper, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <TouchableOpacity
                 style={s.stepperBtn}
                 onPress={() => {
                   void Haptics.selectionAsync();
-                  setServings((x) => Math.max(1, x - 1));
+                  setServings((x) => Math.max(0.5, parseFloat((x - 0.5).toFixed(1))));
                 }}
               >
                 <Ionicons name="remove" size={18} color={Colors.text.primary} />
               </TouchableOpacity>
-              <Text style={s.stepperValue}>{servings}</Text>
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.stepperValue}>{formatScaled(servings)}</Text>
+                {ratio !== 1 && (
+                  <Text style={s.stepperRatio}>
+                    ×{formatScaled(ratio)}
+                  </Text>
+                )}
+              </View>
               <TouchableOpacity
                 style={s.stepperBtn}
                 onPress={() => {
                   void Haptics.selectionAsync();
-                  setServings((x) => x + 1);
+                  setServings((x) => parseFloat((x + 0.5).toFixed(1)));
                 }}
               >
                 <Ionicons name="add" size={18} color={Colors.text.primary} />
@@ -800,6 +835,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             ) : (
               shownIngredients.map((ing, i) => {
                 const done = !!ingredientDone[i];
+                // When scaled, parse the leading qty for side-by-side display
+                const leadingQty = ratio !== 1 ? parseLeadingQty(rawIngredients[i]) : null;
                 return (
                   <TouchableOpacity
                     key={`ing-${i}`}
@@ -825,7 +862,21 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                         { textAlign: isHe ? "right" : "left" },
                       ]}
                     >
-                      {ing}
+                      {leadingQty ? (
+                        <>
+                          <Text style={[s.qtyOriginal, done && s.ingredientTextDone]}>
+                            {leadingQty.qtyStr}
+                          </Text>
+                          <Text style={[s.qtyScaled, done && s.ingredientTextDone]}>
+                            {" "}{formatScaled(leadingQty.value * ratio)}
+                          </Text>
+                          <Text style={done && s.ingredientTextDone}>
+                            {leadingQty.rest}
+                          </Text>
+                        </>
+                      ) : (
+                        ing
+                      )}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1229,6 +1280,20 @@ const s = StyleSheet.create({
     minWidth: 28,
     textAlign: "center",
   },
+  stepperRatio: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.primary,
+    textAlign: "center",
+    marginTop: -2,
+  },
+  servingsReset: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.primary,
+    textDecorationLine: "underline",
+    marginTop: 2,
+  },
   cookedBtn: {
     marginStart: "auto",
     paddingHorizontal: 14,
@@ -1372,6 +1437,17 @@ const s = StyleSheet.create({
   ingredientTextDone: {
     textDecorationLine: "line-through",
     color: Colors.text.tertiary,
+  },
+  // Scaled quantity display: original (struck-out gray) → new (coral)
+  qtyOriginal: {
+    fontSize: 15,
+    color: Colors.text.tertiary,
+    textDecorationLine: "line-through",
+  },
+  qtyScaled: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
   },
 
   // Steps
