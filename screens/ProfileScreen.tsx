@@ -18,10 +18,9 @@ import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
-import { useAuthStore, APPLE_PROFILE_KEY } from "../store/authStore";
+import { useAuthStore } from "../store/authStore";
 import i18n from "../lib/i18n";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -39,7 +38,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
-  const { user, setUser, signOut, loading } = useAuthStore();
+  const { user, signInWithGoogle, signInWithApple, signOut, loading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
 
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
@@ -55,26 +54,16 @@ export default function ProfileScreen() {
   const [, response, promptAsync] = Google.useAuthRequest({
     clientId: googleClientId,
     redirectUri: makeRedirectUri(),
+    scopes: ["openid", "profile", "email"],
   });
 
   useEffect(() => {
     if (response?.type !== "success") return;
-    const token = response.authentication?.accessToken;
-    if (!token) return;
+    const idToken = response.authentication?.idToken;
+    const accessToken = response.authentication?.accessToken;
+    if (!idToken || !accessToken) return;
     setAuthLoading(true);
-    fetch("https://www.googleapis.com/userinfo/v2/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((info) => {
-        setUser({
-          uid: info.id,
-          displayName: info.name ?? null,
-          email: info.email ?? null,
-          photoURL: info.picture ?? null,
-          provider: "google",
-        });
-      })
+    signInWithGoogle(idToken, accessToken)
       .catch(console.error)
       .finally(() => setAuthLoading(false));
   }, [response]);
@@ -100,29 +89,7 @@ export default function ProfileScreen() {
           .filter(Boolean)
           .join(" ") || null;
 
-      // Read from the permanent Apple profile key (never deleted on sign-out)
-      const savedRaw = await AsyncStorage.getItem(APPLE_PROFILE_KEY).catch(() => null);
-      const saved = savedRaw ? JSON.parse(savedRaw) : null;
-
-      const displayName = name ?? saved?.displayName ?? null;
-      const email = credential.email ?? saved?.email ?? null;
-
-      // If we got new data from Apple, persist it permanently
-      if (name || credential.email) {
-        await AsyncStorage.setItem(
-          APPLE_PROFILE_KEY,
-          JSON.stringify({ displayName: displayName, email }),
-        ).catch(() => {});
-      }
-
-      console.log("[Apple] name from credential:", name, "| from saved:", saved?.displayName, "| final:", displayName);
-      setUser({
-        uid: credential.user,
-        displayName,
-        email,
-        photoURL: null,
-        provider: "apple",
-      });
+      await signInWithApple(credential.identityToken!, name, credential.email ?? null);
     } catch (e: any) {
       if (e.code !== "ERR_REQUEST_CANCELED") console.error(e);
     } finally {

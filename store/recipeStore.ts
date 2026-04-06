@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { searchRecipes, DEFAULT_FILTERS } from '../lib/search';
-import { toggleFavorite, deleteRecipe } from '../lib/db';
+import { toggleFavorite, deleteRecipe, getRecipeById } from '../lib/db';
+import { syncRecipeToCloud, deleteRecipeFromCloud } from '../lib/firestore';
+import { auth } from '../lib/firebase';
 import type { FilterState, RecipeSummary } from '../lib/search';
 
 type RecipeStore = {
@@ -12,12 +14,18 @@ type RecipeStore = {
   loadRecipes: () => Promise<void>;
   toggleFav: (id: number, current: number) => Promise<void>;
   removeRecipe: (id: number) => Promise<void>;
+  /** Push a single recipe (by local id) to Firestore. No-op if not signed in. */
+  syncToCloud: (localId: number) => Promise<void>;
 };
 
 // Monotonically increasing counter — each call to loadRecipes() claims the
 // current generation. If a newer call starts before an older one resolves,
 // the older result is discarded so stale data never overwrites fresh data.
 let loadGeneration = 0;
+
+function getUid(): string | null {
+  return auth.currentUser?.uid ?? null;
+}
 
 export const useRecipeStore = create<RecipeStore>((set, get) => ({
   recipes: [],
@@ -39,7 +47,6 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
     set({ loading: true });
     try {
       const results = await searchRecipes(get().filters);
-      // Discard result if a newer load has already started
       if (gen !== loadGeneration) return;
       set({ recipes: results, loading: false });
     } catch (e) {
@@ -56,10 +63,52 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
         r.id === id ? { ...r, is_favorite: current ? 0 : 1 } : r
       ),
     }));
+    // Sync updated favorite state to cloud
+    get().syncToCloud(id).catch(err =>
+      console.warn('[recipeStore] Cloud sync after toggleFav failed:', err)
+    );
   },
 
   removeRecipe: async (id) => {
     await deleteRecipe(id);
     set(s => ({ recipes: s.recipes.filter(r => r.id !== id) }));
+    // Remove from cloud
+    const uid = getUid();
+    if (uid) {
+      deleteRecipeFromCloud(uid, id).catch(err =>
+        console.warn('[recipeStore] Cloud delete failed:', err)
+      );
+    }
+  },
+
+  syncToCloud: async (localId) => {
+    const uid = getUid();
+    if (!uid) return; // not signed in — skip silently
+    try {
+      const recipe = await getRecipeById(localId);
+      if (!recipe) return;
+      await syncRecipeToCloud(uid, {
+        id: localId,
+        title_he: recipe.title_he,
+        title_en: recipe.title_en ?? null,
+        description_he: recipe.description_he ?? null,
+        description_en: recipe.description_en ?? null,
+        category_id: recipe.category_id ?? null,
+        difficulty: recipe.difficulty ?? null,
+        prep_time_min: recipe.prep_time_min ?? null,
+        cook_time_min: recipe.cook_time_min ?? null,
+        servings: recipe.servings ?? null,
+        source_type: recipe.source_type ?? "manual",
+        source_url: recipe.source_url ?? null,
+        image_uri: recipe.image_uri ?? null,
+        notes_he: recipe.notes_he ?? null,
+        notes_en: recipe.notes_en ?? null,
+        is_favorite: recipe.is_favorite ?? 0,
+        created_at: recipe.created_at ?? new Date().toISOString(),
+        updated_at: recipe.updated_at ?? new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('[recipeStore] syncToCloud error:', err);
+    }
   },
 }));

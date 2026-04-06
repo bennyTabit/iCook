@@ -1,7 +1,15 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithCredential,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
 
-const AUTH_KEY = "@icook_auth_user";
 // Separate key that is NEVER deleted — persists Apple name/email across sign-outs
 export const APPLE_PROFILE_KEY = "@icook_apple_profile";
 
@@ -16,52 +24,87 @@ export type AuthUser = {
 type AuthStore = {
   user: AuthUser | null;
   loading: boolean;
-  setUser: (user: AuthUser | null) => void;
+  /** Sign in with a Google idToken obtained from expo-auth-session */
+  signInWithGoogle: (idToken: string, accessToken: string) => Promise<void>;
+  /** Sign in with an Apple credential obtained from expo-apple-authentication */
+  signInWithApple: (identityToken: string, displayName: string | null, email: string | null) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Internal — called by Firebase auth listener */
+  _setFromFirebase: (fbUser: FirebaseUser | null, provider: "google" | "apple") => void;
 };
 
-export const useAuthStore = create<AuthStore>((set) => {
-  // Hydrate persisted session on store creation
-  AsyncStorage.getItem(AUTH_KEY)
-    .then((raw) => {
-      if (raw) {
-        try {
-          set({ user: JSON.parse(raw) as AuthUser, loading: false });
-        } catch (parseErr) {
-          // Corrupted stored value — clear it and continue as signed-out
-          console.warn('[authStore] Corrupted auth data, clearing.', parseErr);
-          AsyncStorage.removeItem(AUTH_KEY).catch(() => {});
-          set({ loading: false });
-        }
-      } else {
-        set({ loading: false });
-      }
-    })
-    .catch((err) => {
-      console.warn('[authStore] AsyncStorage read failed, continuing as signed-out.', err);
-      set({ loading: false });
-    });
+function mapFirebaseUser(fbUser: FirebaseUser, provider: "google" | "apple"): AuthUser {
+  return {
+    uid: fbUser.uid,
+    displayName: fbUser.displayName,
+    email: fbUser.email,
+    photoURL: fbUser.photoURL,
+    provider,
+  };
+}
+
+export const useAuthStore = create<AuthStore>((set, get) => {
+  // Listen to Firebase auth state changes — this fires immediately on boot
+  // if the user has a persisted session (Firebase handles token refresh).
+  onAuthStateChanged(auth, async (fbUser) => {
+    if (fbUser) {
+      // Determine provider from Firebase user profile
+      const providerId = fbUser.providerData[0]?.providerId ?? "";
+      const provider: "google" | "apple" =
+        providerId.includes("apple") ? "apple" : "google";
+      set({ user: mapFirebaseUser(fbUser, provider), loading: false });
+    } else {
+      set({ user: null, loading: false });
+    }
+  });
 
   return {
     user: null,
     loading: true,
 
-    setUser: (user) => {
-      if (user) {
-        AsyncStorage.setItem(AUTH_KEY, JSON.stringify(user)).catch((err) => {
-          console.warn('[authStore] Failed to persist auth user.', err);
-        });
+    signInWithGoogle: async (idToken, accessToken) => {
+      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      const result = await signInWithCredential(auth, credential);
+      set({ user: mapFirebaseUser(result.user, "google"), loading: false });
+    },
+
+    signInWithApple: async (identityToken, displayName, email) => {
+      const provider = new OAuthProvider("apple.com");
+      const credential = provider.credential({ idToken: identityToken });
+      const result = await signInWithCredential(auth, credential);
+
+      // Apple only sends name/email on first auth — persist them permanently
+      const savedRaw = await AsyncStorage.getItem(APPLE_PROFILE_KEY).catch(() => null);
+      const saved = savedRaw ? JSON.parse(savedRaw) : null;
+      const finalName = displayName ?? saved?.displayName ?? result.user.displayName;
+      const finalEmail = email ?? saved?.email ?? result.user.email;
+
+      if (displayName || email) {
+        await AsyncStorage.setItem(
+          APPLE_PROFILE_KEY,
+          JSON.stringify({ displayName: finalName, email: finalEmail }),
+        ).catch(() => {});
       }
+
+      const user: AuthUser = {
+        uid: result.user.uid,
+        displayName: finalName,
+        email: finalEmail,
+        photoURL: null,
+        provider: "apple",
+      };
       set({ user, loading: false });
     },
 
     signOut: async () => {
-      try {
-        await AsyncStorage.removeItem(AUTH_KEY);
-      } catch (err) {
-        console.warn('[authStore] Failed to remove auth key on sign-out.', err);
-      }
+      await firebaseSignOut(auth).catch(err =>
+        console.warn("[authStore] Firebase sign-out error:", err)
+      );
       set({ user: null });
+    },
+
+    _setFromFirebase: (fbUser, provider) => {
+      set({ user: fbUser ? mapFirebaseUser(fbUser, provider) : null, loading: false });
     },
   };
 });
