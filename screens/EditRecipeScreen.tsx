@@ -132,7 +132,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   const { id } = route.params;
   const { t } = useTranslation();
   const isHe = isHebrew();
-  const { loadRecipes } = useRecipeStore();
+  const { loadRecipes, syncToCloud } = useRecipeStore();
 
   const [state, setState] = useState<DraftState>(createInitialState());
   const [saving, setSaving] = useState(false);
@@ -345,6 +345,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
       }
 
       await loadRecipes();
+      if (recipeId) syncToCloud(recipeId).catch(() => {});
       if (!id) await AsyncStorage.removeItem(DRAFT_KEY);
       initialSnapshotRef.current = JSON.stringify(state);
 

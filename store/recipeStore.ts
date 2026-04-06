@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { searchRecipes, DEFAULT_FILTERS } from '../lib/search';
-import { toggleFavorite, deleteRecipe, getRecipeById } from '../lib/db';
-import { syncRecipeToCloud, deleteRecipeFromCloud } from '../lib/firestore';
+import { toggleFavorite, deleteRecipe, getRecipeById, insertRecipe } from '../lib/db';
+import { syncRecipeToCloud, deleteRecipeFromCloud, fetchCloudRecipes } from '../lib/firestore';
 import { auth } from '../lib/firebase';
 import type { FilterState, RecipeSummary } from '../lib/search';
 
@@ -16,6 +16,8 @@ type RecipeStore = {
   removeRecipe: (id: number) => Promise<void>;
   /** Push a single recipe (by local id) to Firestore. No-op if not signed in. */
   syncToCloud: (localId: number) => Promise<void>;
+  /** Pull cloud recipes missing from local SQLite. No-op if not signed in. */
+  pullFromCloud: () => Promise<void>;
 };
 
 // Monotonically increasing counter — each call to loadRecipes() claims the
@@ -78,6 +80,39 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
       deleteRecipeFromCloud(uid, id).catch(err =>
         console.warn('[recipeStore] Cloud delete failed:', err)
       );
+    }
+  },
+
+  pullFromCloud: async () => {
+    const uid = getUid();
+    if (!uid) return;
+    try {
+      const cloudRecipes = await fetchCloudRecipes(uid);
+      for (const r of cloudRecipes) {
+        const existing = await getRecipeById(r.id);
+        if (!existing) {
+          await insertRecipe({
+            title_he: r.title_he,
+            title_en: r.title_en ?? undefined,
+            description_he: r.description_he ?? undefined,
+            description_en: r.description_en ?? undefined,
+            category_id: r.category_id ?? undefined,
+            difficulty: (r.difficulty ?? undefined) as any,
+            prep_time_min: r.prep_time_min ?? undefined,
+            cook_time_min: r.cook_time_min ?? undefined,
+            servings: r.servings ?? undefined,
+            source_type: (r.source_type ?? 'manual') as any,
+            source_url: r.source_url ?? undefined,
+            image_uri: r.image_uri ?? undefined,
+            notes_he: r.notes_he ?? undefined,
+            notes_en: r.notes_en ?? undefined,
+            is_favorite: r.is_favorite ?? 0,
+          });
+        }
+      }
+      await get().loadRecipes();
+    } catch (err) {
+      console.warn('[recipeStore] pullFromCloud error:', err);
     }
   },
 

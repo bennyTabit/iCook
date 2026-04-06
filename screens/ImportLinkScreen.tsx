@@ -24,7 +24,7 @@ import WebViewImporter from "../components/WebViewImporter";
 
 export default function ImportLinkScreen({ navigation }: any) {
   const isHe = isHebrew();
-  const { loadRecipes } = useRecipeStore();
+  const { loadRecipes, syncToCloud } = useRecipeStore();
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -114,6 +114,7 @@ export default function ImportLinkScreen({ navigation }: any) {
         .trim(),
     });
 
+    syncToCloud(id).catch(() => {});
     try {
       await loadRecipes();
       Alert.alert(

@@ -8,6 +8,9 @@ import RootNavigator from './navigation/RootNavigator';
 import { initDB } from './lib/db';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Colors } from './constants/colors';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { useRecipeStore } from './store/recipeStore';
 
 type DBState = 'loading' | 'ready' | 'error';
 
@@ -34,6 +37,16 @@ export default function App() {
       I18nManager.forceRTL(true);
     }
     bootDB();
+  }, []);
+
+  // Delta sync: when auth session restores on boot, pull any missing cloud recipes
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        useRecipeStore.getState().pullFromCloud();
+      }
+    });
+    return unsub;
   }, []);
 
   if (dbState === 'loading') {
