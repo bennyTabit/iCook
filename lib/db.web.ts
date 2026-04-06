@@ -98,6 +98,10 @@ export async function updateRecipe(id: number, patch: Partial<Recipe>): Promise<
   recipes = recipes.map(r => (r.id === id ? { ...r, ...patch, updated_at: new Date().toISOString() } : r));
 }
 
+export async function updateRecipeImageUri(id: number, uri: string): Promise<void> {
+  recipes = recipes.map(r => (r.id === id ? { ...r, image_uri: uri, updated_at: new Date().toISOString() } : r));
+}
+
 export async function toggleFavorite(id: number, current: number) {
   recipes = recipes.map(r => (r.id === id ? { ...r, is_favorite: current ? 0 : 1, updated_at: new Date().toISOString() } : r));
 }

@@ -489,6 +489,13 @@ export async function updateRecipe(
   );
 }
 
+export async function updateRecipeImageUri(id: number, uri: string): Promise<void> {
+  await db.runAsync(
+    'UPDATE recipes SET image_uri = ?, updated_at = datetime("now") WHERE id = ?',
+    [uri, id],
+  );
+}
+
 export async function toggleFavorite(id: number, current: number) {
   await db.runAsync(
     'UPDATE recipes SET is_favorite = ?, updated_at = datetime("now") WHERE id = ?',

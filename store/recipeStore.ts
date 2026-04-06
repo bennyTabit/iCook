@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { searchRecipes, DEFAULT_FILTERS } from '../lib/search';
-import { toggleFavorite, deleteRecipe, getRecipeById, insertRecipe } from '../lib/db';
+import { toggleFavorite, deleteRecipe, getRecipeById, insertRecipe, updateRecipeImageUri } from '../lib/db';
 import { syncRecipeToCloud, deleteRecipeFromCloud, fetchCloudRecipes } from '../lib/firestore';
 import { auth } from '../lib/firebase';
+import { uploadRecipeImage, isLocalUri } from '../lib/storage';
 import type { FilterState, RecipeSummary } from '../lib/search';
 
 type RecipeStore = {
@@ -122,6 +123,20 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
     try {
       const recipe = await getRecipeById(localId);
       if (!recipe) return;
+
+      // Upload local image to Firebase Storage before syncing to Firestore
+      let imageUri = recipe.image_uri ?? null;
+      if (isLocalUri(imageUri)) {
+        try {
+          const cloudUrl = await uploadRecipeImage(uid, imageUri!, localId);
+          await updateRecipeImageUri(localId, cloudUrl);
+          imageUri = cloudUrl;
+        } catch (imgErr) {
+          console.warn('[recipeStore] Image upload failed, keeping local URI:', imgErr);
+          // Fall through — sync recipe text without the image URL
+        }
+      }
+
       await syncRecipeToCloud(uid, {
         id: localId,
         title_he: recipe.title_he,
@@ -135,7 +150,7 @@ export const useRecipeStore = create<RecipeStore>((set, get) => ({
         servings: recipe.servings ?? null,
         source_type: recipe.source_type ?? "manual",
         source_url: recipe.source_url ?? null,
-        image_uri: recipe.image_uri ?? null,
+        image_uri: imageUri,
         notes_he: recipe.notes_he ?? null,
         notes_en: recipe.notes_en ?? null,
         is_favorite: recipe.is_favorite ?? 0,
