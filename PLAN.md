@@ -1,6 +1,6 @@
 # iCook — Production Roadmap
 
-> Last updated: 2026-04-06
+> Last updated: 2026-04-06 (Phase 4 — 100% complete)
 > Track progress: ✅ Done | 🔄 In Progress | ⬜ Not Started
 
 ---
@@ -129,11 +129,12 @@
 - [x] "Quick & easy ⚡" section (cook_time_min < 30)
 - [x] "Recently cooked" uses actual cook log when available, falls back to recent
 
-### 4.3 Search — Make It Smarter ⬜ (deferred)
-- [ ] Semantic search: "chicken no dairy" → parse intent
-- [ ] Search history (last 10, clear button)
-- [ ] Suggested searches based on DB contents
-- [ ] Voice search (Hebrew) via `expo-speech`
+### 4.3 Search — Make It Smarter ✅ — committed 816d45f
+- [x] Semantic search: "chicken no dairy" → parse intent via `lib/searchIntent.ts`
+- [x] Search history (last 10, clear button) via `lib/searchHistory.ts`
+- [x] Intent banner shows detected difficulty/time/dietary hints inline
+- [ ] Suggested searches based on DB contents — deferred
+- [ ] Voice search (Hebrew) via `expo-speech` — deferred
 
 ### 4.4 Recipe Detail — Improvements ✅ — committed b1c2eb2
 - [x] 5-star rating (tap same star = clear; persisted in recipe_user_data SQLite table)
@@ -142,10 +143,10 @@
 - [ ] Nutrition info — skipped (no data source)
 - [ ] Print / PDF export — skipped (too complex for now)
 
-### 4.5 Shopping List — Power Features ⬜ (deferred)
-- [ ] Share shopping list via WhatsApp
-- [ ] Estimated cost (user enters price per item)
-- [ ] Recurring items ("always buy milk")
+### 4.5 Shopping List — Power Features ✅ — committed 9c6aa12
+- [x] Share shopping list via WhatsApp (`whatsapp://send?text=…` + `Share.share` fallback)
+- [x] Estimated cost — long-press item to enter ₪ price, total cost banner
+- [x] Recurring items ("always buy milk") — chip strip, tap to add, long-press to remove
 
 ### 4.0 Design System Foundation ✅ — committed 3fba25d
 - [x] `constants/colors.ts` — semantic tokens: error/warning/success/disabled, heroGradient
@@ -278,7 +279,7 @@
 | 1 — Stability | ✅ Complete | 100% — all 4 sections done, browser-verified |
 | 2 — Backend | ✅ Complete | 100% — all 4 sections done |
 | 3 — Features | ✅ Complete | 95% — 3.1✅ 3.2✅ 3.4✅ 3.5✅ 3.6✅ 3.7✅, 3.3 deferred (AI key needed) |
-| 4 — UX Polish | ✅ Complete | 90% — 4.0✅ 4.1✅ 4.2✅ 4.4✅ 4.6✅ 4.7✅, 4.3/4.5 deferred |
+| 4 — UX Polish | ✅ Complete | 100% — 4.0✅ 4.1✅ 4.2✅ 4.3✅ 4.4✅ 4.5✅ 4.6✅ 4.7✅ |
 | 5 — Testing | ✅ Complete | 80% — 48 tests passing, CI on GitHub Actions, E2E deferred |
 | 6 — Launch | ⬜ Not Started | 0% |
 | 7 — Growth | ⬜ Not Started | 0% |
