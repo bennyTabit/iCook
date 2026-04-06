@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -14,6 +14,8 @@ import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
@@ -54,6 +56,7 @@ export default function HomeFeedScreen({ navigation }: any) {
   const firstName = resolvedName?.split(" ")[0] ?? null;
 
   const [selectedCat, setSelectedCat] = useState("all");
+  const [clipboardRecipeUrl, setClipboardRecipeUrl] = useState<string | null>(null);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
@@ -97,6 +100,23 @@ export default function HomeFeedScreen({ navigation }: any) {
       .filter((r) => r.category_name_en === favCategory && r.is_favorite !== 1)
       .slice(0, 4);
   }, [favorites, recipes]);
+
+  // Check clipboard on every focus — show Quick Import chip if a URL is found
+  useFocusEffect(
+    useCallback(() => {
+      void Clipboard.getStringAsync().then((text) => {
+        const trimmed = text?.trim() ?? "";
+        try {
+          const u = new URL(trimmed);
+          if (u.protocol === "http:" || u.protocol === "https:") {
+            setClipboardRecipeUrl(trimmed);
+            return;
+          }
+        } catch {}
+        setClipboardRecipeUrl(null);
+      });
+    }, []),
+  );
 
   function tap() {
     void Haptics.selectionAsync();
@@ -224,6 +244,39 @@ export default function HomeFeedScreen({ navigation }: any) {
             </View>
           </LinearGradient>
         </Animated.View>
+
+        {/* ── Quick Import chip (shows when clipboard has a URL) ── */}
+        {clipboardRecipeUrl ? (
+          <TouchableOpacity
+            style={[s.quickImportChip, { flexDirection: isHe ? "row-reverse" : "row" }]}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setClipboardRecipeUrl(null);
+              navigation.navigate("ImportLink", { url: clipboardRecipeUrl });
+            }}
+            activeOpacity={0.82}
+          >
+            <View style={s.quickImportIcon}>
+              <Ionicons name="link" size={16} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.quickImportTitle, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "ייבא מתכון מהקישור שבלוח" : "Import recipe from clipboard link"}
+              </Text>
+              <Text
+                style={[s.quickImportUrl, { textAlign: isHe ? "right" : "left" }]}
+                numberOfLines={1}
+              >
+                {clipboardRecipeUrl}
+              </Text>
+            </View>
+            <Ionicons
+              name={isHe ? "chevron-back" : "chevron-forward"}
+              size={16}
+              color={Colors.primary}
+            />
+          </TouchableOpacity>
+        ) : null}
 
         <Animated.View
           style={{
@@ -556,6 +609,38 @@ const s = StyleSheet.create({
   secondaryBtnText: {
     ...Typography.label,
     color: Colors.text.primary,
+  },
+
+  // Quick Import clipboard chip
+  quickImportChip: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: Colors.primary + "12",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + "28",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 10,
+  },
+  quickImportIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickImportTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  quickImportUrl: {
+    fontSize: 11,
+    color: Colors.text.secondary,
+    marginTop: 1,
   },
 
   searchBar: {

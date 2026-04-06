@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { importFromUrl } from "../lib/importer";
 import { insertRecipe } from "../lib/db";
@@ -22,9 +24,19 @@ import { Spacing } from "../constants/spacing";
 import type { ImportedRecipe } from "../lib/importer";
 import WebViewImporter from "../components/WebViewImporter";
 
-export default function ImportLinkScreen({ navigation }: any) {
+function isValidHttpUrl(text: string) {
+  try {
+    const u = new URL(text.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export default function ImportLinkScreen({ route, navigation }: any) {
   const isHe = isHebrew();
   const { loadRecipes, syncToCloud } = useRecipeStore();
+  const autoTriggered = useRef(false);
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +44,31 @@ export default function ImportLinkScreen({ navigation }: any) {
   const [result, setResult] = useState<ImportedRecipe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWebView, setShowWebView] = useState(false);
+  const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
+
+  // Handle URL passed via deep link (icook://import?url=...) or navigation param
+  useEffect(() => {
+    const paramUrl = route.params?.url;
+    if (paramUrl && isValidHttpUrl(paramUrl) && !autoTriggered.current) {
+      autoTriggered.current = true;
+      setUrl(paramUrl);
+      setClipboardUrl(null);
+    }
+  }, [route.params?.url]);
+
+  // Check clipboard on every focus — show banner if it has a URL not already loaded
+  useFocusEffect(
+    useCallback(() => {
+      void Clipboard.getStringAsync().then((text) => {
+        const trimmed = text?.trim() ?? "";
+        if (isValidHttpUrl(trimmed) && trimmed !== url) {
+          setClipboardUrl(trimmed);
+        } else {
+          setClipboardUrl(null);
+        }
+      });
+    }, [url]),
+  );
 
   const urlValidationError = useMemo(() => {
     const trimmed = url.trim();
@@ -54,7 +91,16 @@ export default function ImportLinkScreen({ navigation }: any) {
 
   async function handlePaste() {
     const text = await Clipboard.getStringAsync();
-    if (text?.trim()) setUrl(text.trim());
+    if (text?.trim()) {
+      setUrl(text.trim());
+      setClipboardUrl(null);
+    }
+  }
+
+  function handleClipboardBannerPress() {
+    if (!clipboardUrl) return;
+    setUrl(clipboardUrl);
+    setClipboardUrl(null);
   }
 
   async function handleFetch() {
@@ -173,6 +219,35 @@ export default function ImportLinkScreen({ navigation }: any) {
           ? "הדבק קישור ואנחנו נמלא הכל עבורך"
           : "Paste a link and we will auto-fill it for you"}
       </Text>
+
+      {/* ── Clipboard URL banner ── */}
+      {clipboardUrl ? (
+        <TouchableOpacity
+          style={[s.clipBanner, { flexDirection: isHe ? "row-reverse" : "row" }]}
+          onPress={handleClipboardBannerPress}
+          activeOpacity={0.82}
+        >
+          <View style={s.clipBannerIcon}>
+            <Ionicons name="clipboard-outline" size={18} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.clipBannerTitle, { textAlign: isHe ? "right" : "left" }]}>
+              {isHe ? "זיהינו קישור בלוח — להשתמש בו?" : "Detected a link in clipboard — use it?"}
+            </Text>
+            <Text
+              style={[s.clipBannerUrl, { textAlign: isHe ? "right" : "left" }]}
+              numberOfLines={1}
+            >
+              {clipboardUrl}
+            </Text>
+          </View>
+          <Ionicons
+            name={isHe ? "chevron-back" : "chevron-forward"}
+            size={16}
+            color={Colors.primary}
+          />
+        </TouchableOpacity>
+      ) : null}
 
       <View style={s.urlWrap}>
         <TextInput
@@ -360,6 +435,35 @@ const s = StyleSheet.create({
     ...Typography.label,
     color: Colors.text.secondary,
     fontSize: 12,
+  },
+  // Clipboard banner
+  clipBanner: {
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.primary + "14",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+    padding: 12,
+    marginBottom: 12,
+  },
+  clipBannerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.primary + "22",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clipBannerTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  clipBannerUrl: {
+    fontSize: 11,
+    color: Colors.text.secondary,
+    marginTop: 1,
   },
   cta: {
     minHeight: 52,

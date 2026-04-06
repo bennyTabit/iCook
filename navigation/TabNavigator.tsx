@@ -42,7 +42,7 @@ export type TabParamList = {
   RecipeDetail: { id: number };
   AddRecipe: undefined;
   OcrReview: { ocr: import("../lib/ocr").OcrResult };
-  ImportLink: undefined;
+  ImportLink: { url?: string } | undefined;
   EditRecipe: { id: number | null };
 };
 

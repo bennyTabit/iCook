@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { I18nManager, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import './lib/i18n'; // initialize i18n before anything else
@@ -13,6 +13,25 @@ import { auth } from './lib/firebase';
 import { useRecipeStore } from './store/recipeStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from './lib/i18n';
+
+// React Navigation deep-link configuration
+// icook://import?url=<encoded-url>  →  navigates to ImportLink screen
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const linking: any = {
+  prefixes: ['icook://'],
+  config: {
+    screens: {
+      Tabs: {
+        screens: {
+          ImportLink: {
+            path: 'import',
+            parse: { url: (url: string) => decodeURIComponent(url) },
+          },
+        },
+      },
+    },
+  },
+};
 
 type DBState = 'loading' | 'ready' | 'error';
 
@@ -86,7 +105,7 @@ export default function App() {
     <ErrorBoundary context="app-root">
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <NavigationContainer>
+          <NavigationContainer linking={linking}>
             <RootNavigator />
           </NavigationContainer>
         </SafeAreaProvider>
