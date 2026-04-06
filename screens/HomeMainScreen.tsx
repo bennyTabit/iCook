@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   ScrollView,
@@ -39,6 +40,7 @@ export default function HomeFeedScreen({ navigation }: any) {
   const isHe = isHebrew();
   const {
     recipes,
+    loading,
     loadRecipes,
     toggleFav,
     setFilter,
@@ -204,7 +206,7 @@ export default function HomeFeedScreen({ navigation }: any) {
                 }}
                 activeOpacity={0.9}
               >
-                <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                <Ionicons name="add-circle-outline" size={16} color={Colors.text.inverse} />
                 <Text style={s.primaryBtnText}>{isHe ? "צור מתכון" : "Create recipe"}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -280,6 +282,30 @@ export default function HomeFeedScreen({ navigation }: any) {
             ],
           }}
         >
+          {loading && recipes.length === 0 ? (
+            <View style={s.loadingWrap}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={s.loadingText}>{isHe ? "טוען מתכונים..." : "Loading recipes..."}</Text>
+            </View>
+          ) : recipes.length === 0 ? (
+            <View style={s.emptyWrap}>
+              <Text style={s.emptyEmoji}>👨‍🍳</Text>
+              <Text style={[s.emptyTitle, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "עדיין אין מתכונים" : "No recipes yet"}
+              </Text>
+              <Text style={[s.emptySubtitle, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "התחל בהוספת המתכון הראשון שלך" : "Start by adding your first recipe"}
+              </Text>
+              <TouchableOpacity
+                style={s.emptyBtn}
+                onPress={() => { tap(); navigation.navigate("AddRecipe"); }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.text.inverse} />
+                <Text style={s.emptyBtnText}>{isHe ? "צור מתכון" : "Create recipe"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {continueRecipe && (
             <>
               <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left" }]}>
@@ -329,7 +355,7 @@ export default function HomeFeedScreen({ navigation }: any) {
                   <Ionicons
                     name={cat.icon}
                     size={14}
-                    color={selected ? "#fff" : Colors.text.secondary}
+                    color={selected ? Colors.text.inverse : Colors.text.secondary}
                   />
                   <Text style={[s.chipText, selected && s.chipTextSelected]}>{cat.label}</Text>
                 </TouchableOpacity>
@@ -511,7 +537,7 @@ const s = StyleSheet.create({
   },
   primaryBtnText: {
     ...Typography.button,
-    color: "#fff",
+    color: Colors.text.inverse,
     fontSize: 14,
   },
   secondaryBtn: {
@@ -538,7 +564,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surfaceElevated,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#DFDFD9",
+    borderColor: Colors.border,
     minHeight: 54,
     paddingHorizontal: 10,
     flexDirection: "row",
@@ -632,7 +658,7 @@ const s = StyleSheet.create({
     fontSize: 12,
   },
   chipTextSelected: {
-    color: "#fff",
+    color: Colors.text.inverse,
   },
 
   favoritesWrap: {
@@ -697,7 +723,7 @@ const s = StyleSheet.create({
   },
   favEmptyBtnText: {
     ...Typography.label,
-    color: "#fff",
+    color: Colors.text.inverse,
   },
 
   suggestionWrap: {
@@ -750,4 +776,53 @@ const s = StyleSheet.create({
     marginTop: 3,
   },
   recentFav: { fontSize: 20 },
+
+  // Loading & empty states
+  loadingWrap: {
+    marginTop: 60,
+    alignItems: "center",
+    gap: 14,
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.text.secondary,
+  },
+  emptyWrap: {
+    marginTop: 40,
+    marginHorizontal: 32,
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyEmoji: { fontSize: 52, marginBottom: 4 },
+  emptyTitle: {
+    ...Typography.h3,
+    color: Colors.text.primary,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    color: Colors.text.secondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  emptyBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyBtnText: {
+    ...Typography.button,
+    color: Colors.text.inverse,
+    fontSize: 15,
+  },
 });
