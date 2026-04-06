@@ -29,6 +29,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, type RecipeUserData } from "../lib/db";
 import { logCook } from '../lib/cookLog';
+import { UNICODE_FRACTIONS, formatScaled, parseNumericToken, scaleIngredientText, parseLeadingQty } from '../lib/scaling';
 import { useRecipeStore } from "../store/recipeStore";
 import { useShoppingStore } from "../store/shoppingStore";
 import { useCollectionStore } from "../store/collectionStore";
@@ -80,75 +81,7 @@ function parseSectionLines(notes: string, section: "ingredients" | "steps") {
   return out.filter(Boolean);
 }
 
-function formatScaled(value: number) {
-  if (Math.abs(value - Math.round(value)) < 0.05)
-    return String(Math.round(value));
-  return value.toFixed(1).replace(/\.0$/, "");
-}
-
-const UNICODE_FRACTIONS: Record<string, number> = {
-  "¼": 0.25,
-  "½": 0.5,
-  "¾": 0.75,
-  "⅓": 1 / 3,
-  "⅔": 2 / 3,
-  "⅛": 0.125,
-  "⅜": 0.375,
-  "⅝": 0.625,
-  "⅞": 0.875,
-};
-
-function parseNumericToken(token: string) {
-  const t = token.trim();
-  if (!t) return null;
-  if (UNICODE_FRACTIONS[t] != null) return UNICODE_FRACTIONS[t];
-  const mixedUnicode = t.match(/^(\d+)([¼½¾⅓⅔⅛⅜⅝⅞])$/);
-  if (mixedUnicode)
-    return Number(mixedUnicode[1]) + (UNICODE_FRACTIONS[mixedUnicode[2]] ?? 0);
-  const mixedFraction = t.match(/^(\d+)\s+(\d+)\/(\d+)$/);
-  if (mixedFraction) {
-    const whole = Number(mixedFraction[1]);
-    const num = Number(mixedFraction[2]);
-    const den = Number(mixedFraction[3]);
-    if (den === 0) return null;
-    return whole + num / den;
-  }
-  const fraction = t.match(/^(\d+)\/(\d+)$/);
-  if (fraction) {
-    const num = Number(fraction[1]);
-    const den = Number(fraction[2]);
-    if (den === 0) return null;
-    return num / den;
-  }
-  const decimal = Number(t.replace(",", "."));
-  return Number.isNaN(decimal) ? null : decimal;
-}
-
-function scaleIngredientText(text: string, factor: number) {
-  return text.replace(
-    /\d+\s+\d+\/\d+|\d+[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?/g,
-    (match) => {
-      const n = parseNumericToken(match);
-      if (n == null) return match;
-      return formatScaled(n * factor);
-    },
-  );
-}
-
-// Extracts the leading quantity token from an ingredient string so we can
-// display original vs scaled side-by-side when the ratio has changed.
-// e.g. "2 cups flour" → { qtyStr: "2", value: 2, rest: " cups flour" }
-// e.g. "1 1/2 כפות שמן" → { qtyStr: "1 1/2", value: 1.5, rest: " כפות שמן" }
-function parseLeadingQty(text: string): { qtyStr: string; value: number; rest: string } | null {
-  const m = text.match(
-    /^(\d+\s+\d+\/\d+|\d+[¼½¾⅓⅔⅛⅜⅝⅞]|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\/\d+|\d+(?:[.,]\d+)?)/,
-  );
-  if (!m) return null;
-  const qtyStr = m[0];
-  const value = parseNumericToken(qtyStr);
-  if (value == null || value <= 0) return null;
-  return { qtyStr, value, rest: text.slice(qtyStr.length) };
-}
+// Scaling helpers are imported from lib/scaling.ts
 
 function parseMinutesFromStep(step: string) {
   const m = step.match(/(\d+)\s*(דקות|דקה|min|minutes)/i);
