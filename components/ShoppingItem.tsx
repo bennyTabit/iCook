@@ -5,9 +5,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
+  Alert,
+  Platform,
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { Colors } from "../constants/colors";
 import type { ShopItem } from "../store/shoppingStore";
 
@@ -15,11 +18,12 @@ type Props = {
   item: ShopItem;
   onCheck: () => void;
   onDelete: () => void;
+  onSetPrice: (price: number | undefined) => void;
   isHe: boolean;
   isLast: boolean;
 };
 
-export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: Props) {
+export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe, isLast }: Props) {
   const swipeableRef = useRef<Swipeable>(null);
   const checkAnim = useRef(new Animated.Value(item.checked ? 1 : 0)).current;
 
@@ -30,6 +34,29 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
       friction: 6,
     }).start();
     onCheck();
+  }
+
+  function handleLongPress() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        isHe ? 'מחיר' : 'Price',
+        isHe ? 'הכנס מחיר לפריט (₪)' : 'Enter price for this item (₪)',
+        [
+          { text: isHe ? 'ביטול' : 'Cancel', style: 'cancel' },
+          {
+            text: isHe ? 'שמור' : 'Save',
+            onPress: (val: string | undefined) => {
+              const n = parseFloat(val ?? '');
+              onSetPrice(!isNaN(n) && n > 0 ? n : undefined);
+            },
+          },
+        ],
+        'plain-text',
+        item.price != null ? String(item.price) : '',
+        'numeric',
+      );
+    }
   }
 
   const checkBg = checkAnim.interpolate({
@@ -77,6 +104,7 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
           item.checked && s.rowChecked,
         ]}
         onPress={handleCheck}
+        onLongPress={Platform.OS === 'ios' ? handleLongPress : undefined}
         activeOpacity={0.75}
       >
         {/* Animated checkbox */}
@@ -93,16 +121,21 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
 
         {/* Text content */}
         <View style={[s.textWrap, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
-          <Text
-            style={[
-              s.itemText,
-              { textAlign: isHe ? "right" : "left" },
-              item.checked && s.itemTextDone,
-            ]}
-            numberOfLines={1}
-          >
-            {item.text}
-          </Text>
+          <View style={[s.nameRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <Text
+              style={[
+                s.itemText,
+                { textAlign: isHe ? "right" : "left" },
+                item.checked && s.itemTextDone,
+              ]}
+              numberOfLines={1}
+            >
+              {item.text}
+            </Text>
+            {item.price != null && (
+              <Text style={s.priceTag}>₪{item.price.toFixed(2)}</Text>
+            )}
+          </View>
           {(item.quantity || item.unit) ? (
             <Text style={[s.itemQty, { textAlign: isHe ? "right" : "left" }]}>
               {[item.quantity, item.unit].filter(Boolean).join(" ")}
@@ -150,16 +183,27 @@ const s = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  nameRow: {
+    alignItems: "center",
+    gap: 6,
+  },
   itemText: {
     fontSize: 17,
     fontWeight: "600",
     color: Colors.text.primary,
     lineHeight: 22,
+    flexShrink: 1,
   },
   itemTextDone: {
     textDecorationLine: "line-through",
     color: Colors.text.disabled,
     fontWeight: "400",
+  },
+  priceTag: {
+    fontSize: 12,
+    color: Colors.text.tertiary,
+    fontWeight: "500",
+    flexShrink: 0,
   },
   itemQty: {
     fontSize: 13,

@@ -11,6 +11,7 @@ export type ShopItem = {
   unit?: string;
   checked: boolean;
   category: string;
+  price?: number;
 };
 
 export type AddItemParams = {
@@ -29,6 +30,8 @@ type ShoppingStore = {
   removeItem: (id: string) => void;
   clearChecked: () => void;
   clearAll: () => void;
+  setItemPrice: (id: string, price: number | undefined) => void;
+  totalCost: () => number;
 };
 
 const CATEGORY_MAP: Record<string, string> = {
@@ -188,6 +191,20 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
     clearAll: () => {
       persist([]);
       set({ items: [], grouped: {} });
+    },
+
+    setItemPrice: (id, price) => {
+      set((s) => {
+        const items = s.items.map((i) => i.id === id ? { ...i, price } : i);
+        void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        return { items, grouped: groupItems(items) };
+      });
+    },
+
+    totalCost: () => {
+      return get().items
+        .filter((i) => !i.checked)
+        .reduce((sum, i) => sum + (i.price ?? 0), 0);
     },
   };
 });

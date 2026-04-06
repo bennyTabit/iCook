@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,26 +8,45 @@ import {
   StyleSheet,
   Alert,
   Animated,
+  Share,
+  Linking,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
+import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
 import { useShoppingStore } from "../store/shoppingStore";
+import type { ShopItem } from "../store/shoppingStore";
 import ShoppingItem from "../components/ShoppingItem";
 import AddItemSheet from "../components/AddItemSheet";
+import {
+  getRecurringItems,
+  addRecurringItem,
+  removeRecurringItem,
+} from "../lib/recurringItems";
 
 export default function ShoppingScreen({ navigation }: any) {
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
-  const { items, grouped, checkItem, removeItem, clearChecked, clearAll, addItem } =
+  const { items, grouped, checkItem, removeItem, clearChecked, clearAll, addItem, setItemPrice, totalCost } =
     useShoppingStore();
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [recurring, setRecurring] = useState<string[]>([]);
+
+  // Load recurring items whenever the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      void getRecurringItems().then(setRecurring);
+    }, [])
+  );
 
   function openSheet() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -38,8 +57,12 @@ export default function ShoppingScreen({ navigation }: any) {
   const checkedCount = items.filter((i) => i.checked).length;
   const progress = totalCount > 0 ? checkedCount / totalCount : 0;
 
+  // Compute cost values
+  const uncheckedCost = totalCost();
+  const allCost = items.reduce((sum, i) => sum + (i.price ?? 0), 0);
+  const hasPrices = items.some((i) => i.price != null);
+
   // Build SectionList sections from the grouped store object.
-  // Keys look like "🧀 מוצרי חלב" — emoji prefix + space + name.
   const sections = Object.entries(grouped).map(([cat, catItems]) => ({
     title: cat,
     data: catItems as any[],
@@ -64,6 +87,89 @@ export default function ShoppingScreen({ navigation }: any) {
   function handleClearChecked() {
     void Haptics.selectionAsync();
     clearChecked();
+  }
+
+  // ── Share ───────────────────────────────────────────────────────────────────
+  async function handleShare() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (items.length === 0) return;
+
+    const lines: string[] = [isHe ? '🛒 רשימת קניות - iCook' : '🛒 Shopping List - iCook', ''];
+    for (const [cat, catItems] of Object.entries(grouped)) {
+      lines.push(cat);
+      for (const item of catItems as ShopItem[]) {
+        const check = item.checked ? '✅' : '⬜';
+        const qty = item.quantity ? `${item.quantity}${item.unit ? ' ' + item.unit : ''} ` : '';
+        lines.push(`  ${check} ${qty}${item.text}`);
+      }
+      lines.push('');
+    }
+    const text = lines.join('\n');
+
+    const waUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
+    const canOpenWA = await Linking.canOpenURL(waUrl);
+    if (canOpenWA) {
+      await Linking.openURL(waUrl);
+    } else {
+      await Share.share({ message: text });
+    }
+  }
+
+  // ── Recurring items helpers ─────────────────────────────────────────────────
+  function handleAddRecurringChip(name: string) {
+    void Haptics.selectionAsync();
+    addItem(name);
+  }
+
+  function handleLongPressRecurringChip(name: string) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      isHe ? 'הסר מתמיד' : 'Remove recurring',
+      isHe ? `האם להסיר "${name}" מהפריטים התמידיים?` : `Remove "${name}" from recurring items?`,
+      [
+        { text: isHe ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: isHe ? 'הסר' : 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            void removeRecurringItem(name).then(() =>
+              getRecurringItems().then(setRecurring)
+            );
+          },
+        },
+      ],
+    );
+  }
+
+  function handleAddNewRecurring() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        isHe ? 'פריט תמידי' : 'Recurring item',
+        isHe ? 'שם הפריט שיופיע תמיד ברשימה' : 'Item name to always show in the list',
+        [
+          { text: isHe ? 'ביטול' : 'Cancel', style: 'cancel' },
+          {
+            text: isHe ? 'הוסף' : 'Add',
+            onPress: (val: string | undefined) => {
+              const trimmed = val?.trim();
+              if (!trimmed) return;
+              void addRecurringItem(trimmed).then(() =>
+                getRecurringItems().then(setRecurring)
+              );
+            },
+          },
+        ],
+        'plain-text',
+        '',
+      );
+    } else {
+      // Android fallback: use a regular Alert with instructions
+      Alert.alert(
+        isHe ? 'פריט תמידי' : 'Recurring item',
+        isHe ? 'הוסף פריטים תמידיים מהרשימה הנוכחית על ידי לחיצה ארוכה על פריט' : 'Add recurring items by long-pressing an existing item in another section',
+      );
+    }
   }
 
   // ── Section header ──────────────────────────────────────────────────────────
@@ -103,9 +209,56 @@ export default function ShoppingScreen({ navigation }: any) {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           removeItem(item.id);
         }}
+        onSetPrice={(price) => setItemPrice(item.id, price)}
         isHe={isHe}
         isLast={isLast}
       />
+    );
+  }
+
+  // ── Recurring items strip ───────────────────────────────────────────────────
+  function RecurringStrip() {
+    if (recurring.length === 0) return null;
+    return (
+      <View style={s.recurringWrap}>
+        <View style={[s.recurringRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+          <Text style={s.recurringLabel}>
+            {isHe ? '🔁 תמידיים:' : '🔁 Recurring:'}
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[s.chipsContainer, { flexDirection: isHe ? "row-reverse" : "row" }]}
+          >
+            {recurring.map((name) => {
+              const alreadyAdded = items.some((i) => i.text.toLowerCase() === name.toLowerCase());
+              return (
+                <TouchableOpacity
+                  key={name}
+                  style={[s.chip, alreadyAdded && s.chipAdded]}
+                  onPress={() => !alreadyAdded && handleAddRecurringChip(name)}
+                  onLongPress={() => handleLongPressRecurringChip(name)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[s.chipText, alreadyAdded && s.chipTextAdded]}>
+                    {name}
+                  </Text>
+                  {alreadyAdded && (
+                    <Ionicons name="checkmark" size={11} color={Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <TouchableOpacity
+            style={s.recurringAddBtn}
+            onPress={handleAddNewRecurring}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="add" size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   }
 
@@ -118,7 +271,10 @@ export default function ShoppingScreen({ navigation }: any) {
           checkedCount={0}
           onClearChecked={handleClearChecked}
           onBrowse={() => navigation.navigate("Search")}
+          onShare={() => void handleShare()}
+          hasItems={false}
         />
+        {recurring.length > 0 && <RecurringStrip />}
         <View style={s.emptyOuter}>
           <View style={s.emptyCard}>
             <View style={s.emptyIconWrap}>
@@ -162,6 +318,8 @@ export default function ShoppingScreen({ navigation }: any) {
           checkedCount={checkedCount}
           onClearChecked={handleClearChecked}
           onBrowse={() => navigation.navigate("Search")}
+          onShare={() => void handleShare()}
+          hasItems={items.length > 0}
         />
 
         {/* ── Progress strip ── */}
@@ -192,7 +350,21 @@ export default function ShoppingScreen({ navigation }: any) {
           <View style={s.progressTrack}>
             <Animated.View style={[s.progressFill, { width: `${progress * 100}%` as any }]} />
           </View>
+
+          {/* ── Total cost row ── */}
+          {hasPrices && (
+            <View style={[s.costRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <Text style={s.costText}>
+                {isHe
+                  ? `💰 סה״כ לא מסומן: ₪${uncheckedCost.toFixed(2)}  |  סה״כ: ₪${allCost.toFixed(2)}`
+                  : `💰 Remaining: ₪${uncheckedCost.toFixed(2)}  |  Total: ₪${allCost.toFixed(2)}`}
+              </Text>
+            </View>
+          )}
         </View>
+
+        {/* ── Recurring strip ── */}
+        <RecurringStrip />
 
         {/* ── Sections ── */}
         <SectionList
@@ -232,11 +404,15 @@ function ScreenHeader({
   checkedCount,
   onClearChecked,
   onBrowse,
+  onShare,
+  hasItems,
 }: {
   isHe: boolean;
   checkedCount: number;
   onClearChecked: () => void;
   onBrowse: () => void;
+  onShare: () => void;
+  hasItems: boolean;
 }) {
   return (
     <LinearGradient
@@ -255,16 +431,28 @@ function ScreenHeader({
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={s.browseBtn}
-          onPress={onBrowse}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="search-outline" size={15} color={Colors.primary} />
-          <Text style={s.browseBtnText}>
-            {isHe ? "בחר מתכון" : "Browse recipes"}
-          </Text>
-        </TouchableOpacity>
+        <View style={[s.headerActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+          {hasItems && (
+            <TouchableOpacity
+              style={s.shareBtn}
+              onPress={onShare}
+              activeOpacity={0.85}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="share-social-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={s.browseBtn}
+            onPress={onBrowse}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="search-outline" size={15} color={Colors.primary} />
+            <Text style={s.browseBtnText}>
+              {isHe ? "בחר מתכון" : "Browse recipes"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -296,6 +484,18 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.8)",
     marginTop: 2,
+  },
+  headerActions: {
+    alignItems: "center",
+    gap: 8,
+  },
+  shareBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   browseBtn: {
     flexDirection: "row",
@@ -351,6 +551,72 @@ const s = StyleSheet.create({
     height: "100%",
     backgroundColor: Colors.primary,
     borderRadius: 3,
+  },
+  costRow: {
+    paddingTop: 2,
+  },
+  costText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#555",
+  },
+
+  // Recurring strip
+  recurringWrap: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  recurringRow: {
+    alignItems: "center",
+    gap: 8,
+  },
+  recurringLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#555",
+    flexShrink: 0,
+  },
+  chipsContainer: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 2,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primary + "15",
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+  },
+  chipAdded: {
+    backgroundColor: Colors.primary + "30",
+    borderColor: Colors.primary,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  chipTextAdded: {
+    color: Colors.primary,
+  },
+  recurringAddBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.primary + "40",
+    flexShrink: 0,
   },
 
   // Section header
