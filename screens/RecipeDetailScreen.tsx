@@ -202,7 +202,12 @@ function CookingModeOverlay({
       <SafeAreaView style={cm.container} edges={["top", "bottom"]}>
         {/* Header */}
         <View style={cm.header}>
-          <TouchableOpacity style={cm.closeBtn} onPress={onClose}>
+          <TouchableOpacity
+            style={cm.closeBtn}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "סגור מצב בישול" : "Close cooking mode"}
+          >
             <Ionicons name="close" size={20} color={Colors.text.secondary} />
           </TouchableOpacity>
           <Text style={cm.headerTitle}>
@@ -255,6 +260,8 @@ function CookingModeOverlay({
             disabled={current <= 0}
             onPress={goPrev}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "שלב קודם" : "Previous step"}
           >
             <Ionicons
               name={isHe ? "chevron-forward" : "chevron-back"}
@@ -275,6 +282,8 @@ function CookingModeOverlay({
             style={[cm.navBtnPrimary, isLast && cm.navBtnFinish]}
             onPress={goNext}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isLast ? (isHe ? "סיום בישול" : "Done cooking") : (isHe ? "שלב הבא" : "Next step")}
           >
             <Text style={cm.navBtnPrimaryText}>
               {isLast
@@ -643,20 +652,41 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             <View
               style={[s.heroTopBar, { paddingTop: insets.top + 8, flexDirection: isHe ? "row-reverse" : "row" }]}
             >
-              <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}>
+              <TouchableOpacity
+                style={s.heroIconBtn}
+                onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "חזור" : "Back"}
+              >
                 <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
               </TouchableOpacity>
               <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 {!isDraft && (
                   <>
-                    <TouchableOpacity style={s.heroIconBtn} onPress={() => recipe && void shareRecipe(recipe)}>
+                    <TouchableOpacity
+                      style={s.heroIconBtn}
+                      onPress={() => recipe && void shareRecipe(recipe)}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
+                    >
                       <Ionicons name="share-outline" size={20} color="#fff" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}>
+                    <TouchableOpacity
+                      style={s.heroIconBtn}
+                      onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "ערוך מתכון" : "Edit recipe"}
+                    >
                       <Ionicons name="create-outline" size={20} color="#fff" />
                     </TouchableOpacity>
                     <Animated.View style={{ transform: [{ scale: favScale }] }}>
-                      <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
+                      <TouchableOpacity
+                        style={s.heroIconBtn}
+                        onPress={onFavoritePress}
+                        accessibilityRole="button"
+                        accessibilityLabel={isHe ? (isFav ? "הסר ממועדפים" : "הוסף למועדפים") : (isFav ? "Remove from favorites" : "Add to favorites")}
+                        accessibilityState={{ checked: isFav }}
+                      >
                         <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
                       </TouchableOpacity>
                     </Animated.View>
@@ -689,20 +719,41 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 
             {/* Top bar */}
             <View style={[s.heroTopBar, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}>
+              <TouchableOpacity
+                style={s.heroIconBtn}
+                onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "חזור" : "Back"}
+              >
                 <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
               </TouchableOpacity>
               <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 {!isDraft && (
                   <>
-                    <TouchableOpacity style={s.heroIconBtn} onPress={() => recipe && void shareRecipe(recipe)}>
+                    <TouchableOpacity
+                      style={s.heroIconBtn}
+                      onPress={() => recipe && void shareRecipe(recipe)}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
+                    >
                       <Ionicons name="share-outline" size={20} color="#fff" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.heroIconBtn} onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}>
+                    <TouchableOpacity
+                      style={s.heroIconBtn}
+                      onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "ערוך מתכון" : "Edit recipe"}
+                    >
                       <Ionicons name="create-outline" size={20} color="#fff" />
                     </TouchableOpacity>
                     <Animated.View style={{ transform: [{ scale: favScale }] }}>
-                      <TouchableOpacity style={s.heroIconBtn} onPress={onFavoritePress}>
+                      <TouchableOpacity
+                        style={s.heroIconBtn}
+                        onPress={onFavoritePress}
+                        accessibilityRole="button"
+                        accessibilityLabel={isHe ? (isFav ? "הסר ממועדפים" : "הוסף למועדפים") : (isFav ? "Remove from favorites" : "Add to favorites")}
+                        accessibilityState={{ checked: isFav }}
+                      >
                         <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
                       </TouchableOpacity>
                     </Animated.View>
@@ -733,6 +784,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               style={[s.infoChip, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
               onPress={() => handleTimerStart(cookTimeMin || totalMin)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? `הפעל טיימר ${totalMin} דקות` : `Start ${totalMin} minute timer`}
             >
               <Ionicons name="timer-outline" size={15} color={Colors.primary} />
               <Text style={[s.infoChipText, { color: Colors.primary }]}>
@@ -770,6 +823,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   onPress={() => void handleRating(star)}
                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   style={s.starBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? `${star} כוכבים מתוך 5` : `${star} stars out of 5`}
+                  accessibilityState={{ selected: (userData.rating ?? 0) >= star }}
                 >
                   <Ionicons
                     name={(userData.rating ?? 0) >= star ? "star" : "star-outline"}
@@ -796,7 +852,12 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             <Text style={s.timerBannerText}>
               {isHe ? `טיימר: ${timerLabel}` : `Timer: ${timerLabel}`}
             </Text>
-            <TouchableOpacity onPress={() => setTimerLeftSec(0)} style={s.timerCancelBtn}>
+            <TouchableOpacity
+              onPress={() => setTimerLeftSec(0)}
+              style={s.timerCancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "בטל טיימר" : "Cancel timer"}
+            >
               <Ionicons name="close" size={16} color="rgba(255,255,255,0.8)" />
             </TouchableOpacity>
           </View>
@@ -811,6 +872,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 <TouchableOpacity
                   onPress={() => { void Haptics.selectionAsync(); setServings(baseServings); }}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? "איפוס מנות" : "Reset servings"}
                 >
                   <Text style={s.servingsReset}>
                     {isHe ? "איפוס" : "Reset"}
@@ -825,6 +888,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   void Haptics.selectionAsync();
                   setServings((x) => Math.max(0.5, parseFloat((x - 0.5).toFixed(1))));
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "הפחת מנה" : "Decrease servings"}
               >
                 <Ionicons name="remove" size={18} color={Colors.text.primary} />
               </TouchableOpacity>
@@ -842,11 +907,19 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   void Haptics.selectionAsync();
                   setServings((x) => parseFloat((x + 0.5).toFixed(1)));
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "הוסף מנה" : "Increase servings"}
               >
                 <Ionicons name="add" size={18} color={Colors.text.primary} />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={s.cookedBtn} onPress={handleCookedIt} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={s.cookedBtn}
+              onPress={handleCookedIt}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "סמן כבישלתי" : "Mark as cooked"}
+            >
               <Text style={s.cookedBtnText}>
                 {isHe ? "בישלתי את זה ✓" : "I cooked this ✓"}
               </Text>
@@ -871,6 +944,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     void Haptics.selectionAsync();
                     setChecklistMode((v) => !v);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? (checklistMode ? "בטל מצב סימון" : "הפעל מצב סימון") : (checklistMode ? "Disable checklist" : "Enable checklist")}
+                  accessibilityState={{ checked: checklistMode }}
                 >
                   <Ionicons
                     name={checklistMode ? "checkmark-circle" : "checkmark-circle-outline"}
@@ -888,6 +964,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     addFromRecipe(recipe, rawIngredients);
                     showToast(isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping 🛒");
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? "הוסף מצרכים לקניות" : "Add ingredients to shopping list"}
                 >
                   <Ionicons name="cart-outline" size={13} color="#2C756A" />
                   <Text style={s.pillTealText}>{isHe ? "לקניות" : "Shop"}</Text>
@@ -914,6 +992,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     ]}
                     onPress={() => checklistMode && toggleIngredientDone(i)}
                     activeOpacity={checklistMode ? 0.7 : 1}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: done }}
+                    accessibilityLabel={ing}
                   >
                     {checklistMode ? (
                       <View style={[s.checkbox, done && s.checkboxDone]}>
@@ -969,6 +1050,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setCookingMode(true);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? "הפעל מצב בישול" : "Start cooking mode"}
                 >
                   <Ionicons name="restaurant" size={13} color="#fff" />
                   <Text style={s.pillCoralText}>{isHe ? "מצב בישול" : "Cook mode"}</Text>
@@ -1009,6 +1092,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                       ]}
                       onPress={() => toggleStepDone(i)}
                       activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? `שלב ${i + 1}: ${step}` : `Step ${i + 1}: ${step}`}
+                      accessibilityHint={isHe ? "הקש לסימון כבוצע" : "Tap to mark as done"}
                     >
                       <View style={[s.stepNumber, done && s.stepNumberDone]}>
                         {done ? (
@@ -1031,6 +1117,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                           <TouchableOpacity
                             style={[s.stepTimerChip, { alignSelf: isHe ? "flex-end" : "flex-start" }]}
                             onPress={() => handleTimerStart(stepMins)}
+                            accessibilityRole="button"
+                            accessibilityLabel={isHe ? `הפעל טיימר ${stepMins} דקות` : `Start ${stepMins} minute timer`}
                           >
                             <Ionicons name="timer-outline" size={12} color={Colors.primary} />
                             <Text style={s.stepTimerChipText}>
@@ -1072,33 +1160,57 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: C.surfaceElevated, borderTopColor: C.border }]}>
         {isDraft ? (
           <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <TouchableOpacity style={s.actionBtnPrimary} onPress={handleSaveDraft}>
+            <TouchableOpacity
+              style={s.actionBtnPrimary}
+              onPress={handleSaveDraft}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "שמור מתכון" : "Save recipe"}
+            >
               <Ionicons name="save-outline" size={18} color="#fff" />
               <Text style={s.actionBtnPrimaryText}>{isHe ? "שמור מתכון" : "Save recipe"}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.actionBtnSecondary, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              style={[s.actionBtnSecondary, { backgroundColor: C.surface, borderColor: C.border }]}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "ביטול" : "Cancel"}
+            >
               <Text style={[s.actionBtnSecondaryText, { color: C.text.secondary }]}>{isHe ? "ביטול" : "Cancel"}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <TouchableOpacity style={s.actionBtnPrimary} onPress={handleAddToShopping}>
+            <TouchableOpacity
+              style={s.actionBtnPrimary}
+              onPress={handleAddToShopping}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "הוסף לרשימת קניות" : "Add to shopping list"}
+            >
               <Ionicons name="cart-outline" size={18} color="#fff" />
               <Text style={s.actionBtnPrimaryText}>{isHe ? "הוסף לקניות" : "Add to cart"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
               onPress={() => void handleOpenCollectionModal()}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "הוסף לאוסף" : "Add to collection"}
             >
               <Ionicons name="albums-outline" size={20} color={C.text.secondary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
               onPress={() => recipe && void shareRecipe(recipe)}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
             >
               <Ionicons name="share-social-outline" size={20} color={C.text.secondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]} onPress={handleDelete}>
+            <TouchableOpacity
+              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
+              onPress={handleDelete}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "מחק מתכון" : "Delete recipe"}
+            >
               <Ionicons name="trash-outline" size={20} color="#FF4757" />
             </TouchableOpacity>
           </View>
@@ -1144,6 +1256,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   style={[s.collectionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}
                   onPress={() => void handleToggleCollection(col.id)}
                   activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? (inCol ? `הסר מ${colName}` : `הוסף ל${colName}`) : (inCol ? `Remove from ${colName}` : `Add to ${colName}`)}
+                  accessibilityState={{ checked: inCol }}
                 >
                   <View style={[s.collectionIconWrap, { backgroundColor: col.color + "22" }]}>
                     <Text style={{ fontSize: 22 }}>{col.icon}</Text>

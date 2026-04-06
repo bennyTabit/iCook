@@ -252,6 +252,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                   navigation.navigate("AddRecipe");
                 }}
                 activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "צור מתכון" : "Create recipe"}
               >
                 <Ionicons name="add-circle-outline" size={16} color={Colors.text.inverse} />
                 <Text style={s.primaryBtnText}>{isHe ? "צור מתכון" : "Create recipe"}</Text>
@@ -264,6 +266,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                   navigation.navigate("Search");
                 }}
                 activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "חפש לפי מצרכים" : "Search by ingredients"}
               >
                 <Ionicons name="search-outline" size={16} color={Colors.text.primary} />
                 <Text style={s.secondaryBtnText}>{isHe ? "חפש לפי מצרכים" : "Search by ingredients"}</Text>
@@ -278,6 +282,9 @@ export default function HomeFeedScreen({ navigation }: any) {
             style={[s.rotdCard, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
             onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: recipeOfDay.id }); }}
             activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? recipeOfDay.title_he : (recipeOfDay.title_en ?? recipeOfDay.title_he)}
+            accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
           >
             <View style={[s.rotdThumb, { backgroundColor: CATEGORY_BG[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
               <Text style={{ fontSize: 28 }}>{CATEGORY_EMOJI[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
@@ -305,6 +312,9 @@ export default function HomeFeedScreen({ navigation }: any) {
               navigation.navigate("ImportLink", { url: clipboardRecipeUrl });
             }}
             activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "ייבא מתכון מהקישור שבלוח" : "Import recipe from clipboard link"}
+            accessibilityHint={isHe ? "הקש לייבוא המתכון" : "Tap to import the recipe"}
           >
             <View style={s.quickImportIcon}>
               <Ionicons name="link" size={16} color="#fff" />
@@ -345,6 +355,8 @@ export default function HomeFeedScreen({ navigation }: any) {
               navigation.navigate("Search");
             }}
             activeOpacity={0.9}
+            accessibilityRole="search"
+            accessibilityLabel={isHe ? "חיפוש מתכונים" : "Search recipes"}
           >
             <TouchableOpacity
               onPress={() => {
@@ -352,6 +364,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 navigation.navigate("Search");
               }}
               style={s.searchSideIcon}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "סינון חיפוש" : "Filter search"}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="options-outline" size={18} color={Colors.text.secondary} />
             </TouchableOpacity>
@@ -369,6 +384,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 navigation.navigate("Search");
               }}
               style={s.searchSideIcon}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "חיפוש קולי" : "Voice search"}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="mic-outline" size={18} color={Colors.text.secondary} />
             </TouchableOpacity>
@@ -405,6 +423,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
                 onPress={() => { tap(); navigation.navigate("AddRecipe"); }}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "סרוק מתכון" : "Scan a recipe"}
+                accessibilityHint={isHe ? "צלם עם המצלמה" : "Use your camera"}
               >
                 <View style={[s.emptyActionIcon, { backgroundColor: "#4ECDC420" }]}>
                   <Text style={s.emptyActionEmoji}>📷</Text>
@@ -424,6 +445,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
                 onPress={() => { tap(); navigation.navigate("ImportLink"); }}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "ייבוא מקישור" : "Import from a link"}
+                accessibilityHint={isHe ? "הדבק כתובת URL" : "Paste any recipe URL"}
               >
                 <View style={[s.emptyActionIcon, { backgroundColor: "#7F77DD20" }]}>
                   <Text style={s.emptyActionEmoji}>🔗</Text>
@@ -443,6 +467,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
                 onPress={() => { tap(); navigation.navigate("EditRecipe", { id: null }); }}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "כתוב ידנית" : "Write it manually"}
+                accessibilityHint={isHe ? "הקלד מתכון שלב אחר שלב" : "Type your recipe step by step"}
               >
                 <View style={[s.emptyActionIcon, { backgroundColor: "#FF6B6B20" }]}>
                   <Text style={s.emptyActionEmoji}>✏️</Text>
@@ -471,6 +498,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                   navigation.navigate("RecipeDetail", { id: continueRecipe.id });
                 }}
                 activeOpacity={0.92}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? continueRecipe.title_he : (continueRecipe.title_en ?? continueRecipe.title_he)}
+                accessibilityHint={isHe ? "הקש להמשך בישול" : "Tap to continue cooking"}
               >
                 <View style={[s.continueThumb, { backgroundColor: CATEGORY_BG[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                   <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
@@ -509,6 +539,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                   ]}
                   onPress={cat.onPress}
                   activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel={cat.label}
+                  accessibilityState={{ selected }}
                 >
                   <Ionicons
                     name={cat.icon}
@@ -529,6 +562,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                 setFilter("favoritesOnly", true);
                 navigation.navigate("Search");
               }}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "ראה את כל המועדפים" : "See all favorites"}
             >
               <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
             </TouchableOpacity>
@@ -544,6 +579,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                   tap();
                   navigation.navigate("Search");
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "גלה מתכונים" : "Discover recipes"}
               >
                 <Text style={s.favEmptyBtnText}>{isHe ? "גלה מתכונים" : "Discover recipes"}</Text>
               </TouchableOpacity>
@@ -559,6 +596,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                     navigation.navigate("RecipeDetail", { id: r.id });
                   }}
                   activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
+                  accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
                 >
                   <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                     <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
@@ -587,6 +627,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                   navigation.navigate("RecipeDetail", { id: r.id });
                 }}
                 activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
+                accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
               >
                 <Text style={s.suggestionIcon}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                 <Text style={[s.suggestionText, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
@@ -600,7 +643,11 @@ export default function HomeFeedScreen({ navigation }: any) {
             <>
               <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row", marginTop: 16 }]}>
                 <Text style={s.sectionTitle}>{isHe ? "מהיר וטעים ⚡" : "Quick & easy ⚡"}</Text>
-                <TouchableOpacity onPress={() => { tap(); setFilter("maxCookTime", 30); navigation.navigate("Search"); }}>
+                <TouchableOpacity
+                  onPress={() => { tap(); setFilter("maxCookTime", 30); navigation.navigate("Search"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isHe ? "ראה את כל המהירים" : "See all quick recipes"}
+                >
                   <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
                 </TouchableOpacity>
               </View>
@@ -611,6 +658,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                     style={[s.favoriteCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
                     onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: r.id }); }}
                     activeOpacity={0.9}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
+                    accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
                   >
                     <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                       <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
@@ -634,6 +684,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                 tap();
                 navigation.navigate("Search");
               }}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "ראה את כל המתכונים" : "See all recipes"}
             >
               <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
             </TouchableOpacity>
@@ -648,6 +700,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                 navigation.navigate("RecipeDetail", { id: r.id });
               }}
               activeOpacity={0.92}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
+              accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
             >
               <View style={[s.recentThumb, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                 <Text style={s.recentThumbEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
@@ -668,6 +723,9 @@ export default function HomeFeedScreen({ navigation }: any) {
                   toggleFav(r.id, r.is_favorite);
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? (r.is_favorite ? "הסר ממועדפים" : "הוסף למועדפים") : (r.is_favorite ? "Remove from favorites" : "Add to favorites")}
+                accessibilityState={{ checked: r.is_favorite === 1 }}
               >
                 <Text style={s.recentFav}>{r.is_favorite ? "❤️" : "🤍"}</Text>
               </TouchableOpacity>

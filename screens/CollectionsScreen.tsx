@@ -94,6 +94,9 @@ function EditCollectionModal({
               key={ic}
               style={[em.iconBtn, icon === ic && { borderColor: color, borderWidth: 2 }]}
               onPress={() => { void Haptics.selectionAsync(); setIcon(ic); }}
+              accessibilityRole="button"
+              accessibilityLabel={ic}
+              accessibilityState={{ selected: icon === ic }}
             >
               <Text style={{ fontSize: 22 }}>{ic}</Text>
             </TouchableOpacity>
@@ -108,6 +111,9 @@ function EditCollectionModal({
               key={c}
               style={[em.colorDot, { backgroundColor: c }, color === c && em.colorDotActive]}
               onPress={() => { void Haptics.selectionAsync(); setColor(c); }}
+              accessibilityRole="button"
+              accessibilityLabel={c}
+              accessibilityState={{ selected: color === c }}
             />
           ))}
         </View>
@@ -117,6 +123,8 @@ function EditCollectionModal({
           style={[em.saveBtn, { backgroundColor: color, opacity: name.trim() ? 1 : 0.5 }]}
           onPress={handleSave}
           disabled={!name.trim()}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? "שמור אוסף" : "Save collection"}
         >
           <Text style={em.saveBtnText}>{t('save')}</Text>
         </TouchableOpacity>
@@ -176,7 +184,14 @@ function CollectionCard({
   const name = isHe ? item.name_he : (item.name_en ?? item.name_he);
 
   return (
-    <TouchableOpacity style={[cc.card, { borderLeftColor: item.color, borderLeftWidth: 4 }]} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={[cc.card, { borderLeftColor: item.color, borderLeftWidth: 4 }]}
+      onPress={onPress}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={name}
+      accessibilityHint={isHe ? "הקש לצפייה באוסף" : "Tap to view collection"}
+    >
       <View style={[cc.iconWrap, { backgroundColor: item.color + '22' }]}>
         <Text style={{ fontSize: 28 }}>{item.icon}</Text>
       </View>
@@ -187,10 +202,22 @@ function CollectionCard({
         </Text>
       </View>
       <View style={cc.actions}>
-        <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={cc.actionBtn}>
+        <TouchableOpacity
+          onPress={onEdit}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={cc.actionBtn}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? `ערוך ${name}` : `Edit ${name}`}
+        >
           <Ionicons name="pencil-outline" size={18} color={Colors.text.tertiary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={cc.actionBtn}>
+        <TouchableOpacity
+          onPress={onDelete}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={cc.actionBtn}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? `מחק ${name}` : `Delete ${name}`}
+        >
           <Ionicons name="trash-outline" size={18} color={Colors.error} />
         </TouchableOpacity>
       </View>
@@ -274,7 +301,12 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
           <Text style={s.emptyEmoji}>📁</Text>
           <Text style={[s.emptyTitle, { textAlign: 'center' }]}>{t('noCollections')}</Text>
           <Text style={[s.emptySub, { textAlign: 'center' }]}>{t('noCollectionsSub')}</Text>
-          <TouchableOpacity style={s.createBtn} onPress={handleOpenNew}>
+          <TouchableOpacity
+            style={s.createBtn}
+            onPress={handleOpenNew}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "צור אוסף חדש" : "Create new collection"}
+          >
             <Ionicons name="add" size={18} color="#fff" />
             <Text style={s.createBtnText}>{t('createCollection')}</Text>
           </TouchableOpacity>
@@ -294,7 +326,12 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
             />
           )}
           ListHeaderComponent={
-            <TouchableOpacity style={s.addRow} onPress={handleOpenNew}>
+            <TouchableOpacity
+              style={s.addRow}
+              onPress={handleOpenNew}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "צור אוסף חדש" : "New collection"}
+            >
               <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
               <Text style={s.addRowText}>{t('newCollection')}</Text>
             </TouchableOpacity>

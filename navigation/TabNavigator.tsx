@@ -115,9 +115,11 @@ function AddPlaceholderScreen() {
 function HeaderIconButton({
   icon,
   onPress,
+  label,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
+  label?: string;
 }) {
   const C = useThemeColors();
   return (
@@ -128,6 +130,9 @@ function HeaderIconButton({
       }}
       style={s.headerIconBtn}
       activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={label ?? (icon === "menu" ? "Open menu" : "")}
+      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
     >
       <Ionicons name={icon} size={20} color={C.text.primary} />
     </TouchableOpacity>
@@ -150,9 +155,11 @@ function getTabIconName(
 function AddTabButton({
   onPress,
   onLongPress,
+  isHe,
 }: {
   onPress: () => void;
   onLongPress: () => void;
+  isHe: boolean;
 }) {
   return (
     <TouchableOpacity
@@ -161,6 +168,9 @@ function AddTabButton({
       delayLongPress={300}
       style={s.addBtnWrap}
       activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel={isHe ? "הוסף מתכון" : "Add recipe"}
+      accessibilityHint={isHe ? "לחיצה ממושכת לתפריט" : "Long press for menu"}
     >
       <LinearGradient
         colors={["#FF6B6B", "#FF9B6B"]}
@@ -286,6 +296,9 @@ function MenuSheet({
               handleNavigate(item.screen);
             }}
             activeOpacity={0.72}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? item.titleHe : item.titleEn}
+            accessibilityHint={isHe ? item.subHe : item.subEn}
           >
             <View style={[s.menuItemIcon, { backgroundColor: item.iconBg }]}>
               <Ionicons name={item.icon} size={20} color="#fff" />
@@ -321,6 +334,8 @@ function MenuSheet({
             onClose();
           }}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? "ביטול" : "Cancel"}
         >
           <Text style={s.cancelText}>{isHe ? "ביטול" : "Cancel"}</Text>
         </TouchableOpacity>
@@ -404,6 +419,7 @@ export default function TabNavigator() {
               <HeaderIconButton
                 icon="menu"
                 onPress={() => handleMenuOpen(navigation)}
+                label="Open menu"
               />
             ),
           headerRight: () =>
@@ -411,6 +427,7 @@ export default function TabNavigator() {
               <HeaderIconButton
                 icon="menu"
                 onPress={() => handleMenuOpen(navigation)}
+                label="פתח תפריט"
               />
             ) : null,
         })}
@@ -418,7 +435,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Home"
           component={HomeScreen}
-          options={{ title: t("home") }}
+          options={{ title: t("home"), tabBarAccessibilityLabel: isHe ? "בית" : "Home" }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -428,7 +445,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Search"
           component={SearchScreen}
-          options={{ title: t("search"), headerShown: false }}
+          options={{ title: t("search"), headerShown: false, tabBarAccessibilityLabel: isHe ? "חיפוש" : "Search" }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -452,6 +469,7 @@ export default function TabNavigator() {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   handleMenuOpen(navigation);
                 }}
+                isHe={isHe}
               />
             ),
           })}
@@ -464,7 +482,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Shopping"
           component={ShoppingScreen}
-          options={{ title: t("shopping"), headerShown: false }}
+          options={{ title: t("shopping"), headerShown: false, tabBarAccessibilityLabel: isHe ? "קניות" : "Shopping" }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -474,7 +492,7 @@ export default function TabNavigator() {
         <Tab.Screen
           name="MealPlanner"
           component={MealPlannerScreen}
-          options={{ title: t("mealPlanner"), headerShown: true }}
+          options={{ title: t("mealPlanner"), headerShown: true, tabBarAccessibilityLabel: isHe ? "תכנון ארוחות" : "Meal Planner" }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();

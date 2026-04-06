@@ -159,6 +159,9 @@ function RecipePicker({
                 onSelect(item);
               }}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? item.title_he : (item.title_en ?? item.title_he)}
+              accessibilityHint={isHe ? "הקש לבחירת המתכון" : "Tap to select recipe"}
             >
               {item.image_uri ? (
                 <Image source={{ uri: item.image_uri }} style={ps.thumb} />
@@ -287,6 +290,8 @@ function MealRow({
           style={ms.addBtn}
           onPress={() => { void Haptics.selectionAsync(); onAdd(date, mealType); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? `הוסף ל${mealLabel}` : `Add to ${mealLabel}`}
         >
           <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
         </TouchableOpacity>
@@ -299,6 +304,9 @@ function MealRow({
           style={[ms.recipeChip, { flexDirection: isHe ? 'row-reverse' : 'row' }]}
           onPress={() => navigation.navigate('RecipeDetail', { id: entry.recipe_id })}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}
+          accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
         >
           {entry.image_uri ? (
             <Image source={{ uri: entry.image_uri }} style={ms.chipThumb} />
@@ -319,6 +327,8 @@ function MealRow({
               void removeEntry(entry.id);
             }}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? `הסר ${isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}` : `Remove ${entry.title_en ?? entry.title_he}`}
           >
             <Ionicons name="close-circle" size={18} color={Colors.text.tertiary} />
           </TouchableOpacity>
@@ -566,11 +576,23 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
     <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
       {/* Week navigator header */}
       <View style={[s.weekNav, { flexDirection: isHe ? 'row-reverse' : 'row', backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
-        <TouchableOpacity onPress={handlePrevWeek} style={s.weekArrow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={handlePrevWeek}
+          style={s.weekArrow}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? "שבוע הקודם" : "Previous week"}
+        >
           <Ionicons name={isHe ? 'chevron-forward' : 'chevron-back'} size={22} color={C.text.primary} />
         </TouchableOpacity>
         <Text style={[s.weekLabel, { color: C.text.primary }]}>{weekLabel}</Text>
-        <TouchableOpacity onPress={handleNextWeek} style={s.weekArrow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={handleNextWeek}
+          style={s.weekArrow}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? "שבוע הבא" : "Next week"}
+        >
           <Ionicons name={isHe ? 'chevron-back' : 'chevron-forward'} size={22} color={C.text.primary} />
         </TouchableOpacity>
       </View>
@@ -600,7 +622,13 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
       {/* Add week to shopping sticky button */}
       {hasEntries && (
         <View style={[s.stickyBottom, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: C.background, borderTopColor: C.border }]}>
-          <TouchableOpacity style={s.shoppingBtn} onPress={handleAddToShopping} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.shoppingBtn}
+            onPress={handleAddToShopping}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "הוסף שבוע לקניות" : "Add week to shopping list"}
+          >
             <Ionicons name="basket-outline" size={18} color="#fff" />
             <Text style={s.shoppingBtnText}>{t('addToWeekShopping')}</Text>
           </TouchableOpacity>
