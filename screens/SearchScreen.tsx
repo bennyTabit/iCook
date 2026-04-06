@@ -62,6 +62,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   const C = useThemeColors();
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Animate search box focus
   const focusAnim = useRef(new Animated.Value(0)).current;
@@ -74,10 +75,12 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 
   function onSearchFocus() {
     Animated.spring(focusAnim, { toValue: 1, useNativeDriver: false, friction: 8 }).start();
+    setIsFocused(true);
     if (!rawQuery) setShowHistory(true);
   }
   function onSearchBlur() {
     Animated.spring(focusAnim, { toValue: 0, useNativeDriver: false, friction: 8 }).start();
+    setIsFocused(false);
     // slight delay so tapping a history chip registers before hiding
     setTimeout(() => setShowHistory(false), 150);
   }
@@ -94,10 +97,6 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
     setShowHistory(false);
   }
 
-  const searchBorderColor = focusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [Colors.border, Colors.primary],
-  });
 
   useEffect(() => { void loadRecipes(); }, []);
   useEffect(() => {
@@ -120,7 +119,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         : `${recipes.length} recipes`;
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
       {/* ── Hero gradient header ── */}
       <LinearGradient
         colors={Colors.heroGradient}
@@ -139,20 +138,20 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         <Animated.View
           style={[
             s.searchBox,
-            { flexDirection: isHe ? "row-reverse" : "row", borderColor: searchBorderColor },
+            { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: isFocused ? Colors.primary : C.border },
           ]}
         >
           <Ionicons
             name="search-outline"
             size={18}
-            color={Colors.text.tertiary}
+            color={C.text.tertiary}
             style={isHe ? { marginLeft: 4 } : { marginRight: 4 }}
           />
           <TextInput
             ref={inputRef}
-            style={[s.searchInput, { textAlign: isHe ? "right" : "left", writingDirection: isHe ? "rtl" : "ltr" }]}
+            style={[s.searchInput, { textAlign: isHe ? "right" : "left", writingDirection: isHe ? "rtl" : "ltr", color: C.text.primary }]}
             placeholder={isHe ? "מה מחפשים?" : "What are you looking for?"}
-            placeholderTextColor={Colors.text.tertiary}
+            placeholderTextColor={C.text.tertiary}
             value={rawQuery}
             onChangeText={setRawQuery}
             onFocus={onSearchFocus}
@@ -170,7 +169,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={18} color={Colors.text.tertiary} />
+              <Ionicons name="close-circle" size={18} color={C.text.tertiary} />
             </TouchableOpacity>
           )}
 
@@ -185,7 +184,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             <Ionicons
               name="options-outline"
               size={17}
-              color={activeCount > 0 ? Colors.primary : Colors.text.secondary}
+              color={activeCount > 0 ? Colors.primary : C.text.secondary}
             />
             {activeCount > 0 && (
               <View style={s.filterBadge}>
@@ -270,14 +269,14 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
       })()}
 
       {/* ── Sort pills ── */}
-      <View style={s.sortWrap}>
+      <View style={[s.sortWrap, { backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
         <View style={[s.sortRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
           {SORT_OPTIONS.map((o) => {
             const active = filters.sortBy === o.key;
             return (
               <TouchableOpacity
                 key={o.key}
-                style={[s.sortPill, active && s.sortPillActive]}
+                style={[s.sortPill, active && s.sortPillActive, !active && { backgroundColor: C.surface, borderColor: C.border }]}
                 onPress={() => {
                   void Haptics.selectionAsync();
                   setFilter("sortBy", o.key);
@@ -287,9 +286,9 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
                 <Ionicons
                   name={o.icon}
                   size={12}
-                  color={active ? "#fff" : Colors.text.secondary}
+                  color={active ? "#fff" : C.text.secondary}
                 />
-                <Text style={[s.sortPillText, active && s.sortPillTextActive]}>
+                <Text style={[s.sortPillText, active && s.sortPillTextActive, !active && { color: C.text.secondary }]}>
                   {isHe ? o.label_he : o.label_en}
                 </Text>
               </TouchableOpacity>
@@ -300,7 +299,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 
       {/* ── Active filter chips ── */}
       {activeCount > 0 && (
-        <View style={[s.activeRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+        <View style={[s.activeRow, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
           {filters.favoritesOnly && (
             <FilterChip
               label={isHe ? "מועדפים" : "Favorites"}
@@ -335,9 +334,9 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 
       {/* ── Results header ── */}
       <View style={[s.resultsHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-        <Text style={s.resultsCount}>{resultLabel}</Text>
+        <Text style={[s.resultsCount, { color: C.text.secondary }]}>{resultLabel}</Text>
         {recipes.length > 0 && (
-          <Text style={s.resultsHint}>
+          <Text style={[s.resultsHint, { color: C.text.tertiary }]}>
             {isHe ? "החלק שמאלה למחיקה" : "Swipe left to delete"}
           </Text>
         )}
@@ -413,10 +412,11 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const C = useThemeColors();
   return (
-    <TouchableOpacity style={s.filterChip} onPress={onRemove} activeOpacity={0.75}>
-      <Text style={s.filterChipText}>{label}</Text>
-      <Ionicons name="close" size={11} color={Colors.text.error} />
+    <TouchableOpacity style={[s.filterChip, { backgroundColor: C.errorSurface }]} onPress={onRemove} activeOpacity={0.75}>
+      <Text style={[s.filterChipText, { color: C.text.error }]}>{label}</Text>
+      <Ionicons name="close" size={11} color={C.text.error} />
     </TouchableOpacity>
   );
 }
@@ -430,15 +430,16 @@ function EmptyState({
   hasQuery: boolean;
   onReset: () => void;
 }) {
+  const C = useThemeColors();
   return (
     <View style={s.empty}>
-      <View style={s.emptyIconWrap}>
+      <View style={[s.emptyIconWrap, { backgroundColor: C.surface }]}>
         <Text style={s.emptyEmoji}>🍽️</Text>
       </View>
-      <Text style={s.emptyTitle}>
+      <Text style={[s.emptyTitle, { color: C.text.primary }]}>
         {isHe ? "לא נמצאו מתכונים" : "No recipes found"}
       </Text>
-      <Text style={s.emptySub}>
+      <Text style={[s.emptySub, { color: C.text.secondary }]}>
         {hasQuery
           ? isHe ? "נסה מילות חיפוש אחרות" : "Try different search terms"
           : isHe ? "הוסף מתכונים כדי להתחיל" : "Add recipes to get started"}
@@ -455,7 +456,7 @@ function EmptyState({
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Hero
@@ -481,7 +482,6 @@ const s = StyleSheet.create({
   searchBox: {
     alignItems: "center",
     gap: 8,
-    backgroundColor: Colors.surfaceElevated,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -495,7 +495,6 @@ const s = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.text.primary,
     paddingVertical: 0,
   },
   filterBtn: {
@@ -527,9 +526,7 @@ const s = StyleSheet.create({
 
   // Sort pills
   sortWrap: {
-    backgroundColor: Colors.surfaceElevated,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
@@ -543,9 +540,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   sortPillActive: {
     backgroundColor: Colors.primary,
@@ -559,7 +554,6 @@ const s = StyleSheet.create({
   sortPillText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.text.secondary,
   },
   sortPillTextActive: { color: Colors.text.inverse },
 
@@ -569,9 +563,7 @@ const s = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: Colors.surfaceElevated,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     alignItems: "center",
   },
   filterChip: {
@@ -581,14 +573,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: Colors.errorSurface,
     borderWidth: 1,
     borderColor: Colors.errorBorder,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.text.error,
   },
   clearAllBtn: {
     paddingHorizontal: 8,
@@ -612,12 +602,10 @@ const s = StyleSheet.create({
   resultsCount: {
     fontSize: 13,
     fontWeight: "700",
-    color: Colors.text.secondary,
     letterSpacing: 0.2,
   },
   resultsHint: {
     fontSize: 11,
-    color: Colors.text.tertiary,
   },
 
   // Empty state
@@ -632,7 +620,6 @@ const s = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -641,12 +628,10 @@ const s = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: Colors.text.primary,
     textAlign: "center",
   },
   emptySub: {
     fontSize: 14,
-    color: Colors.text.secondary,
     textAlign: "center",
     lineHeight: 20,
   },
