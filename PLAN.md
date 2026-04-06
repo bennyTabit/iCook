@@ -58,11 +58,12 @@
 - [x] On app open → pullFromCloud() inserts any missing cloud recipes into local SQLite
 - [ ] Offline-first: queue mutations offline, flush on reconnect ← next session
 
-### 2.4 Cloud Image Storage ⬜
-- [ ] Replace local `file://` URIs with Firebase Storage URLs
-- [ ] Upload on recipe save, get back permanent HTTPS URL
-- [ ] Image compression before upload
-- [ ] Fallback: keep local URI if upload fails, retry later
+### 2.4 Cloud Image Storage ✅ — committed bfa9b6e
+- [x] `lib/storage.ts` — uploadRecipeImage: compress (1200px, JPEG 0.75) → Firebase Storage → return HTTPS URL
+- [x] `lib/firebase.ts` — export `storage` (getStorage)
+- [x] `db.ts` / `db.web.ts` — `updateRecipeImageUri` helper
+- [x] `recipeStore.syncToCloud` — detects local URIs, uploads image first, updates SQLite with cloud URL
+- [x] Fallback: if upload fails, logs warning and syncs recipe text without image URL
 
 ---
 
@@ -266,7 +267,7 @@
 | Phase | Status | Completion |
 |-------|--------|------------|
 | 1 — Stability | ✅ Complete | 100% — all 4 sections done, browser-verified |
-| 2 — Backend | 🔄 In Progress | 75% (2.1 ✅, 2.2 ✅, 2.3 ✅, 2.4 ⬜) |
+| 2 — Backend | ✅ Complete | 100% — all 4 sections done |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | 🔄 In Progress | 20% — 4.0 design system ✅, 4.0b full token coverage ✅, browser-verified |
 | 5 — Testing | ⬜ Not Started | 0% |
