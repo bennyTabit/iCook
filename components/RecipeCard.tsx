@@ -2,55 +2,23 @@ import React, { useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors } from "../constants/colors";
-import type { RecipeSummary } from "../lib/search";
 import * as Haptics from "expo-haptics";
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  pasta: "🍝",
-  salads: "🥗",
-  desserts: "🍰",
-  soups: "🍜",
-  meat: "🥩",
-  fish: "🐟",
-  breakfast: "🍳",
-  veggie: "🥦",
-};
-
-const CATEGORY_BG: Record<string, string> = {
-  pasta: "#FFF3D6",
-  salads: "#E6F7EF",
-  desserts: "#FDE8F0",
-  soups: "#FFF0E0",
-  meat: "#FCE8E8",
-  fish: "#E5F2FB",
-  breakfast: "#FFF8E1",
-  veggie: "#E8F5E9",
-};
-
-const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: Colors.difficulty.easy,
-  medium: Colors.difficulty.medium,
-  hard: Colors.difficulty.hard,
-};
-
-const DIFFICULTY_LABEL: Record<string, { he: string; en: string }> = {
-  easy: { he: "קל", en: "Easy" },
-  medium: { he: "בינוני", en: "Medium" },
-  hard: { he: "קשה", en: "Hard" },
-};
-
-const SOURCE_ICON: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
-  manual: "create-outline",
-  ocr: "camera-outline",
-  url: "link-outline",
-  instagram: "logo-instagram",
-  ai: "sparkles-outline",
-};
+import { Colors } from "../constants/colors";
+import { Shadow } from "../constants/spacing";
+import {
+  CATEGORY_EMOJI,
+  CATEGORY_BG,
+  DIFFICULTY_COLOR,
+  DIFFICULTY_LABEL,
+  SOURCE_ICON,
+  FALLBACK_EMOJI,
+  FALLBACK_BG,
+} from "../constants/recipes";
+import type { RecipeSummary } from "../lib/search";
 
 type Props = {
   recipe: RecipeSummary;
-  query?: string;
+  query?: string; // reserved for future highlight usage
   onPress: () => void;
   onFav: () => void;
   onDelete: () => void;
@@ -62,13 +30,13 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
 
   const title = isHe ? recipe.title_he : (recipe.title_en || recipe.title_he);
   const catKey = recipe.category_name_en?.toLowerCase() ?? "";
-  const emoji = CATEGORY_EMOJI[catKey] ?? "🍽️";
-  const thumbBg = CATEGORY_BG[catKey] ?? "#F5F3EE";
+  const emoji = CATEGORY_EMOJI[catKey] ?? FALLBACK_EMOJI;
+  const thumbBg = CATEGORY_BG[catKey] ?? FALLBACK_BG;
   const isFav = recipe.is_favorite === 1;
   const diff = recipe.difficulty ?? null;
   const diffColor = diff ? (DIFFICULTY_COLOR[diff] ?? Colors.text.tertiary) : null;
   const diffLabel = diff ? (isHe ? DIFFICULTY_LABEL[diff]?.he : DIFFICULTY_LABEL[diff]?.en) : null;
-  const sourceIcon = SOURCE_ICON[recipe.source_type] ?? "document-outline";
+  const sourceIcon = (SOURCE_ICON[recipe.source_type] ?? "document-outline") as React.ComponentProps<typeof Ionicons>["name"];
 
   function renderDeleteAction(progress: Animated.AnimatedInterpolation<number>) {
     const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
@@ -77,12 +45,12 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
       <TouchableOpacity
         style={s.deleteAction}
         activeOpacity={0.8}
-        onPress={() => {
-          onDelete();
-        }}
+        onPress={onDelete}
+        accessibilityLabel={isHe ? "מחק מתכון" : "Delete recipe"}
+        accessibilityRole="button"
       >
         <Animated.View style={[s.deleteInner, { transform: [{ scale }], opacity }]}>
-          <Ionicons name="trash-outline" size={22} color="#fff" />
+          <Ionicons name="trash-outline" size={22} color={Colors.text.inverse} />
           <Text style={s.deleteLabel}>{isHe ? "מחק" : "Delete"}</Text>
         </Animated.View>
       </TouchableOpacity>
@@ -109,6 +77,8 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
           onPress();
         }}
         activeOpacity={0.88}
+        accessibilityRole="button"
+        accessibilityLabel={title}
       >
         {/* Difficulty accent bar */}
         <View style={[s.accentBar, { backgroundColor: diffColor ?? Colors.border }]} />
@@ -156,11 +126,13 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
             onFav();
           }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel={isFav ? (isHe ? "הסר ממועדפים" : "Remove from favorites") : (isHe ? "הוסף למועדפים" : "Add to favorites")}
+          accessibilityRole="button"
         >
           <Ionicons
             name={isFav ? "heart" : "heart-outline"}
             size={20}
-            color={isFav ? "#FF4757" : Colors.text.tertiary}
+            color={isFav ? Colors.error : Colors.text.tertiary}
           />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -173,17 +145,12 @@ const s = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 10,
     borderRadius: 16,
-    // Shadow lives here so it's visible outside overflow:hidden on the card
-    shadowColor: "#1A1A1A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    ...Shadow.sm,
   },
   card: {
     flexDirection: "row",
     borderRadius: 16,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: "hidden",
@@ -211,7 +178,7 @@ const s = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: Colors.text.primary,
     lineHeight: 20,
   },
   chips: {
@@ -242,7 +209,6 @@ const s = StyleSheet.create({
   },
   sourceChip: {
     paddingHorizontal: 6,
-    backgroundColor: Colors.surface,
   },
   favBtn: {
     paddingHorizontal: 14,
@@ -250,13 +216,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // Delete action
   deleteAction: {
     width: 80,
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#FF4757",
+    backgroundColor: Colors.error,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -267,6 +231,6 @@ const s = StyleSheet.create({
   deleteLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text.inverse,
   },
 });

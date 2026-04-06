@@ -185,7 +185,7 @@ export default function ShoppingScreen({ navigation }: any) {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={s.clearAllIconBtn}
               >
-                <Ionicons name="trash-outline" size={16} color="#E53935" />
+                <Ionicons name="trash-outline" size={16} color={Colors.error} />
               </TouchableOpacity>
             </View>
           </View>
@@ -240,7 +240,7 @@ function ScreenHeader({
 }) {
   return (
     <LinearGradient
-      colors={["#FF6B6B", "#FF8E53"]}
+      colors={Colors.heroGradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={s.hero}
@@ -323,7 +323,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#EBEBEB",
+    borderBottomColor: Colors.border,
     gap: 8,
   },
   progressInfo: {
@@ -343,7 +343,7 @@ const s = StyleSheet.create({
   },
   progressTrack: {
     height: 6,
-    backgroundColor: "#EBEBEB",
+    backgroundColor: Colors.border,
     borderRadius: 3,
     overflow: "hidden",
   },

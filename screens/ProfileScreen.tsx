@@ -207,7 +207,7 @@ export default function ProfileScreen() {
       >
         {/* ── Hero banner ── */}
         <LinearGradient
-          colors={["#FF6B6B", "#FF8E53"]}
+          colors={Colors.heroGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[s.hero, { paddingTop: insets.top + 20 }]}

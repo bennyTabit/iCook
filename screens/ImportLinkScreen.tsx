@@ -18,6 +18,7 @@ import { useRecipeStore } from "../store/recipeStore";
 import { isHebrew } from "../lib/i18n";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
+import { Spacing } from "../constants/spacing";
 import type { ImportedRecipe } from "../lib/importer";
 import WebViewImporter from "../components/WebViewImporter";
 
@@ -231,7 +232,7 @@ export default function ImportLinkScreen({ navigation }: any) {
               style={[s.errorAction, s.errorActionPrimary]}
               onPress={() => navigation.navigate("AddRecipe")}
             >
-              <Text style={[s.errorActionText, { color: "#fff" }]}>
+              <Text style={[s.errorActionText, { color: Colors.text.inverse }]}>
                 {isHe ? "סרוק עם מצלמה" : "Scan with camera"}
               </Text>
             </TouchableOpacity>
@@ -387,36 +388,36 @@ const s = StyleSheet.create({
     gap: 8,
   },
   errorBox: {
-    marginTop: 14,
+    marginTop: Spacing.md,
     borderRadius: 14,
-    padding: 12,
-    backgroundColor: "#FFF0ED",
+    padding: Spacing.md,
+    backgroundColor: Colors.errorSurface,
     borderWidth: 1,
-    borderColor: "#FFC7BC",
+    borderColor: Colors.errorBorder,
   },
   errorTitle: {
     ...Typography.label,
-    color: "#B33F31",
+    color: Colors.text.error,
     marginBottom: 4,
   },
   errorSub: {
     ...Typography.caption,
-    color: "#9D5447",
+    color: Colors.text.error,
   },
   errorActions: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
     flexWrap: "wrap",
   },
   errorAction: {
     alignSelf: "flex-start",
     borderRadius: 10,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#F3B8AD",
+    borderColor: Colors.errorBorder,
   },
   errorActionPrimary: {
     backgroundColor: Colors.primary,
@@ -424,7 +425,7 @@ const s = StyleSheet.create({
   },
   errorActionText: {
     ...Typography.label,
-    color: "#B33F31",
+    color: Colors.text.error,
     fontSize: 12,
   },
   preview: {
@@ -469,30 +470,30 @@ const s = StyleSheet.create({
   },
   warnBox: {
     borderRadius: 12,
-    padding: 10,
-    backgroundColor: "#FFFBEB",
+    padding: Spacing.md,
+    backgroundColor: Colors.warningSurface,
     borderWidth: 1,
-    borderColor: "#F6CC6A",
-    marginBottom: 12,
-    gap: 8,
+    borderColor: Colors.warningBorder,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   warnText: {
     ...Typography.caption,
-    color: "#92650A",
+    color: Colors.text.warning,
     lineHeight: 17,
   },
   warnAction: {
     alignSelf: "flex-start",
     borderRadius: 8,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#F6CC6A",
+    borderColor: Colors.warningBorder,
   },
   warnActionText: {
     ...Typography.label,
-    color: "#92650A",
+    color: Colors.text.warning,
     fontSize: 12,
   },
   saveBtn: {
@@ -504,7 +505,7 @@ const s = StyleSheet.create({
   },
   saveBtnText: {
     ...Typography.button,
-    color: "#fff",
+    color: Colors.text.inverse,
     fontSize: 15,
   },
 });

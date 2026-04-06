@@ -19,34 +19,13 @@ import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
 import { useAuthStore } from "../store/authStore";
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  pasta: "🍝",
-  salads: "🥗",
-  desserts: "🍰",
-  soups: "🍜",
-  meat: "🥩",
-  fish: "🐟",
-  breakfast: "🍳",
-  veggie: "🥦",
-};
-
-const CATEGORY_BG: Record<string, string> = {
-  pasta: "#FFF3D6",
-  salads: "#E6F7EF",
-  desserts: "#FDE8F0",
-  soups: "#FFF0E0",
-  meat: "#FCE8E8",
-  fish: "#E5F2FB",
-  breakfast: "#FFF8E1",
-  veggie: "#E8F5E9",
-};
-
-const DIFFICULTY_LABEL: Record<string, { he: string; en: string }> = {
-  easy: { he: "קל", en: "Easy" },
-  medium: { he: "בינוני", en: "Medium" },
-  hard: { he: "קשה", en: "Hard" },
-};
+import {
+  CATEGORY_EMOJI,
+  CATEGORY_BG,
+  DIFFICULTY_LABEL,
+  FALLBACK_EMOJI,
+  FALLBACK_BG,
+} from "../constants/recipes";
 
 type QuickCategory = {
   key: string;
@@ -314,8 +293,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                 }}
                 activeOpacity={0.92}
               >
-                <View style={[s.continueThumb, { backgroundColor: CATEGORY_BG[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
-                  <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
+                <View style={[s.continueThumb, { backgroundColor: CATEGORY_BG[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
+                  <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.continueName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
@@ -397,8 +376,8 @@ export default function HomeFeedScreen({ navigation }: any) {
                   }}
                   activeOpacity={0.9}
                 >
-                  <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
-                    <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
+                  <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
+                    <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                   </View>
                   <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>
                     {isHe ? r.title_he : r.title_en}
@@ -425,7 +404,7 @@ export default function HomeFeedScreen({ navigation }: any) {
                 }}
                 activeOpacity={0.9}
               >
-                <Text style={s.suggestionIcon}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🥘"}</Text>
+                <Text style={s.suggestionIcon}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                 <Text style={[s.suggestionText, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
                   {isHe ? r.title_he : r.title_en}
                 </Text>
@@ -455,8 +434,8 @@ export default function HomeFeedScreen({ navigation }: any) {
               }}
               activeOpacity={0.92}
             >
-              <View style={[s.recentThumb, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? "#FFE8D5" }]}>
-                <Text style={s.recentThumbEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? "🍽️"}</Text>
+              <View style={[s.recentThumb, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
+                <Text style={s.recentThumbEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
               </View>
 
               <View style={{ flex: 1 }}>
