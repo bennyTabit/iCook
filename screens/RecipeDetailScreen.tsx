@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -25,7 +26,8 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
-import { getRecipeById, insertRecipe } from "../lib/db";
+import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, type RecipeUserData } from "../lib/db";
+import { logCook } from '../lib/cookLog';
 import { useRecipeStore } from "../store/recipeStore";
 import { useShoppingStore } from "../store/shoppingStore";
 import { useCollectionStore } from "../store/collectionStore";
@@ -321,6 +323,10 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const [cookHistory, setCookHistory] = useState(0);
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [recipeCollectionIds, setRecipeCollectionIds] = useState<number[]>([]);
+  const [userData, setUserData] = useState<RecipeUserData>({ recipe_id: 0, rating: null, personal_note: null, last_cooked_at: null });
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const favScale = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -331,6 +337,11 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     if (!id) return;
     const fresh = await getRecipeById(id);
     setRecipe(fresh);
+    if (id) {
+      const ud = await getRecipeUserData(id);
+      setUserData(ud);
+      setNoteText(ud.personal_note ?? '');
+    }
   }
 
   useEffect(() => {
@@ -496,8 +507,32 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     const next = cookHistory + 1;
     setCookHistory(next);
     await AsyncStorage.setItem(historyKey, String(next));
+    // Log the cook date
+    if (id && recipe) {
+      void logCook({ id, title_he: recipe.title_he ?? '', title_en: recipe.title_en ?? null, category_name_en: (recipe as any).category_name_en ?? null });
+      void upsertRecipeUserData(id, { last_cooked_at: new Date().toISOString() });
+    }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showToast(isHe ? "מעולה! סומן שבישלת את זה 👨‍🍳" : "Great! Marked as cooked 👨‍🍳");
+  }
+
+  async function handleRating(stars: number) {
+    if (!id) return;
+    void Haptics.selectionAsync();
+    const newRating = userData.rating === stars ? null : stars; // tap same star = clear
+    setUserData((prev) => ({ ...prev, rating: newRating }));
+    await upsertRecipeUserData(id, { rating: newRating });
+  }
+
+  function handleNoteChange(text: string) {
+    setNoteText(text);
+    if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+    noteDebounceRef.current = setTimeout(async () => {
+      if (!id) return;
+      setNoteSaving(true);
+      await upsertRecipeUserData(id, { personal_note: text.trim() || null });
+      setNoteSaving(false);
+    }, 600);
   }
 
   function toggleIngredientDone(index: number) {
@@ -721,6 +756,36 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </View>
           ) : null}
         </View>
+
+        {/* ── Star rating ── */}
+        {!isDraft && (
+          <View style={[s.ratingRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <Text style={s.ratingLabel}>{isHe ? "דירוג:" : "Rating:"}</Text>
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => void handleRating(star)}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  style={s.starBtn}
+                >
+                  <Ionicons
+                    name={(userData.rating ?? 0) >= star ? "star" : "star-outline"}
+                    size={22}
+                    color={(userData.rating ?? 0) >= star ? "#FFD700" : Colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            {userData.last_cooked_at && (
+              <Text style={[s.lastCookedText, { marginStart: "auto" }]}>
+                {isHe
+                  ? `בושל ב-${new Date(userData.last_cooked_at).toLocaleDateString('he-IL')}`
+                  : `Cooked ${new Date(userData.last_cooked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* ── Active timer banner ── */}
         {timerLabel ? (
@@ -978,6 +1043,26 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               })
             )}
           </View>
+
+          {/* ── Personal notes ── */}
+          {!isDraft && (
+            <View style={s.section}>
+              <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+                <Text style={s.sectionTitle}>{isHe ? "הערות אישיות" : "My notes"}</Text>
+                {noteSaving && <Text style={s.noteSavingText}>{isHe ? "שומר..." : "Saving..."}</Text>}
+              </View>
+              <TextInput
+                style={[s.noteInput, { textAlign: isHe ? "right" : "left" }]}
+                value={noteText}
+                onChangeText={handleNoteChange}
+                placeholder={isHe ? "הוסף הערות אישיות, שינויים שעשית, ..." : "Add personal notes, changes you made, ..."}
+                placeholderTextColor={Colors.text.tertiary}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          )}
         </View>
       </Animated.ScrollView>
 
@@ -1608,6 +1693,44 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: Colors.text.primary,
+  },
+
+  // Rating & notes
+  ratingRow: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  ratingLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text.secondary,
+  },
+  starBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lastCookedText: {
+    fontSize: 11,
+    color: Colors.text.tertiary,
+  },
+  noteSavingText: {
+    fontSize: 12,
+    color: Colors.text.tertiary,
+  },
+  noteInput: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    fontSize: 14,
+    color: Colors.text.primary,
+    lineHeight: 20,
+    minHeight: 80,
   },
 });
 

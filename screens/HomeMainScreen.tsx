@@ -18,6 +18,7 @@ import * as Clipboard from "expo-clipboard";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { Colors } from "../constants/colors";
+import { getCookLog, type CookLogEntry } from '../lib/cookLog';
 import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
@@ -57,6 +58,7 @@ export default function HomeFeedScreen({ navigation }: any) {
 
   const [selectedCat, setSelectedCat] = useState("all");
   const [clipboardRecipeUrl, setClipboardRecipeUrl] = useState<string | null>(null);
+  const [cookLog, setCookLog] = useState<CookLogEntry[]>([]);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
@@ -101,6 +103,18 @@ export default function HomeFeedScreen({ navigation }: any) {
       .slice(0, 4);
   }, [favorites, recipes]);
 
+  const quickDinners = useMemo(
+    () => recipes.filter((r) => (r.cook_time_min ?? 999) < 30 && (r.cook_time_min ?? 0) > 0).slice(0, 8),
+    [recipes],
+  );
+
+  const recipeOfDay = useMemo(() => {
+    if (!recipes.length) return null;
+    const now = new Date();
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+    return recipes[dayOfYear % recipes.length] ?? null;
+  }, [recipes]);
+
   // Check clipboard on every focus — show Quick Import chip if a URL is found
   useFocusEffect(
     useCallback(() => {
@@ -118,8 +132,21 @@ export default function HomeFeedScreen({ navigation }: any) {
     }, []),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void getCookLog().then(setCookLog);
+    }, []),
+  );
+
   function tap() {
     void Haptics.selectionAsync();
+  }
+
+  function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 12) return isHe ? 'בוקר טוב' : 'Good morning';
+    if (h < 17) return isHe ? 'צהריים טובים' : 'Good afternoon';
+    return isHe ? 'ערב טוב' : 'Good evening';
   }
 
   function applyCategory(category: string) {
@@ -207,9 +234,7 @@ export default function HomeFeedScreen({ navigation }: any) {
           >
             <Text style={s.heroDecor}>🍳</Text>
             <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
-              {isHe
-                ? `מה בא לך לבשל היום${firstName ? `, ${firstName}` : ""}?`
-                : `What do you feel like cooking today${firstName ? `, ${firstName}` : ""}?`}
+              {`${getGreeting()}${firstName ? `, ${firstName}` : ''}! ${isHe ? 'מה נבשל היום? 🍽️' : 'What shall we cook? 🍽️'}`}
             </Text>
             <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
               {isHe
@@ -244,6 +269,29 @@ export default function HomeFeedScreen({ navigation }: any) {
             </View>
           </LinearGradient>
         </Animated.View>
+
+        {/* ── Recipe of the day ── */}
+        {recipeOfDay && (
+          <TouchableOpacity
+            style={[s.rotdCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
+            onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: recipeOfDay.id }); }}
+            activeOpacity={0.9}
+          >
+            <View style={[s.rotdThumb, { backgroundColor: CATEGORY_BG[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
+              <Text style={{ fontSize: 28 }}>{CATEGORY_EMOJI[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.rotdLabel, { textAlign: isHe ? "right" : "left" }]}>{isHe ? "🌟 מתכון היום" : "🌟 Recipe of the day"}</Text>
+              <Text style={[s.rotdTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
+                {isHe ? recipeOfDay.title_he : recipeOfDay.title_en}
+              </Text>
+              <Text style={[s.rotdMeta, { textAlign: isHe ? "right" : "left" }]}>
+                ⏱ {recipeOfDay.cook_time_min ?? 0} {isHe ? "דקות" : "min"}
+              </Text>
+            </View>
+            <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={18} color={Colors.text.tertiary} />
+          </TouchableOpacity>
+        )}
 
         {/* ── Quick Import chip (shows when clipboard has a URL) ── */}
         {clipboardRecipeUrl ? (
@@ -541,8 +589,39 @@ export default function HomeFeedScreen({ navigation }: any) {
             ))}
           </ScrollView>
 
+          {quickDinners.length > 0 && (
+            <>
+              <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row", marginTop: 16 }]}>
+                <Text style={s.sectionTitle}>{isHe ? "מהיר וטעים ⚡" : "Quick & easy ⚡"}</Text>
+                <TouchableOpacity onPress={() => { tap(); setFilter("maxCookTime", 30); navigation.navigate("Search"); }}>
+                  <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.favoritesWrap}>
+                {quickDinners.map((r) => (
+                  <TouchableOpacity
+                    key={`qd-${r.id}`}
+                    style={s.favoriteCard}
+                    onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: r.id }); }}
+                    activeOpacity={0.9}
+                  >
+                    <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
+                      <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
+                    </View>
+                    <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>
+                      {isHe ? r.title_he : r.title_en}
+                    </Text>
+                    <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left" }]}>
+                      ⚡ {r.cook_time_min} {isHe ? "דק׳" : "min"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
           <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row", marginTop: 16 }]}>
-            <Text style={s.sectionTitle}>{isHe ? "בישלת לאחרונה" : "Recently cooked"}</Text>
+            <Text style={s.sectionTitle}>{cookLog.length > 0 ? (isHe ? "בישלת לאחרונה 👨‍🍳" : "Recently cooked 👨‍🍳") : (isHe ? "מתכונים אחרונים" : "Recent recipes")}</Text>
             <TouchableOpacity
               onPress={() => {
                 tap();
@@ -553,7 +632,7 @@ export default function HomeFeedScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {recent.map((r) => (
+          {(cookLog.length > 0 ? cookLog.slice(0, 6).map(log => recipes.find(r => r.id === log.id)).filter(Boolean) as typeof recipes : recent).map((r) => (
             <TouchableOpacity
               key={r.id}
               style={[s.recentCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
@@ -986,6 +1065,48 @@ const s = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  rotdCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    alignItems: "center",
+    gap: 12,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  rotdThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rotdLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.primary,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  rotdTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.text.primary,
+    marginTop: 2,
+  },
+  rotdMeta: {
+    fontSize: 12,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+
   emptyActionTitle: {
     ...Typography.body,
     color: Colors.text.primary,

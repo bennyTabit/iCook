@@ -130,7 +130,7 @@ export async function initDB() {
  * Schema migrations using PRAGMA user_version.
  * Bump TARGET_VERSION and add a case whenever the schema changes.
  */
-const TARGET_VERSION = 2;
+const TARGET_VERSION = 3;
 
 async function runMigrations() {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -171,6 +171,18 @@ async function runMigrations() {
         PRIMARY KEY (collection_id, recipe_id)
       );
       PRAGMA user_version = 2;
+    `);
+  }
+
+  if (current < 3) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS recipe_user_data (
+        recipe_id    INTEGER PRIMARY KEY REFERENCES recipes(id) ON DELETE CASCADE,
+        rating       INTEGER CHECK(rating BETWEEN 1 AND 5),
+        personal_note TEXT,
+        last_cooked_at TEXT
+      );
+      PRAGMA user_version = 3;
     `);
   }
 }
@@ -730,6 +742,46 @@ export async function getRecipeCollections(recipeId: number): Promise<Collection
      WHERE cr.recipe_id = ?`,
     [recipeId]
   );
+}
+
+export interface RecipeUserData {
+  recipe_id: number;
+  rating: number | null;
+  personal_note: string | null;
+  last_cooked_at: string | null;
+}
+
+export async function getRecipeUserData(recipeId: number): Promise<RecipeUserData> {
+  const row = await db.getFirstAsync<RecipeUserData>(
+    'SELECT * FROM recipe_user_data WHERE recipe_id = ?',
+    [recipeId],
+  );
+  return row ?? { recipe_id: recipeId, rating: null, personal_note: null, last_cooked_at: null };
+}
+
+export async function upsertRecipeUserData(
+  recipeId: number,
+  data: Partial<Omit<RecipeUserData, 'recipe_id'>>,
+): Promise<void> {
+  const existing = await db.getFirstAsync<{ recipe_id: number }>(
+    'SELECT recipe_id FROM recipe_user_data WHERE recipe_id = ?',
+    [recipeId],
+  );
+  if (existing) {
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (data.rating !== undefined) { sets.push('rating = ?'); vals.push(data.rating); }
+    if (data.personal_note !== undefined) { sets.push('personal_note = ?'); vals.push(data.personal_note); }
+    if (data.last_cooked_at !== undefined) { sets.push('last_cooked_at = ?'); vals.push(data.last_cooked_at); }
+    if (!sets.length) return;
+    vals.push(recipeId);
+    await db.runAsync(`UPDATE recipe_user_data SET ${sets.join(', ')} WHERE recipe_id = ?`, vals as any);
+  } else {
+    await db.runAsync(
+      'INSERT INTO recipe_user_data (recipe_id, rating, personal_note, last_cooked_at) VALUES (?, ?, ?, ?)',
+      [recipeId, data.rating ?? null, data.personal_note ?? null, data.last_cooked_at ?? null],
+    );
+  }
 }
 
 export default db;
