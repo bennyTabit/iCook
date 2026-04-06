@@ -142,6 +142,15 @@
 - [ ] Estimated cost (user enters price per item)
 - [ ] Recurring items ("always buy milk")
 
+### 4.0 Design System Foundation ✅ — committed 3fba25d
+- [x] `constants/colors.ts` — semantic tokens: error/warning/success/disabled, heroGradient
+- [x] `constants/spacing.ts` — Spacing scale, Shadow presets (sm/md/lg), Animation timing
+- [x] `constants/recipes.ts` — canonical CATEGORY_EMOJI, CATEGORY_BG, DIFFICULTY_*, SOURCE_ICON
+- [x] RecipeCard — use shared constants, Colors.error for fav/delete, Shadow.sm, accessibility labels
+- [x] FilterSheet — animated toggle (spring), haptics on chips, Colors throughout, accessible backdrop
+- [x] Toast — safe-area-aware bottom, accessibilityLiveRegion, type prop (default/success/error)
+- [x] All screens — replace ["#FF6B6B","#FF8E53"] with Colors.heroGradient; Colors.error, Colors.border, Colors.text.* everywhere; remove ~30 hardcoded hex values
+
 ### 4.6 Dark Mode ⬜
 - [ ] Dark mode variants in `constants/colors.ts`
 - [ ] Respect system `Appearance.getColorScheme()`
@@ -248,7 +257,7 @@
 | 1 — Stability | ✅ Complete | 100% (1.1 ✅, 1.2 ✅, 1.3 ✅, 1.4 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
-| 4 — UX Polish | ⬜ Not Started | 0% |
+| 4 — UX Polish | 🔄 In Progress | 15% (4.0 design system ✅) |
 | 5 — Testing | ⬜ Not Started | 0% |
 | 6 — Launch | ⬜ Not Started | 0% |
 | 7 — Growth | ⬜ Not Started | 0% |
