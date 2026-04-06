@@ -349,13 +349,63 @@ export default function HomeFeedScreen({ navigation }: any) {
               <Text style={[s.emptySubtitle, { textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "התחל בהוספת המתכון הראשון שלך" : "Start by adding your first recipe"}
               </Text>
+
+              {/* Action cards */}
               <TouchableOpacity
-                style={s.emptyBtn}
+                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
                 onPress={() => { tap(); navigation.navigate("AddRecipe"); }}
                 activeOpacity={0.85}
               >
-                <Ionicons name="add-circle-outline" size={16} color={Colors.text.inverse} />
-                <Text style={s.emptyBtnText}>{isHe ? "צור מתכון" : "Create recipe"}</Text>
+                <View style={[s.emptyActionIcon, { backgroundColor: "#4ECDC420" }]}>
+                  <Text style={s.emptyActionEmoji}>📷</Text>
+                </View>
+                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
+                  <Text style={s.emptyActionTitle}>{isHe ? "סרוק מתכון" : "Scan a recipe"}</Text>
+                  <Text style={s.emptyActionSub}>{isHe ? "צלם עם המצלמה" : "Use your camera"}</Text>
+                </View>
+                <Ionicons
+                  name={isHe ? "chevron-back" : "chevron-forward"}
+                  size={16}
+                  color={Colors.text.tertiary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                onPress={() => { tap(); navigation.navigate("ImportLink"); }}
+                activeOpacity={0.85}
+              >
+                <View style={[s.emptyActionIcon, { backgroundColor: "#7F77DD20" }]}>
+                  <Text style={s.emptyActionEmoji}>🔗</Text>
+                </View>
+                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
+                  <Text style={s.emptyActionTitle}>{isHe ? "ייבוא מקישור" : "Import from a link"}</Text>
+                  <Text style={s.emptyActionSub}>{isHe ? "הדבק כתובת URL" : "Paste any recipe URL"}</Text>
+                </View>
+                <Ionicons
+                  name={isHe ? "chevron-back" : "chevron-forward"}
+                  size={16}
+                  color={Colors.text.tertiary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                onPress={() => { tap(); navigation.navigate("EditRecipe", { id: null }); }}
+                activeOpacity={0.85}
+              >
+                <View style={[s.emptyActionIcon, { backgroundColor: "#FF6B6B20" }]}>
+                  <Text style={s.emptyActionEmoji}>✏️</Text>
+                </View>
+                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
+                  <Text style={s.emptyActionTitle}>{isHe ? "כתוב ידנית" : "Write it manually"}</Text>
+                  <Text style={s.emptyActionSub}>{isHe ? "הקלד מתכון שלב אחר שלב" : "Type your recipe step by step"}</Text>
+                </View>
+                <Ionicons
+                  name={isHe ? "chevron-back" : "chevron-forward"}
+                  size={16}
+                  color={Colors.text.tertiary}
+                />
               </TouchableOpacity>
             </View>
           ) : null}
@@ -909,5 +959,41 @@ const s = StyleSheet.create({
     ...Typography.button,
     color: Colors.text.inverse,
     fontSize: 15,
+  },
+
+  emptyActionCard: {
+    alignSelf: "stretch",
+    marginTop: 10,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    alignItems: "center",
+    gap: 12,
+  },
+  emptyActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyActionEmoji: {
+    fontSize: 22,
+  },
+  emptyActionText: {
+    flex: 1,
+    gap: 2,
+  },
+  emptyActionTitle: {
+    ...Typography.body,
+    color: Colors.text.primary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  emptyActionSub: {
+    ...Typography.caption,
+    color: Colors.text.secondary,
   },
 });
