@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -24,6 +25,14 @@ import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
 import { useAuthStore } from "../store/authStore";
 import i18n from "../lib/i18n";
+import {
+  getNotificationPrefs,
+  saveNotificationPrefs,
+  requestNotificationPermission,
+  scheduleMealPlanReminders,
+  cancelMealPlanReminders,
+  type NotificationPrefs,
+} from "../lib/notifications";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -42,6 +51,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signInWithGoogle, signInWithApple, signOut, loading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
+    enabled: false,
+    reminderHour: 17,
+    reminderMinute: 0,
+  });
 
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   const isGoogleConfigured = Boolean(googleClientId);
@@ -58,6 +72,10 @@ export default function ProfileScreen() {
     redirectUri: makeRedirectUri(),
     scopes: ["openid", "profile", "email"],
   });
+
+  useEffect(() => {
+    void getNotificationPrefs().then(setNotifPrefs);
+  }, []);
 
   useEffect(() => {
     if (response?.type !== "success") return;
@@ -102,6 +120,49 @@ export default function ProfileScreen() {
   async function handleSignOut() {
     void Haptics.selectionAsync();
     await signOut();
+  }
+
+  async function handleToggleNotifications(value: boolean) {
+    void Haptics.selectionAsync();
+    if (value) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        Alert.alert(
+          isHe ? "הרשאת התראות נדרשת" : "Notification permission required",
+          isHe
+            ? "כדי לקבל תזכורות, אפשר התראות בהגדרות המכשיר."
+            : "To receive reminders, enable notifications in your device settings.",
+          [{ text: isHe ? "אישור" : "OK" }],
+        );
+        return;
+      }
+    }
+    const updated = { ...notifPrefs, enabled: value };
+    setNotifPrefs(updated);
+    await saveNotificationPrefs(updated);
+    if (value) {
+      await scheduleMealPlanReminders(updated);
+    } else {
+      await cancelMealPlanReminders();
+    }
+  }
+
+  function handleChangeReminderTime() {
+    // Cycle through common times: 07:00 → 12:00 → 17:00 → 19:00 → 07:00
+    const times = [
+      { h: 7, m: 0 },
+      { h: 12, m: 0 },
+      { h: 17, m: 0 },
+      { h: 19, m: 0 },
+    ];
+    const cur = times.findIndex(
+      (t) => t.h === notifPrefs.reminderHour && t.m === notifPrefs.reminderMinute,
+    );
+    const next = times[(cur + 1) % times.length];
+    const updated = { ...notifPrefs, reminderHour: next.h, reminderMinute: next.m };
+    setNotifPrefs(updated);
+    void saveNotificationPrefs(updated);
+    if (updated.enabled) void scheduleMealPlanReminders(updated);
   }
 
   function toggleLanguage() {
@@ -341,6 +402,55 @@ export default function ProfileScreen() {
                   />
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+
+          {/* ── Notifications settings ── */}
+          <View style={s.sectionGroup}>
+            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+              {isHe ? "התראות" : "Notifications"}
+            </Text>
+            <View style={s.card}>
+              {/* Toggle row */}
+              <View style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }, s.rowBorder]}>
+                <View style={[s.rowIconWrap, { backgroundColor: "#FFF0E8" }]}>
+                  <Ionicons name="notifications-outline" size={16} color={Colors.primary} />
+                </View>
+                <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                  {isHe ? "תזכורות יומיות" : "Daily reminders"}
+                </Text>
+                <Switch
+                  value={notifPrefs.enabled}
+                  onValueChange={handleToggleNotifications}
+                  trackColor={{ false: Colors.border, true: Colors.primary + "80" }}
+                  thumbColor={notifPrefs.enabled ? Colors.primary : Colors.text.tertiary}
+                />
+              </View>
+
+              {/* Reminder time row — only shown when enabled */}
+              {notifPrefs.enabled && (
+                <TouchableOpacity
+                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                  onPress={handleChangeReminderTime}
+                  activeOpacity={0.65}
+                >
+                  <View style={[s.rowIconWrap, { backgroundColor: Colors.surface }]}>
+                    <Ionicons name="time-outline" size={16} color={Colors.text.secondary} />
+                  </View>
+                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                    {isHe ? "שעת תזכורת" : "Reminder time"}
+                  </Text>
+                  <Text style={s.rowValue}>
+                    {String(notifPrefs.reminderHour).padStart(2, "0")}:
+                    {String(notifPrefs.reminderMinute).padStart(2, "0")}
+                  </Text>
+                  <Ionicons
+                    name={isHe ? "chevron-back" : "chevron-forward"}
+                    size={14}
+                    color={Colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 

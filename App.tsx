@@ -13,6 +13,7 @@ import { auth } from './lib/firebase';
 import { useRecipeStore } from './store/recipeStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from './lib/i18n';
+import { applyNotificationPrefsOnBoot } from './lib/notifications';
 
 // React Navigation deep-link configuration
 // icook://import?url=<encoded-url>  →  navigates to ImportLink screen
@@ -49,6 +50,7 @@ export default function App() {
         I18nManager.forceRTL(saved === 'he');
       }
     });
+    void applyNotificationPrefsOnBoot();
     initDB()
       .then(() => setDbState('ready'))
       .catch((err: unknown) => {

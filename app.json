@@ -45,7 +45,15 @@
           "cameraPermission": "iCook uses the camera to scan recipe pages"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF6B6B",
+          "sounds": []
+        }
+      ]
     ]
   }
 }
