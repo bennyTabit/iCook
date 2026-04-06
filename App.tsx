@@ -11,6 +11,8 @@ import { Colors } from './constants/colors';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useRecipeStore } from './store/recipeStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from './lib/i18n';
 
 type DBState = 'loading' | 'ready' | 'error';
 
@@ -21,6 +23,13 @@ export default function App() {
   const bootDB = () => {
     setDbState('loading');
     setDbError(null);
+    // Restore saved language preference before rendering
+    AsyncStorage.getItem('icook.lang').then((saved) => {
+      if (saved && saved !== i18n.language) {
+        void i18n.changeLanguage(saved);
+        I18nManager.forceRTL(saved === 'he');
+      }
+    });
     initDB()
       .then(() => setDbState('ready'))
       .catch((err: unknown) => {

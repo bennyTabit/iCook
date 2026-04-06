@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   I18nManager,
   Platform,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
@@ -106,7 +108,18 @@ export default function ProfileScreen() {
     void Haptics.selectionAsync();
     const next = isHe ? "en" : "he";
     void i18n.changeLanguage(next);
-    I18nManager.forceRTL(next === "he");
+    void AsyncStorage.setItem("icook.lang", next);
+    const needsRTLSwitch = (next === "he") !== I18nManager.isRTL;
+    if (needsRTLSwitch) {
+      I18nManager.forceRTL(next === "he");
+      Alert.alert(
+        next === "he" ? "נדרשת הפעלה מחדש" : "Restart required",
+        next === "he"
+          ? "כדי להפעיל את הפריסה מימין לשמאל, יש לסגור ולפתוח מחדש את האפליקציה."
+          : "To apply the left-to-right layout, please close and reopen the app.",
+        [{ text: next === "he" ? "אישור" : "OK" }],
+      );
+    }
   }
 
   // Apple only sends name/email on the first ever authorization.
