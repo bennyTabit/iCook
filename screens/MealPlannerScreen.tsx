@@ -279,31 +279,16 @@ function MealRow({
     <View style={ms.mealRow}>
       {/* Label row */}
       <View style={[ms.mealHeader, { flexDirection: 'row' }]}>
-        {isHe ? (
-          <>
-            <TouchableOpacity
-              style={ms.addBtn}
-              onPress={() => { void Haptics.selectionAsync(); onAdd(date, mealType); }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-            <Text style={[ms.mealLabel, { textAlign: 'right' }]}>{mealLabel}</Text>
-            <Text style={ms.mealEmoji}>{MEAL_EMOJI[mealType]}</Text>
-          </>
-        ) : (
-          <>
-            <Text style={ms.mealEmoji}>{MEAL_EMOJI[mealType]}</Text>
-            <Text style={ms.mealLabel}>{mealLabel}</Text>
-            <TouchableOpacity
-              style={ms.addBtn}
-              onPress={() => { void Haptics.selectionAsync(); onAdd(date, mealType); }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-          </>
-        )}
+        {/* Hebrew: 🌅 ארוחת בוקר ➕  |  English: 🌅 Breakfast ➕ */}
+        <Text style={ms.mealEmoji}>{MEAL_EMOJI[mealType]}</Text>
+        <Text style={[ms.mealLabel, { textAlign: isHe ? 'right' : 'left' }]}>{mealLabel}</Text>
+        <TouchableOpacity
+          style={ms.addBtn}
+          onPress={() => { void Haptics.selectionAsync(); onAdd(date, mealType); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Planned recipes */}
