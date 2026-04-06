@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
 import { Colors } from '../constants/colors';
 import { DarkColors } from '../constants/colorsDark';
+import { useThemeStore } from '../store/themeStore';
 
 // A structural type that matches the shape of both Colors and DarkColors
 export type ThemeColors = {
@@ -49,14 +50,24 @@ export type ThemeColors = {
 };
 
 export function useThemeColors(): ThemeColors {
-  const [scheme, setScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  // User's explicit preference (system / light / dark)
+  const preference = useThemeStore((s) => s.preference);
+
+  // Live OS colour scheme — only used when preference === 'system'
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
+    Appearance.getColorScheme(),
+  );
 
   useEffect(() => {
     const sub = Appearance.addChangeListener(({ colorScheme }) => {
-      setScheme(colorScheme);
+      setSystemScheme(colorScheme);
     });
     return () => sub.remove();
   }, []);
 
-  return (scheme === 'dark' ? DarkColors : Colors) as ThemeColors;
+  const isDark =
+    preference === 'dark' ||
+    (preference === 'system' && systemScheme === 'dark');
+
+  return (isDark ? DarkColors : Colors) as ThemeColors;
 }

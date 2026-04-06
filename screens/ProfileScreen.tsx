@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   I18nManager,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,17 +13,19 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri } from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
+import * as Updates from "expo-updates";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
+import { useThemeStore, type ThemePreference } from "../store/themeStore";
 import { isHebrew } from "../lib/i18n";
 import { useAuthStore } from "../store/authStore";
 import i18n from "../lib/i18n";
@@ -37,13 +40,40 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
+// ── Dietary chip definitions (same as OnboardingScreen) ──────────────────────
+type DietaryTag = "vegan" | "dairy-free" | "gluten-free" | "nut-free" | "meat";
+const DIETARY_CHIPS: { tag: DietaryTag; emoji: string; labelHe: string; labelEn: string }[] = [
+  { tag: "vegan",       emoji: "🌱", labelHe: "טבעוני",    labelEn: "Vegan" },
+  { tag: "dairy-free",  emoji: "🥛", labelHe: "ללא חלב",   labelEn: "Dairy-free" },
+  { tag: "gluten-free", emoji: "🌾", labelHe: "ללא גלוטן", labelEn: "Gluten-free" },
+  { tag: "nut-free",    emoji: "🥜", labelHe: "ללא אגוזים",labelEn: "Nut-free" },
+  { tag: "meat",        emoji: "🥩", labelHe: "בשרי",      labelEn: "Meat" },
+];
+
+// ── Theme preference cycle ────────────────────────────────────────────────────
+const THEME_CYCLE: ThemePreference[] = ["system", "light", "dark"];
+const THEME_ICON: Record<ThemePreference, React.ComponentProps<typeof Ionicons>["name"]> = {
+  system: "phone-portrait-outline",
+  light:  "sunny-outline",
+  dark:   "moon-outline",
+};
+const THEME_LABEL_HE: Record<ThemePreference, string> = {
+  system: "לפי מכשיר",
+  light:  "בהיר",
+  dark:   "כהה",
+};
+const THEME_LABEL_EN: Record<ThemePreference, string> = {
+  system: "System",
+  light:  "Light",
+  dark:   "Dark",
+};
+
 type SettingRow = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   value?: string;
   onPress: () => void;
   tint?: string;
-  danger?: boolean;
 };
 
 export default function ProfileScreen() {
@@ -53,11 +83,20 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signInWithGoogle, signInWithApple, signOut, loading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
     enabled: false,
     reminderHour: 17,
     reminderMinute: 0,
   });
+
+  // Theme preference
+  const { preference: themePreference, setPreference: setThemePreference } = useThemeStore();
+
+  // Dietary preferences
+  const [dietaryTags, setDietaryTags]   = useState<DietaryTag[]>([]);
+  const [showDietary, setShowDietary]   = useState(false);
 
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   const isGoogleConfigured = Boolean(googleClientId);
@@ -75,13 +114,22 @@ export default function ProfileScreen() {
     scopes: ["openid", "profile", "email"],
   });
 
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
   useEffect(() => {
     void getNotificationPrefs().then(setNotifPrefs);
+    AsyncStorage.getItem("icook.prefs.dietary").then((saved) => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as DietaryTag[];
+          setDietaryTags(parsed);
+        } catch { /* ignore corrupt data */ }
+      }
+    });
   }, []);
 
   useEffect(() => {
     if (response?.type !== "success") return;
-    const idToken = response.authentication?.idToken;
+    const idToken     = response.authentication?.idToken;
     const accessToken = response.authentication?.accessToken;
     if (!idToken || !accessToken) return;
     setAuthLoading(true);
@@ -90,6 +138,7 @@ export default function ProfileScreen() {
       .finally(() => setAuthLoading(false));
   }, [response]);
 
+  // ── Auth handlers ──────────────────────────────────────────────────────────
   async function handleGoogleSignIn() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await promptAsync();
@@ -105,15 +154,13 @@ export default function ProfileScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-
       const name =
         [credential.fullName?.givenName, credential.fullName?.familyName]
           .filter(Boolean)
           .join(" ") || null;
-
       await signInWithApple(credential.identityToken!, name, credential.email ?? null);
-    } catch (e: any) {
-      if (e.code !== "ERR_REQUEST_CANCELED") console.error(e);
+    } catch (e: unknown) {
+      if ((e as { code?: string }).code !== "ERR_REQUEST_CANCELED") console.error(e);
     } finally {
       setAuthLoading(false);
     }
@@ -124,6 +171,7 @@ export default function ProfileScreen() {
     await signOut();
   }
 
+  // ── Notification handlers ──────────────────────────────────────────────────
   async function handleToggleNotifications(value: boolean) {
     void Haptics.selectionAsync();
     if (value) {
@@ -142,15 +190,11 @@ export default function ProfileScreen() {
     const updated = { ...notifPrefs, enabled: value };
     setNotifPrefs(updated);
     await saveNotificationPrefs(updated);
-    if (value) {
-      await scheduleMealPlanReminders(updated);
-    } else {
-      await cancelMealPlanReminders();
-    }
+    if (value) await scheduleMealPlanReminders(updated);
+    else await cancelMealPlanReminders();
   }
 
   function handleChangeReminderTime() {
-    // Cycle through common times: 07:00 → 12:00 → 17:00 → 19:00 → 07:00
     const times = [
       { h: 7, m: 0 },
       { h: 12, m: 0 },
@@ -167,26 +211,64 @@ export default function ProfileScreen() {
     if (updated.enabled) void scheduleMealPlanReminders(updated);
   }
 
-  function toggleLanguage() {
+  // ── Theme handler ──────────────────────────────────────────────────────────
+  function handleCycleTheme() {
     void Haptics.selectionAsync();
-    const next = isHe ? "en" : "he";
-    void i18n.changeLanguage(next);
-    void AsyncStorage.setItem("icook.lang", next);
-    const needsRTLSwitch = (next === "he") !== I18nManager.isRTL;
-    if (needsRTLSwitch) {
-      I18nManager.forceRTL(next === "he");
-      Alert.alert(
-        next === "he" ? "נדרשת הפעלה מחדש" : "Restart required",
-        next === "he"
-          ? "כדי להפעיל את הפריסה מימין לשמאל, יש לסגור ולפתוח מחדש את האפליקציה."
-          : "To apply the left-to-right layout, please close and reopen the app.",
-        [{ text: next === "he" ? "אישור" : "OK" }],
-      );
-    }
+    const cur = THEME_CYCLE.indexOf(themePreference);
+    const next = THEME_CYCLE[(cur + 1) % THEME_CYCLE.length];
+    void setThemePreference(next);
   }
 
-  // Apple only sends name/email on the first ever authorization.
-  // Derive the best available label so we never show "Guest" to a signed-in user.
+  // ── Language handler ───────────────────────────────────────────────────────
+  async function toggleLanguage() {
+    void Haptics.selectionAsync();
+    const next = isHe ? "en" : "he";
+    // Apply language + RTL direction immediately
+    await i18n.changeLanguage(next);
+    await AsyncStorage.setItem("icook.lang", next);
+    I18nManager.forceRTL(next === "he");
+    // A JS reload is always needed to re-apply RTL/LTR layout
+    Alert.alert(
+      next === "he" ? "נדרשת הפעלה מחדש" : "Restart required",
+      next === "he"
+        ? "כדי להפעיל את הפריסה מימין לשמאל, האפליקציה תיפתח מחדש."
+        : "To apply the left-to-right layout, the app will restart.",
+      [
+        {
+          text: next === "he" ? "אחר כך" : "Later",
+          style: "cancel",
+        },
+        {
+          text: next === "he" ? "הפעל מחדש עכשיו" : "Restart now",
+          onPress: () => {
+            void Updates.reloadAsync();
+          },
+        },
+      ],
+    );
+  }
+
+  // ── Dietary handlers ───────────────────────────────────────────────────────
+  async function toggleDietaryTag(tag: DietaryTag) {
+    void Haptics.selectionAsync();
+    const updated = dietaryTags.includes(tag)
+      ? dietaryTags.filter((t) => t !== tag)
+      : [...dietaryTags, tag];
+    setDietaryTags(updated);
+    await AsyncStorage.setItem("icook.prefs.dietary", JSON.stringify(updated));
+  }
+
+  function dietaryLabel() {
+    if (dietaryTags.length === 0) return isHe ? "ללא הגבלה" : "No restriction";
+    return dietaryTags
+      .map((tag) => {
+        const chip = DIETARY_CHIPS.find((c) => c.tag === tag);
+        return chip ? (isHe ? chip.labelHe : chip.labelEn) : tag;
+      })
+      .join(", ");
+  }
+
+  // ── Name / avatar ──────────────────────────────────────────────────────────
   const resolvedName: string | null = user
     ? user.displayName ??
       (user.email ? user.email.split("@")[0] : null) ??
@@ -195,9 +277,9 @@ export default function ProfileScreen() {
         : isHe ? "משתמש Google" : "Google User")
     : null;
 
-  const avatarLetter =
-    resolvedName?.[0]?.toUpperCase() ?? (isHe ? "א" : "A");
+  const avatarLetter = resolvedName?.[0]?.toUpperCase() ?? (isHe ? "א" : "A");
 
+  // ── Setting rows ───────────────────────────────────────────────────────────
   const GENERAL_ROWS: SettingRow[] = [
     {
       icon: "language-outline",
@@ -206,16 +288,16 @@ export default function ProfileScreen() {
       onPress: toggleLanguage,
     },
     {
-      icon: "sunny-outline",
+      icon: THEME_ICON[themePreference],
       label: isHe ? "ערכת נושא" : "Theme",
-      value: isHe ? "בהיר" : "Light",
-      onPress: () => {},
+      value: isHe ? THEME_LABEL_HE[themePreference] : THEME_LABEL_EN[themePreference],
+      onPress: handleCycleTheme,
     },
     {
       icon: "nutrition-outline",
       label: isHe ? "העדפות תזונה" : "Dietary",
-      value: isHe ? "ללא הגבלה" : "No restriction",
-      onPress: () => {},
+      value: dietaryLabel(),
+      onPress: () => setShowDietary(true),
     },
   ];
 
@@ -255,16 +337,13 @@ export default function ProfileScreen() {
           end={{ x: 1, y: 1 }}
           style={[s.hero, { paddingTop: insets.top + 20 }]}
         >
-          {/* Avatar */}
           <View style={s.avatarRing}>
             <View
               style={[
                 s.avatar,
                 {
                   backgroundColor: user
-                    ? user.provider === "google"
-                      ? "#4285F4"
-                      : "#1A1A1A"
+                    ? user.provider === "google" ? "#4285F4" : "#1A1A1A"
                     : "rgba(255,255,255,0.3)",
                 },
               ]}
@@ -272,16 +351,14 @@ export default function ProfileScreen() {
               <Text style={s.avatarText}>{avatarLetter}</Text>
             </View>
           </View>
-
-          {/* Name + email */}
           <Text style={s.heroName} numberOfLines={1}>
             {resolvedName ?? (isHe ? "אורח" : "Guest")}
           </Text>
           <Text style={s.heroEmail} numberOfLines={1}>
-            {user?.email ?? (user ? (isHe ? "מחובר" : "Signed in") : (isHe ? "לא מחובר" : "Not signed in"))}
+            {user?.email ?? (user
+              ? (isHe ? "מחובר" : "Signed in")
+              : (isHe ? "לא מחובר" : "Not signed in"))}
           </Text>
-
-          {/* Provider badge */}
           {user ? (
             <View style={s.providerBadge}>
               <Ionicons
@@ -294,9 +371,7 @@ export default function ProfileScreen() {
               </Text>
             </View>
           ) : null}
-
-          {/* Wave bottom */}
-          <View style={s.heroWave} />
+          <View style={[s.heroWave, { backgroundColor: C.background }]} />
         </LinearGradient>
 
         <View style={s.body}>
@@ -306,15 +381,14 @@ export default function ProfileScreen() {
               <View style={s.signInIconWrap}>
                 <Ionicons name="shield-checkmark-outline" size={28} color={Colors.primary} />
               </View>
-              <Text style={[s.signInTitle, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.signInTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "גבה את המתכונים שלך" : "Back up your recipes"}
               </Text>
-              <Text style={[s.signInSub, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.signInSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe
                   ? "התחבר כדי לשמור את המתכונים בענן ולגשת אליהם מכל מכשיר"
                   : "Sign in to save your recipes to the cloud and access them on any device"}
               </Text>
-
               {authLoading ? (
                 <ActivityIndicator color={Colors.primary} style={{ marginTop: 8 }} />
               ) : (
@@ -330,24 +404,27 @@ export default function ProfileScreen() {
                     </View>
                   )}
                   <TouchableOpacity
-                    style={[s.authBtn, { flexDirection: isHe ? "row-reverse" : "row" }, !isGoogleConfigured && s.authBtnDisabled]}
+                    style={[
+                      s.authBtn,
+                      { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surface, borderColor: C.border },
+                      !isGoogleConfigured && s.authBtnDisabled,
+                    ]}
                     onPress={isGoogleConfigured ? handleGoogleSignIn : undefined}
                     activeOpacity={isGoogleConfigured ? 0.85 : 1}
                   >
-                    <View style={s.authBtnIcon}>
+                    <View style={[s.authBtnIcon, { backgroundColor: C.surfaceElevated }]}>
                       <Ionicons name="logo-google" size={18} color="#4285F4" />
                     </View>
-                    <Text style={s.authBtnText}>
+                    <Text style={[s.authBtnText, { color: C.text.primary }]}>
                       {isHe ? "המשך עם Google" : "Continue with Google"}
                     </Text>
                     <Ionicons
                       name={isHe ? "chevron-back" : "chevron-forward"}
                       size={16}
-                      color={Colors.text.tertiary}
+                      color={C.text.tertiary}
                       style={{ marginStart: "auto" }}
                     />
                   </TouchableOpacity>
-
                   {Platform.OS === "ios" && (
                     <TouchableOpacity
                       style={[s.authBtn, s.authBtnApple, { flexDirection: isHe ? "row-reverse" : "row" }]}
@@ -375,7 +452,7 @@ export default function ProfileScreen() {
 
           {/* ── General settings ── */}
           <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "כללי" : "General"}
             </Text>
             <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
@@ -384,23 +461,23 @@ export default function ProfileScreen() {
                   key={row.label}
                   style={[
                     s.row,
-                    { flexDirection: isHe ? "row-reverse" : "row" },
-                    i < GENERAL_ROWS.length - 1 && s.rowBorder,
+                    { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
+                    i < GENERAL_ROWS.length - 1 && [s.rowBorder, { borderBottomColor: C.border }],
                   ]}
                   onPress={row.onPress}
                   activeOpacity={0.65}
                 >
                   <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
-                    <Ionicons name={row.icon} size={16} color={Colors.text.secondary} />
+                    <Ionicons name={row.icon} size={16} color={C.text.secondary} />
                   </View>
-                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                  <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                     {row.label}
                   </Text>
-                  {row.value ? <Text style={s.rowValue}>{row.value}</Text> : null}
+                  {row.value ? <Text style={[s.rowValue, { color: C.text.tertiary }]}>{row.value}</Text> : null}
                   <Ionicons
                     name={isHe ? "chevron-back" : "chevron-forward"}
                     size={14}
-                    color={Colors.text.tertiary}
+                    color={C.text.tertiary}
                   />
                 </TouchableOpacity>
               ))}
@@ -409,47 +486,49 @@ export default function ProfileScreen() {
 
           {/* ── Notifications settings ── */}
           <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "התראות" : "Notifications"}
             </Text>
             <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-              {/* Toggle row */}
-              <View style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }, s.rowBorder]}>
+              <View style={[
+                s.row,
+                { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
+                s.rowBorder,
+                { borderBottomColor: C.border },
+              ]}>
                 <View style={[s.rowIconWrap, { backgroundColor: "#FFF0E8" }]}>
                   <Ionicons name="notifications-outline" size={16} color={Colors.primary} />
                 </View>
-                <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                   {isHe ? "תזכורות יומיות" : "Daily reminders"}
                 </Text>
                 <Switch
                   value={notifPrefs.enabled}
                   onValueChange={handleToggleNotifications}
-                  trackColor={{ false: Colors.border, true: Colors.primary + "80" }}
-                  thumbColor={notifPrefs.enabled ? Colors.primary : Colors.text.tertiary}
+                  trackColor={{ false: C.border, true: Colors.primary + "80" }}
+                  thumbColor={notifPrefs.enabled ? Colors.primary : C.text.tertiary}
                 />
               </View>
-
-              {/* Reminder time row — only shown when enabled */}
               {notifPrefs.enabled && (
                 <TouchableOpacity
-                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}
                   onPress={handleChangeReminderTime}
                   activeOpacity={0.65}
                 >
                   <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
-                    <Ionicons name="time-outline" size={16} color={Colors.text.secondary} />
+                    <Ionicons name="time-outline" size={16} color={C.text.secondary} />
                   </View>
-                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                  <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                     {isHe ? "שעת תזכורת" : "Reminder time"}
                   </Text>
-                  <Text style={s.rowValue}>
+                  <Text style={[s.rowValue, { color: C.text.tertiary }]}>
                     {String(notifPrefs.reminderHour).padStart(2, "0")}:
                     {String(notifPrefs.reminderMinute).padStart(2, "0")}
                   </Text>
                   <Ionicons
                     name={isHe ? "chevron-back" : "chevron-forward"}
                     size={14}
-                    color={Colors.text.tertiary}
+                    color={C.text.tertiary}
                   />
                 </TouchableOpacity>
               )}
@@ -458,7 +537,7 @@ export default function ProfileScreen() {
 
           {/* ── Data & Sync settings ── */}
           <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "נתונים וסנכרון" : "Data & Sync"}
             </Text>
             <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
@@ -467,8 +546,8 @@ export default function ProfileScreen() {
                   key={row.label}
                   style={[
                     s.row,
-                    { flexDirection: isHe ? "row-reverse" : "row" },
-                    i < DATA_ROWS.length - 1 && s.rowBorder,
+                    { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
+                    i < DATA_ROWS.length - 1 && [s.rowBorder, { borderBottomColor: C.border }],
                   ]}
                   onPress={row.onPress}
                   activeOpacity={0.65}
@@ -479,24 +558,20 @@ export default function ProfileScreen() {
                       { backgroundColor: row.tint ? row.tint + "20" : C.surface },
                     ]}
                   >
-                    <Ionicons
-                      name={row.icon}
-                      size={16}
-                      color={row.tint ?? Colors.text.secondary}
-                    />
+                    <Ionicons name={row.icon} size={16} color={row.tint ?? C.text.secondary} />
                   </View>
-                  <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                  <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                     {row.label}
                   </Text>
                   {row.value ? (
-                    <Text style={[s.rowValue, row.tint ? { color: row.tint } : null]}>
+                    <Text style={[s.rowValue, row.tint ? { color: row.tint } : { color: C.text.tertiary }]}>
                       {row.value}
                     </Text>
                   ) : null}
                   <Ionicons
                     name={isHe ? "chevron-back" : "chevron-forward"}
                     size={14}
-                    color={Colors.text.tertiary}
+                    color={C.text.tertiary}
                   />
                 </TouchableOpacity>
               ))}
@@ -508,19 +583,14 @@ export default function ProfileScreen() {
             <View style={s.sectionGroup}>
               <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
                 <TouchableOpacity
-                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                  style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}
                   onPress={handleSignOut}
                   activeOpacity={0.65}
                 >
                   <View style={[s.rowIconWrap, { backgroundColor: C.errorSurface }]}>
                     <Ionicons name="log-out-outline" size={16} color={Colors.error} />
                   </View>
-                  <Text
-                    style={[
-                      s.rowLabel,
-                      { flex: 1, color: Colors.error, textAlign: isHe ? "right" : "left" },
-                    ]}
-                  >
+                  <Text style={[s.rowLabel, { flex: 1, color: Colors.error, textAlign: isHe ? "right" : "left" }]}>
                     {isHe ? "התנתקות" : "Sign out"}
                   </Text>
                 </TouchableOpacity>
@@ -528,77 +598,94 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          {/* ── App version ── */}
-          <Text style={s.version}>iCook v1.0.0</Text>
+          <Text style={[s.version, { color: C.text.disabled }]}>iCook v1.0.0</Text>
         </View>
       </ScrollView>
+
+      {/* ── Dietary preferences modal ── */}
+      <Modal
+        visible={showDietary}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDietary(false)}
+      >
+        <TouchableOpacity
+          style={s.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowDietary(false)}
+        />
+        <View style={[s.dietarySheet, { backgroundColor: C.surfaceElevated }]}>
+          {/* Handle */}
+          <View style={[s.sheetHandle, { backgroundColor: C.border }]} />
+
+          <Text style={[s.sheetTitle, { color: C.text.primary }]}>
+            {isHe ? "העדפות תזונה" : "Dietary preferences"}
+          </Text>
+          <Text style={[s.sheetSub, { color: C.text.secondary }]}>
+            {isHe ? "בחר את ההגבלות שלך (לא חובה)" : "Select your restrictions (optional)"}
+          </Text>
+
+          <View style={s.chipGrid}>
+            {DIETARY_CHIPS.map((chip) => {
+              const active = dietaryTags.includes(chip.tag);
+              return (
+                <TouchableOpacity
+                  key={chip.tag}
+                  style={[
+                    s.dietChip,
+                    { borderColor: active ? Colors.primary : C.border, backgroundColor: active ? Colors.primary + "18" : C.surface },
+                  ]}
+                  onPress={() => toggleDietaryTag(chip.tag)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.chipEmoji}>{chip.emoji}</Text>
+                  <Text style={[s.chipLabel, { color: active ? Colors.primary : C.text.secondary }]}>
+                    {isHe ? chip.labelHe : chip.labelEn}
+                  </Text>
+                  {active && (
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.primary} style={{ marginStart: 4 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={[s.sheetDone, { backgroundColor: Colors.primary }]}
+            onPress={() => setShowDietary(false)}
+          >
+            <Text style={s.sheetDoneText}>{isHe ? "סיום" : "Done"}</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Hero
-  hero: {
-    alignItems: "center",
-    paddingBottom: 36,
-    paddingHorizontal: 20,
-  },
+  hero: { alignItems: "center", paddingBottom: 36, paddingHorizontal: 20 },
   avatarRing: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
+    width: 90, height: 90, borderRadius: 45,
+    borderWidth: 3, borderColor: "rgba(255,255,255,0.5)",
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 32, color: Colors.text.inverse, fontWeight: "700" },
-  heroName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: Colors.text.inverse,
-    letterSpacing: -0.3,
-  },
-  heroEmail: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 3,
-  },
+  heroName: { fontSize: 22, fontWeight: "700", color: Colors.text.inverse, letterSpacing: -0.3 },
+  heroEmail: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 3 },
   providerBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20,
+    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10,
+    paddingHorizontal: 12, paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20,
   },
-  providerText: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.95)",
-    fontWeight: "600",
-  },
+  providerText: { fontSize: 12, color: "rgba(255,255,255,0.95)", fontWeight: "600" },
   heroWave: {
-    position: "absolute",
-    bottom: -1,
-    left: 0,
-    right: 0,
-    height: 24,
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    position: "absolute", bottom: -1, left: 0, right: 0,
+    height: 24, borderTopLeftRadius: 28, borderTopRightRadius: 28,
   },
 
   // Body
@@ -606,135 +693,80 @@ const s = StyleSheet.create({
 
   // Sign-in card
   signInCard: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 20,
-    gap: 10,
-    marginBottom: 8,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 20, borderWidth: 1, padding: 20, gap: 10, marginBottom: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
   signInIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 52, height: 52, borderRadius: 26,
     backgroundColor: Colors.errorSurface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
+    alignItems: "center", justifyContent: "center", marginBottom: 2,
   },
-  signInTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: Colors.text.primary,
-  },
-  signInSub: {
-    fontSize: 13,
-    color: Colors.text.secondary,
-    lineHeight: 19,
-  },
+  signInTitle: { fontSize: 17, fontWeight: "700" },
+  signInSub: { fontSize: 13, lineHeight: 19 },
   authBtns: { gap: 8, marginTop: 4 },
   authBtnDisabled: { opacity: 0.4 },
   configWarning: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Colors.errorSurface,
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 4,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: Colors.errorSurface, borderRadius: 10, padding: 10, marginBottom: 4,
   },
-  configWarningText: {
-    fontSize: 11,
-    color: Colors.primary,
-    flex: 1,
-  },
+  configWarningText: { fontSize: 11, color: Colors.primary, flex: 1 },
   authBtn: {
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    alignItems: "center", gap: 10, paddingVertical: 13, paddingHorizontal: 14,
+    borderRadius: 14, borderWidth: 1,
   },
-  authBtnApple: {
-    backgroundColor: "#1A1A1A",
-    borderColor: "#1A1A1A",
-  },
+  authBtnApple: { backgroundColor: "#1A1A1A", borderColor: "#1A1A1A" },
   authBtnIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
   },
-  authBtnIconDark: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  authBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.text.primary,
-  },
+  authBtnIconDark: { backgroundColor: "rgba(255,255,255,0.15)" },
+  authBtnText: { fontSize: 15, fontWeight: "600" },
 
   // Section groups
   sectionGroup: { gap: 6 },
   groupLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.text.tertiary,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    paddingHorizontal: 4,
-    marginTop: 10,
+    fontSize: 12, fontWeight: "600", letterSpacing: 0.5,
+    textTransform: "uppercase", paddingHorizontal: 4, marginTop: 10,
   },
   card: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    borderRadius: 16, borderWidth: 1, overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
   },
-  row: {
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 12,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  rowIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowLabel: { fontSize: 15, color: Colors.text.primary, fontWeight: "500" },
-  rowValue: { fontSize: 13, color: Colors.text.tertiary, fontWeight: "500" },
+  row: { alignItems: "center", paddingHorizontal: 14, paddingVertical: 13, gap: 12 },
+  rowBorder: { borderBottomWidth: 1 },
+  rowIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  rowLabel: { fontSize: 15, fontWeight: "500" },
+  rowValue: { fontSize: 13, fontWeight: "500" },
 
   // Version
-  version: {
-    textAlign: "center",
-    fontSize: 12,
-    color: Colors.text.disabled,
-    marginTop: 16,
-    fontWeight: "500",
+  version: { textAlign: "center", fontSize: 12, marginTop: 16, fontWeight: "500" },
+
+  // Dietary modal
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
+  dietarySheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 36, gap: 12,
+  },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheetTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  sheetSub: { fontSize: 13, textAlign: "center", marginBottom: 4 },
+  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
+  dietChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 22, borderWidth: 1.5,
+  },
+  chipEmoji: { fontSize: 18 },
+  chipLabel: { fontSize: 14, fontWeight: "600" },
+  sheetDone: {
+    marginTop: 6, borderRadius: 14,
+    paddingVertical: 14, alignItems: "center",
+  },
+  sheetDoneText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

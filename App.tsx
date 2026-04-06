@@ -47,11 +47,16 @@ export default function App() {
   const bootDB = () => {
     setDbState('loading');
     setDbError(null);
-    // Restore saved language preference before rendering
+    // Restore saved language preference and set RTL accordingly
     AsyncStorage.getItem('icook.lang').then((saved) => {
+      const lang = saved ?? i18n.language;
+      const shouldBeRTL = lang.startsWith('he');
+      // Always sync RTL to the saved language (don't blindly force RTL=true)
+      if (I18nManager.isRTL !== shouldBeRTL) {
+        I18nManager.forceRTL(shouldBeRTL);
+      }
       if (saved && saved !== i18n.language) {
         void i18n.changeLanguage(saved);
-        I18nManager.forceRTL(saved === 'he');
       }
     });
     void applyNotificationPrefsOnBoot();
@@ -66,10 +71,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Force RTL for Hebrew at app boot (must run before first render)
-    if (!I18nManager.isRTL) {
-      I18nManager.forceRTL(true);
-    }
     bootDB();
   }, []);
 
