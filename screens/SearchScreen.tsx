@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   Animated,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -22,6 +24,9 @@ import { countActiveFilters } from "../lib/search";
 import FilterSheet from "../components/FilterSheet";
 import RecipeCard from "../components/RecipeCard";
 import type { FilterState } from "../lib/search";
+import { addSearchHistory, getSearchHistory, clearSearchHistory, removeSearchHistoryItem } from "../lib/searchHistory";
+import { parseSearchIntent } from "../lib/searchIntent";
+import { useThemeColors } from "../hooks/useThemeColors";
 
 const SORT_OPTIONS: {
   key: FilterState["sortBy"];
@@ -35,7 +40,7 @@ const SORT_OPTIONS: {
   { key: "last_used", label_he: "אחרון",   label_en: "Recent",   icon: "time-outline" },
 ];
 
-export default function SearchScreen({ navigation }: any) {
+export default function SearchScreen({ navigation }: { navigation: any }) {
   const {
     recipes,
     filters,
@@ -54,15 +59,39 @@ export default function SearchScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const activeCount = countActiveFilters(filters);
   const inputRef = useRef<TextInput>(null);
+  const C = useThemeColors();
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Animate search box focus
   const focusAnim = useRef(new Animated.Value(0)).current;
 
+  useFocusEffect(
+    useCallback(() => {
+      void getSearchHistory().then(setSearchHistory);
+    }, []),
+  );
+
   function onSearchFocus() {
     Animated.spring(focusAnim, { toValue: 1, useNativeDriver: false, friction: 8 }).start();
+    if (!rawQuery) setShowHistory(true);
   }
   function onSearchBlur() {
     Animated.spring(focusAnim, { toValue: 0, useNativeDriver: false, friction: 8 }).start();
+    // slight delay so tapping a history chip registers before hiding
+    setTimeout(() => setShowHistory(false), 150);
+  }
+
+  function handleSubmitSearch(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const intent = parseSearchIntent(trimmed);
+    setFilter('query', intent.query || trimmed);
+    if (intent.difficulty) setFilter('difficulty', intent.difficulty);
+    if (intent.maxCookTime) setFilter('maxCookTime', intent.maxCookTime);
+    void addSearchHistory(trimmed);
+    void getSearchHistory().then(setSearchHistory);
+    setShowHistory(false);
   }
 
   const searchBorderColor = focusAnim.interpolate({
@@ -71,7 +100,16 @@ export default function SearchScreen({ navigation }: any) {
   });
 
   useEffect(() => { void loadRecipes(); }, []);
-  useEffect(() => { setFilter("query", debouncedQuery); }, [debouncedQuery]);
+  useEffect(() => {
+    setFilter("query", debouncedQuery);
+    if (debouncedQuery.length >= 3) {
+      const intent = parseSearchIntent(debouncedQuery);
+      if (intent.difficulty) setFilter('difficulty', intent.difficulty);
+      if (intent.maxCookTime) setFilter('maxCookTime', intent.maxCookTime);
+      void addSearchHistory(debouncedQuery);
+      void getSearchHistory().then(setSearchHistory);
+    }
+  }, [debouncedQuery]);
 
   const resultLabel = loading
     ? ""
@@ -119,6 +157,7 @@ export default function SearchScreen({ navigation }: any) {
             onChangeText={setRawQuery}
             onFocus={onSearchFocus}
             onBlur={onSearchBlur}
+            onSubmitEditing={(e) => handleSubmitSearch(e.nativeEvent.text)}
             autoCorrect={false}
             returnKeyType="search"
           />
@@ -156,6 +195,79 @@ export default function SearchScreen({ navigation }: any) {
           </TouchableOpacity>
         </Animated.View>
       </LinearGradient>
+
+      {/* ── Search history panel ── */}
+      {showHistory && searchHistory.length > 0 && (
+        <View style={[s.historyPanel, { backgroundColor: C.surfaceElevated }]}>
+          <View style={[s.historyHeader, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+            <Text style={[s.historyTitle, { color: C.text.secondary }]}>
+              {isHe ? 'חיפושים אחרונים' : 'Recent searches'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                void Haptics.selectionAsync();
+                void clearSearchHistory();
+                setSearchHistory([]);
+                setShowHistory(false);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[s.historyClear, { color: C.primary }]}>
+                {isHe ? 'נקה' : 'Clear'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.historyChips}>
+            {searchHistory.map((q) => (
+              <TouchableOpacity
+                key={q}
+                style={[s.historyChip, { backgroundColor: C.surface, borderColor: C.border }]}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setRawQuery(q);
+                  setFilter('query', q);
+                  setShowHistory(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="time-outline" size={12} color={C.text.tertiary} style={{ marginEnd: 4 }} />
+                <Text style={[s.historyChipText, { color: C.text.primary }]}>{q}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    void removeSearchHistoryItem(q);
+                    setSearchHistory((prev) => prev.filter((x) => x !== q));
+                  }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  style={{ marginStart: 4 }}
+                >
+                  <Ionicons name="close" size={11} color={C.text.tertiary} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── Intent parse banner ── */}
+      {debouncedQuery.length >= 3 && (() => {
+        const intent = parseSearchIntent(debouncedQuery);
+        const hints: string[] = [];
+        if (intent.difficulty) hints.push(isHe
+          ? (intent.difficulty === 'easy' ? '🟢 קל' : intent.difficulty === 'medium' ? '🟡 בינוני' : '🔴 קשה')
+          : `🎯 ${intent.difficulty}`);
+        if (intent.maxCookTime) hints.push(isHe ? `⚡ עד ${intent.maxCookTime} דק׳` : `⚡ Under ${intent.maxCookTime} min`);
+        if (intent.dietaryHint) hints.push(isHe ? `🌿 ${intent.dietaryHint}` : `🌿 ${intent.dietaryHint}`);
+        if (!hints.length) return null;
+        return (
+          <View style={[s.intentBanner, { flexDirection: isHe ? 'row-reverse' : 'row', backgroundColor: C.primary + '12', borderColor: C.primary + '28' }]}>
+            <Ionicons name="sparkles-outline" size={13} color={C.primary} />
+            <Text style={[s.intentText, { color: C.primary }]}>
+              {isHe ? 'זיהינו: ' : 'Detected: '}{hints.join('  ')}
+            </Text>
+          </View>
+        );
+      })()}
 
       {/* ── Sort pills ── */}
       <View style={s.sortWrap}>
@@ -554,5 +666,60 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: Colors.text.inverse,
+  },
+
+  // History panel
+  historyPanel: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingVertical: 10,
+  },
+  historyHeader: {
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  historyTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  historyClear: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  historyChips: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  historyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  historyChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  intentBanner: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  intentText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
