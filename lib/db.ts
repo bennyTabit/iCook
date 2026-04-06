@@ -86,16 +86,6 @@ export async function initDB() {
       sort_order INTEGER DEFAULT 0
     );
 
-    CREATE TABLE IF NOT EXISTS meal_plans (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      date       TEXT NOT NULL,
-      meal_type  TEXT NOT NULL,
-      recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_slot
-      ON meal_plans(date, meal_type, recipe_id);
-
     CREATE TABLE IF NOT EXISTS shopping_lists (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       title_he   TEXT,
