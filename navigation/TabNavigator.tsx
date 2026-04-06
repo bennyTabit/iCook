@@ -27,6 +27,8 @@ import AddRecipeScreen from "../screens/AddRecipeScreen";
 import OcrReviewScreen from "../screens/OcrReviewScreen";
 import ImportLinkScreen from "../screens/ImportLinkScreen";
 import EditRecipeScreen from "../screens/EditRecipeScreen";
+import CollectionsScreen from "../screens/CollectionsScreen";
+import CollectionDetailScreen from "../screens/CollectionDetailScreen";
 
 export type TabParamList = {
   Home: undefined;
@@ -35,6 +37,8 @@ export type TabParamList = {
   Shopping: undefined;
   MealPlanner: undefined;
   Profile: undefined;
+  Collections: undefined;
+  CollectionDetail: { id: number; name: string };
   RecipeDetail: { id: number };
   AddRecipe: undefined;
   OcrReview: { ocr: import("../lib/ocr").OcrResult };
@@ -83,6 +87,15 @@ const MENU_ITEMS: MenuItem[] = [
     screen: "ImportLink",
   },
   {
+    icon: "albums-outline",
+    iconBg: "#6BCB77",
+    titleHe: "אוספים",
+    titleEn: "Collections",
+    subHe: "ארגן את המתכונים שלך",
+    subEn: "Organize your recipes",
+    screen: "Collections",
+  },
+  {
     icon: "person-outline",
     iconBg: "#888780",
     titleHe: "פרופיל והגדרות",
@@ -127,6 +140,7 @@ function getTabIconName(
   if (routeName === "Add") return "add";
   if (routeName === "Shopping") return focused ? "basket" : "basket-outline";
   if (routeName === "MealPlanner") return focused ? "calendar" : "calendar-outline";
+  if (routeName === "Collections") return focused ? "albums" : "albums-outline";
   return focused ? "person" : "person-outline";
 }
 
@@ -517,6 +531,24 @@ export default function TabNavigator() {
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
+        />
+        <Tab.Screen
+          name="Collections"
+          component={CollectionsScreen}
+          options={{
+            title: isHe ? "אוספים" : "Collections",
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
+          }}
+        />
+        <Tab.Screen
+          name="CollectionDetail"
+          component={CollectionDetailScreen}
+          options={({ route }) => ({
+            title: (route.params as { id: number; name: string })?.name ?? (isHe ? "אוסף" : "Collection"),
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
+          })}
         />
       </Tab.Navigator>
 

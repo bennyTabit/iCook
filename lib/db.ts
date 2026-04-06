@@ -130,7 +130,7 @@ export async function initDB() {
  * Schema migrations using PRAGMA user_version.
  * Bump TARGET_VERSION and add a case whenever the schema changes.
  */
-const TARGET_VERSION = 1;
+const TARGET_VERSION = 2;
 
 async function runMigrations() {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -151,6 +151,26 @@ async function runMigrations() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_slot
         ON meal_plans(date, meal_type, recipe_id);
       PRAGMA user_version = 1;
+    `);
+  }
+
+  if (current < 2) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS collections (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name_he    TEXT NOT NULL,
+        name_en    TEXT,
+        color      TEXT DEFAULT '#FF6B6B',
+        icon       TEXT DEFAULT '📁',
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS collection_recipes (
+        collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+        recipe_id     INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        added_at      TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (collection_id, recipe_id)
+      );
+      PRAGMA user_version = 2;
     `);
   }
 }
@@ -636,6 +656,80 @@ export async function insertMealPlan(
 
 export async function deleteMealPlan(id: number): Promise<void> {
   await db.runAsync('DELETE FROM meal_plans WHERE id = ?', [id]);
+}
+
+// ── Collections ────────────────────────────────────────────────────────────
+
+export interface Collection {
+  id: number;
+  name_he: string;
+  name_en?: string;
+  color: string;
+  icon: string;
+  created_at?: string;
+  recipe_count?: number;
+}
+
+export async function getAllCollections(): Promise<Collection[]> {
+  return db.getAllAsync<Collection>(
+    `SELECT c.*, COUNT(cr.recipe_id) as recipe_count
+     FROM collections c
+     LEFT JOIN collection_recipes cr ON cr.collection_id = c.id
+     GROUP BY c.id
+     ORDER BY c.created_at DESC`
+  );
+}
+
+export async function insertCollection(col: Omit<Collection, 'id' | 'created_at' | 'recipe_count'>): Promise<number> {
+  const result = await db.runAsync(
+    'INSERT INTO collections (name_he, name_en, color, icon) VALUES (?, ?, ?, ?)',
+    [col.name_he, col.name_en ?? col.name_he, col.color, col.icon]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateCollection(id: number, col: Partial<Omit<Collection, 'id' | 'created_at' | 'recipe_count'>>): Promise<void> {
+  await db.runAsync(
+    `UPDATE collections SET name_he = COALESCE(?, name_he), name_en = COALESCE(?, name_en), color = COALESCE(?, color), icon = COALESCE(?, icon) WHERE id = ?`,
+    [col.name_he ?? null, col.name_en ?? null, col.color ?? null, col.icon ?? null, id]
+  );
+}
+
+export async function deleteCollection(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM collections WHERE id = ?', [id]);
+}
+
+export async function addRecipeToCollection(collectionId: number, recipeId: number): Promise<void> {
+  await db.runAsync(
+    'INSERT OR IGNORE INTO collection_recipes (collection_id, recipe_id) VALUES (?, ?)',
+    [collectionId, recipeId]
+  );
+}
+
+export async function removeRecipeFromCollection(collectionId: number, recipeId: number): Promise<void> {
+  await db.runAsync(
+    'DELETE FROM collection_recipes WHERE collection_id = ? AND recipe_id = ?',
+    [collectionId, recipeId]
+  );
+}
+
+export async function getCollectionRecipes(collectionId: number): Promise<Recipe[]> {
+  return db.getAllAsync<Recipe>(
+    `SELECT r.* FROM recipes r
+     JOIN collection_recipes cr ON cr.recipe_id = r.id
+     WHERE cr.collection_id = ?
+     ORDER BY cr.added_at DESC`,
+    [collectionId]
+  );
+}
+
+export async function getRecipeCollections(recipeId: number): Promise<Collection[]> {
+  return db.getAllAsync<Collection>(
+    `SELECT c.* FROM collections c
+     JOIN collection_recipes cr ON cr.collection_id = c.id
+     WHERE cr.recipe_id = ?`,
+    [recipeId]
+  );
 }
 
 export default db;

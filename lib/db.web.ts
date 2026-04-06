@@ -203,3 +203,40 @@ export async function insertMealPlan(date: string, mealType: MealType, recipeId:
 export async function deleteMealPlan(id: number): Promise<void> {
   mealPlansStore = mealPlansStore.filter(m => m.id !== id);
 }
+
+// ── Collections (web in-memory) ────────────────────────────────────────────
+export interface Collection { id: number; name_he: string; name_en?: string; color: string; icon: string; created_at?: string; recipe_count?: number; }
+let collectionsStore: Collection[] = [];
+let collectionRecipes: Array<{collection_id: number; recipe_id: number}> = [];
+let collectionNextId = 1;
+
+export async function getAllCollections(): Promise<Collection[]> {
+  return collectionsStore.map(c => ({ ...c, recipe_count: collectionRecipes.filter(cr => cr.collection_id === c.id).length }));
+}
+export async function insertCollection(col: Omit<Collection, 'id' | 'created_at' | 'recipe_count'>): Promise<number> {
+  const id = collectionNextId++;
+  collectionsStore.push({ ...col, id, created_at: new Date().toISOString() });
+  return id;
+}
+export async function updateCollection(id: number, col: Partial<Omit<Collection, 'id' | 'created_at' | 'recipe_count'>>): Promise<void> {
+  collectionsStore = collectionsStore.map(c => c.id === id ? { ...c, ...col } : c);
+}
+export async function deleteCollection(id: number): Promise<void> {
+  collectionsStore = collectionsStore.filter(c => c.id !== id);
+  collectionRecipes = collectionRecipes.filter(cr => cr.collection_id !== id);
+}
+export async function addRecipeToCollection(collectionId: number, recipeId: number): Promise<void> {
+  if (!collectionRecipes.find(cr => cr.collection_id === collectionId && cr.recipe_id === recipeId))
+    collectionRecipes.push({ collection_id: collectionId, recipe_id: recipeId });
+}
+export async function removeRecipeFromCollection(collectionId: number, recipeId: number): Promise<void> {
+  collectionRecipes = collectionRecipes.filter(cr => !(cr.collection_id === collectionId && cr.recipe_id === recipeId));
+}
+export async function getCollectionRecipes(collectionId: number): Promise<Recipe[]> {
+  const ids = collectionRecipes.filter(cr => cr.collection_id === collectionId).map(cr => cr.recipe_id);
+  return recipes.filter(r => r.id !== undefined && ids.includes(r.id!));
+}
+export async function getRecipeCollections(recipeId: number): Promise<Collection[]> {
+  const ids = collectionRecipes.filter(cr => cr.recipe_id === recipeId).map(cr => cr.collection_id);
+  return collectionsStore.filter(c => ids.includes(c.id));
+}

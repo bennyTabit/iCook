@@ -10,6 +10,7 @@ import {
   LayoutAnimation,
   Modal,
   Platform,
+  Pressable,
   UIManager,
   useWindowDimensions,
 } from "react-native";
@@ -27,6 +28,7 @@ import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe } from "../lib/db";
 import { useRecipeStore } from "../store/recipeStore";
 import { useShoppingStore } from "../store/shoppingStore";
+import { useCollectionStore } from "../store/collectionStore";
 import { shareRecipe } from "../lib/sharing";
 import Toast from "../components/Toast";
 import type { Recipe } from "../lib/db";
@@ -291,6 +293,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const { height } = useWindowDimensions();
   const { toggleFav, removeRecipe, loadRecipes } = useRecipeStore();
   const { addFromRecipe } = useShoppingStore();
+  const { collections, loadCollections, addRecipe: addToCol, removeRecipe: removeFromCol, getRecipeCollections } = useCollectionStore();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [toast, setToast] = useState("");
@@ -301,6 +304,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const [timerLeftSec, setTimerLeftSec] = useState(0);
   const [servings, setServings] = useState(2);
   const [cookHistory, setCookHistory] = useState(0);
+  const [collectionModalVisible, setCollectionModalVisible] = useState(false);
+  const [recipeCollectionIds, setRecipeCollectionIds] = useState<number[]>([]);
 
   const favScale = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -427,6 +432,27 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         },
       ],
     );
+  }
+
+  async function handleOpenCollectionModal() {
+    if (!id) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await loadCollections();
+    const cols = await getRecipeCollections(id);
+    setRecipeCollectionIds(cols.map((c) => c.id));
+    setCollectionModalVisible(true);
+  }
+
+  async function handleToggleCollection(collectionId: number) {
+    if (!id) return;
+    void Haptics.selectionAsync();
+    if (recipeCollectionIds.includes(collectionId)) {
+      await removeFromCol(collectionId, id);
+      setRecipeCollectionIds((prev) => prev.filter((x) => x !== collectionId));
+    } else {
+      await addToCol(collectionId, id);
+      setRecipeCollectionIds((prev) => [...prev, collectionId]);
+    }
   }
 
   async function handleSaveDraft() {
@@ -924,6 +950,12 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
             <TouchableOpacity
               style={s.actionBtnIcon}
+              onPress={() => void handleOpenCollectionModal()}
+            >
+              <Ionicons name="albums-outline" size={20} color={Colors.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.actionBtnIcon}
               onPress={() => recipe && void shareRecipe(recipe)}
             >
               <Ionicons name="share-social-outline" size={20} color={Colors.text.secondary} />
@@ -943,6 +975,55 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           onClose={() => setCookingMode(false)}
         />
       ) : null}
+
+      {/* ── Collection picker modal ── */}
+      <Modal
+        visible={collectionModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCollectionModalVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+          onPress={() => setCollectionModalVisible(false)}
+        />
+        <View style={s.collectionSheet}>
+          <View style={s.collectionHandle} />
+          <Text style={[s.collectionTitle, { textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "הוסף לאוסף" : "Add to collection"}
+          </Text>
+          {collections.length === 0 ? (
+            <Text style={[s.collectionEmpty, { textAlign: isHe ? "right" : "left" }]}>
+              {isHe ? "אין אוספים — צור אוסף מהתפריט" : "No collections — create one from the menu"}
+            </Text>
+          ) : (
+            collections.map((col) => {
+              const inCol = recipeCollectionIds.includes(col.id);
+              const colName = isHe ? col.name_he : (col.name_en ?? col.name_he);
+              return (
+                <TouchableOpacity
+                  key={col.id}
+                  style={[s.collectionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                  onPress={() => void handleToggleCollection(col.id)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[s.collectionIconWrap, { backgroundColor: col.color + "22" }]}>
+                    <Text style={{ fontSize: 22 }}>{col.icon}</Text>
+                  </View>
+                  <Text style={[s.collectionRowName, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                    {colName}
+                  </Text>
+                  <Ionicons
+                    name={inCol ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={inCol ? col.color : Colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+      </Modal>
 
       <Toast message={toast} />
     </View>
@@ -1405,6 +1486,52 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Collection picker modal
+  collectionSheet: {
+    backgroundColor: Colors.surfaceElevated,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  collectionHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+    marginBottom: 18,
+  },
+  collectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.text.primary,
+    marginBottom: 16,
+  },
+  collectionEmpty: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginBottom: 16,
+  },
+  collectionRow: {
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 14,
+  },
+  collectionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  collectionRowName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.text.primary,
   },
 });
 

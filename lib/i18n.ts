@@ -138,6 +138,22 @@ const he = {
   plannerEmptySub: "הוסף מתכונים לכל יום",
   removeMeal: "הסר ארוחה",
   addedToShopping: "נוסף לרשימת הקניות",
+
+  // Collections
+  collections: "אוספים",
+  newCollection: "אוסף חדש",
+  editCollection: "עריכת אוסף",
+  collectionName: "שם האוסף",
+  addToCollection: "הוסף לאוסף",
+  removeFromCollection: "הסר מאוסף",
+  noCollections: "אין אוספים עדיין",
+  noCollectionsSub: "צור אוסף כדי לארגן את המתכונים שלך",
+  createCollection: "צור אוסף",
+  deleteCollection: "מחק אוסף",
+  deleteCollectionConfirm: "האם למחוק את האוסף?",
+  collectionRecipes: "מתכונים באוסף",
+  pickColor: "בחר צבע",
+  pickIcon: "בחר אייקון",
 };
 
 const en: typeof he = {
@@ -251,6 +267,22 @@ const en: typeof he = {
   plannerEmptySub: "Add recipes to each day",
   removeMeal: "Remove",
   addedToShopping: "Added to shopping list",
+
+  // Collections
+  collections: "Collections",
+  newCollection: "New Collection",
+  editCollection: "Edit Collection",
+  collectionName: "Collection name",
+  addToCollection: "Add to collection",
+  removeFromCollection: "Remove from collection",
+  noCollections: "No collections yet",
+  noCollectionsSub: "Create a collection to organize your recipes",
+  createCollection: "Create collection",
+  deleteCollection: "Delete collection",
+  deleteCollectionConfirm: "Delete this collection?",
+  collectionRecipes: "Recipes in collection",
+  pickColor: "Pick color",
+  pickIcon: "Pick icon",
 };
 
 export type TranslationKey = keyof typeof he;
