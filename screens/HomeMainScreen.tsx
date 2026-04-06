@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,6 +38,7 @@ type QuickCategory = {
 export default function HomeFeedScreen({ navigation }: any) {
   const { t } = useTranslation();
   const isHe = isHebrew();
+  const insets = useSafeAreaInsets();
   const {
     recipes,
     loading,
@@ -168,7 +169,7 @@ export default function HomeFeedScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={s.container} edges={["left", "right"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 90 }]}>
         <Animated.View
           style={{
             opacity: heroAnim,
