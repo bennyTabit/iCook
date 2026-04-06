@@ -151,6 +151,14 @@
 - [x] Toast — safe-area-aware bottom, accessibilityLiveRegion, type prop (default/success/error)
 - [x] All screens — replace ["#FF6B6B","#FF8E53"] with Colors.heroGradient; Colors.error, Colors.border, Colors.text.* everywhere; remove ~30 hardcoded hex values
 
+### 4.0b Design System — Full Token Coverage ✅ — committed fe3f817, cd4ad68
+- [x] ShoppingItem — Colors.error/surface/border/text.*, bilingual delete label (He/En)
+- [x] AddItemSheet — Colors.border/surface/error/disabled/text.* throughout; stepper tint
+- [x] SearchScreen — Colors.background/errorSurface/errorBorder/text.error for filter chips
+- [x] ProfileScreen — Colors.background/error/surface/text.* — auth buttons, settings rows, sign-out
+- [x] EditRecipeScreen — Colors.secondary for add-row buttons, RTL camera badge fix, Colors.text.inverse for active states
+- [x] HomeMainScreen — Colors.text.inverse/border; loading ActivityIndicator + empty state with CTA
+
 ### 4.6 Dark Mode ⬜
 - [ ] Dark mode variants in `constants/colors.ts`
 - [ ] Respect system `Appearance.getColorScheme()`
@@ -257,7 +265,7 @@
 | 1 — Stability | ✅ Complete | 100% (1.1 ✅, 1.2 ✅, 1.3 ✅, 1.4 ✅) |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
-| 4 — UX Polish | 🔄 In Progress | 15% (4.0 design system ✅) |
+| 4 — UX Polish | 🔄 In Progress | 20% (4.0 design system ✅, 4.0b full token coverage ✅) |
 | 5 — Testing | ⬜ Not Started | 0% |
 | 6 — Launch | ⬜ Not Started | 0% |
 | 7 — Growth | ⬜ Not Started | 0% |
