@@ -132,7 +132,37 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredients ON recipe_ingredients(recipe_id);
   `);
 
+  await runMigrations();
   await seedDefaults();
+}
+
+/**
+ * Schema migrations using PRAGMA user_version.
+ * Bump TARGET_VERSION and add a case whenever the schema changes.
+ */
+const TARGET_VERSION = 1;
+
+async function runMigrations() {
+  const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const current = row?.user_version ?? 0;
+  if (current >= TARGET_VERSION) return;
+
+  if (current < 1) {
+    // v1: recreate meal_plans with correct schema (adds `date` column)
+    await db.execAsync(`
+      DROP TABLE IF EXISTS meal_plans;
+      CREATE TABLE meal_plans (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        date       TEXT NOT NULL,
+        meal_type  TEXT NOT NULL,
+        recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_slot
+        ON meal_plans(date, meal_type, recipe_id);
+      PRAGMA user_version = 1;
+    `);
+  }
 }
 
 async function seedDefaults() {
