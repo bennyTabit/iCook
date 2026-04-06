@@ -314,7 +314,7 @@ export default function ProfileScreen() {
                       <View style={[s.authBtnIcon, s.authBtnIconDark]}>
                         <Ionicons name="logo-apple" size={18} color="#fff" />
                       </View>
-                      <Text style={[s.authBtnText, { color: "#fff" }]}>
+                      <Text style={[s.authBtnText, { color: Colors.text.inverse }]}>
                         {isHe ? "המשך עם Apple" : "Continue with Apple"}
                       </Text>
                       <Ionicons
@@ -347,7 +347,7 @@ export default function ProfileScreen() {
                   onPress={row.onPress}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: "#F0F0F0" }]}>
+                  <View style={[s.rowIconWrap, { backgroundColor: Colors.surface }]}>
                     <Ionicons name={row.icon} size={16} color={Colors.text.secondary} />
                   </View>
                   <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
@@ -384,7 +384,7 @@ export default function ProfileScreen() {
                   <View
                     style={[
                       s.rowIconWrap,
-                      { backgroundColor: row.tint ? row.tint + "20" : "#F0F0F0" },
+                      { backgroundColor: row.tint ? row.tint + "20" : Colors.surface },
                     ]}
                   >
                     <Ionicons
@@ -420,13 +420,13 @@ export default function ProfileScreen() {
                   onPress={handleSignOut}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: "#FFF0F0" }]}>
-                    <Ionicons name="log-out-outline" size={16} color="#FF4757" />
+                  <View style={[s.rowIconWrap, { backgroundColor: Colors.errorSurface }]}>
+                    <Ionicons name="log-out-outline" size={16} color={Colors.error} />
                   </View>
                   <Text
                     style={[
                       s.rowLabel,
-                      { flex: 1, color: "#FF4757", textAlign: isHe ? "right" : "left" },
+                      { flex: 1, color: Colors.error, textAlign: isHe ? "right" : "left" },
                     ]}
                   >
                     {isHe ? "התנתקות" : "Sign out"}
@@ -445,7 +445,7 @@ export default function ProfileScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F0EB" },
+  container: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Hero
@@ -471,11 +471,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 32, color: "#fff", fontWeight: "700" },
+  avatarText: { fontSize: 32, color: Colors.text.inverse, fontWeight: "700" },
   heroName: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text.inverse,
     letterSpacing: -0.3,
   },
   heroEmail: {
@@ -504,7 +504,7 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: 24,
-    backgroundColor: "#F2F0EB",
+    backgroundColor: Colors.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
@@ -514,14 +514,14 @@ const s = StyleSheet.create({
 
   // Sign-in card
   signInCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E8E8E3",
+    borderColor: Colors.border,
     padding: 20,
     gap: 10,
     marginBottom: 8,
-    shadowColor: "#1A1A1A",
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -531,7 +531,7 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#FFF0F0",
+    backgroundColor: Colors.errorSurface,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
@@ -539,11 +539,11 @@ const s = StyleSheet.create({
   signInTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: Colors.text.primary,
   },
   signInSub: {
     fontSize: 13,
-    color: "#6B6B65",
+    color: Colors.text.secondary,
     lineHeight: 19,
   },
   authBtns: { gap: 8, marginTop: 4 },
@@ -552,7 +552,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#FFF3F3",
+    backgroundColor: Colors.errorSurface,
     borderRadius: 10,
     padding: 10,
     marginBottom: 4,
@@ -567,10 +567,10 @@ const s = StyleSheet.create({
     gap: 10,
     paddingVertical: 13,
     paddingHorizontal: 14,
-    backgroundColor: "#F5F3EE",
+    backgroundColor: Colors.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E8E8E3",
+    borderColor: Colors.border,
   },
   authBtnApple: {
     backgroundColor: "#1A1A1A",
@@ -580,7 +580,7 @@ const s = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -590,7 +590,7 @@ const s = StyleSheet.create({
   authBtnText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: Colors.text.primary,
   },
 
   // Section groups
@@ -598,19 +598,19 @@ const s = StyleSheet.create({
   groupLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#A0A09A",
+    color: Colors.text.tertiary,
     letterSpacing: 0.5,
     textTransform: "uppercase",
     paddingHorizontal: 4,
     marginTop: 10,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E8E8E3",
+    borderColor: Colors.border,
     overflow: "hidden",
-    shadowColor: "#1A1A1A",
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
@@ -621,11 +621,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     gap: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0EC",
+    borderBottomColor: Colors.border,
   },
   rowIconWrap: {
     width: 32,
@@ -634,14 +634,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowLabel: { fontSize: 15, color: "#1A1A1A", fontWeight: "500" },
-  rowValue: { fontSize: 13, color: "#A0A09A", fontWeight: "500" },
+  rowLabel: { fontSize: 15, color: Colors.text.primary, fontWeight: "500" },
+  rowValue: { fontSize: 13, color: Colors.text.tertiary, fontWeight: "500" },
 
   // Version
   version: {
     textAlign: "center",
     fontSize: 12,
-    color: "#C0BFBA",
+    color: Colors.text.disabled,
     marginTop: 16,
     fontWeight: "500",
   },

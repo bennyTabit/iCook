@@ -408,8 +408,8 @@ export default function EditRecipeScreen({ route, navigation }: any) {
                 style={s.imagePreview}
                 resizeMode="cover"
               />
-              <View style={s.imageChangeBadge}>
-                <Ionicons name="camera" size={14} color="#fff" />
+              <View style={[s.imageChangeBadge, isHe ? { left: 10, right: undefined } : { right: 10 }]}>
+                <Ionicons name="camera" size={14} color={Colors.text.inverse} />
               </View>
             </>
           ) : (
@@ -512,8 +512,8 @@ export default function EditRecipeScreen({ route, navigation }: any) {
                 onPress={() => patch({ difficulty: selected ? "" : d })}
                 activeOpacity={0.8}
               >
-                <View style={[s.diffDot, { backgroundColor: selected ? "#fff" : color }]} />
-                <Text style={[s.diffChipText, selected && { color: "#fff" }]}>
+                <View style={[s.diffDot, { backgroundColor: selected ? Colors.text.inverse : color }]} />
+                <Text style={[s.diffChipText, selected && { color: Colors.text.inverse }]}>
                   {t(d as any)}
                 </Text>
               </TouchableOpacity>
@@ -549,7 +549,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
           </View>
         ))}
         <TouchableOpacity style={s.addRowBtn} onPress={addIngredient}>
-          <Ionicons name="add-circle-outline" size={16} color="#2B7B70" />
+          <Ionicons name="add-circle-outline" size={16} color={Colors.secondary} />
           <Text style={s.addRowBtnText}>
             {isHe ? "הוסף רכיב" : "Add ingredient"}
           </Text>
@@ -584,7 +584,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
           </View>
         ))}
         <TouchableOpacity style={s.addRowBtn} onPress={addStep}>
-          <Ionicons name="add-circle-outline" size={16} color="#2B7B70" />
+          <Ionicons name="add-circle-outline" size={16} color={Colors.secondary} />
           <Text style={s.addRowBtnText}>{isHe ? "הוסף שלב" : "Add step"}</Text>
         </TouchableOpacity>
 
@@ -614,9 +614,9 @@ export default function EditRecipeScreen({ route, navigation }: any) {
           <Ionicons
             name={state.favorite ? "heart" : "heart-outline"}
             size={18}
-            color={state.favorite ? "#fff" : Colors.primary}
+            color={state.favorite ? Colors.text.inverse : Colors.primary}
           />
-          <Text style={[s.favoriteToggleText, state.favorite && { color: "#fff" }]}>
+          <Text style={[s.favoriteToggleText, state.favorite && { color: Colors.text.inverse }]}>
             {isHe ? "מתכון מועדף" : "Favorite recipe"}
           </Text>
         </TouchableOpacity>
@@ -693,7 +693,6 @@ const s = StyleSheet.create({
   imageChangeBadge: {
     position: "absolute",
     bottom: 10,
-    right: 10,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -757,7 +756,7 @@ const s = StyleSheet.create({
     color: Colors.text.secondary,
     fontWeight: "600",
   },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: Colors.text.inverse },
 
   // Details card (3-column)
   tripleRow: {
@@ -872,15 +871,15 @@ const s = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#EAF7F5",
+    backgroundColor: Colors.secondary + "20",
     borderWidth: 1,
-    borderColor: "#C9E9E4",
+    borderColor: Colors.secondary + "40",
     marginTop: 2,
     marginBottom: 4,
   },
   addRowBtnText: {
     ...Typography.caption,
-    color: "#2B7B70",
+    color: Colors.secondary,
     fontWeight: "700",
   },
   stepNum: {
@@ -895,7 +894,7 @@ const s = StyleSheet.create({
   },
   stepNumText: {
     ...Typography.caption,
-    color: "#fff",
+    color: Colors.text.inverse,
     fontWeight: "700",
     fontSize: 11,
   },
@@ -951,7 +950,7 @@ const s = StyleSheet.create({
   },
   saveBtnText: {
     ...Typography.button,
-    color: "#fff",
+    color: Colors.text.inverse,
     fontSize: 16,
   },
 });

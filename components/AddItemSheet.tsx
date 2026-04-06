@@ -218,7 +218,7 @@ export default function AddItemSheet({ visible, isHe, onAdd, onClose }: Props) {
                 showError && !name.trim() && s.nameInputError,
               ]}
               placeholder={isHe ? "לדוגמה: חלב, לחם, גבינה..." : "e.g. milk, bread, cheese..."}
-              placeholderTextColor="#B8B8C0"
+              placeholderTextColor={Colors.text.tertiary}
               value={name}
               onChangeText={(t) => {
                 setName(t);
@@ -308,7 +308,7 @@ export default function AddItemSheet({ visible, isHe, onAdd, onClose }: Props) {
             onPress={handleAdd}
             activeOpacity={canAdd ? 0.85 : 1}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Ionicons name="add-circle-outline" size={20} color={Colors.text.inverse} />
             <Text style={s.addBtnText}>{isHe ? "הוסף לרשימה" : "Add to list"}</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -329,7 +329,7 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#DEDEDE",
+    backgroundColor: Colors.border,
     alignSelf: "center",
     marginBottom: 2,
   },
@@ -360,14 +360,14 @@ const s = StyleSheet.create({
   headerTitle: {
     fontSize: 19,
     fontWeight: "700",
-    color: "#1A1A2E",
+    color: Colors.text.primary,
     letterSpacing: -0.3,
   },
   closeBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#F2F2F5",
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -377,7 +377,7 @@ const s = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#8A8A9A",
+    color: Colors.text.tertiary,
     textTransform: "uppercase",
     letterSpacing: 0.7,
   },
@@ -392,8 +392,8 @@ const s = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
-    backgroundColor: "#fff",
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceElevated,
   },
   catPillActive: {
     backgroundColor: Colors.primary,
@@ -405,7 +405,7 @@ const s = StyleSheet.create({
     elevation: 4,
   },
   catEmoji: { fontSize: 14 },
-  catLabel: { fontSize: 13, fontWeight: "600", color: "#444" },
+  catLabel: { fontSize: 13, fontWeight: "600", color: Colors.text.secondary },
   catLabelActive: { color: "#fff" },
 
   // Name input
@@ -413,25 +413,25 @@ const s = StyleSheet.create({
     height: 52,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    borderColor: Colors.border,
     paddingHorizontal: 16,
     fontSize: 16,
     fontWeight: "500",
-    color: "#1A1A2E",
-    backgroundColor: "#FAFAFA",
+    color: Colors.text.primary,
+    backgroundColor: Colors.surface,
   },
   nameInputFocused: {
     borderColor: Colors.primary,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
   },
   nameInputError: {
-    borderColor: "#FF4757",
-    backgroundColor: "#FFF5F5",
+    borderColor: Colors.error,
+    backgroundColor: Colors.errorSurface,
   },
   errorText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#FF4757",
+    color: Colors.error,
     marginTop: -4,
   },
 
@@ -446,8 +446,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
-    backgroundColor: "#FAFAFA",
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
     overflow: "hidden",
   },
   stepperBtn: {
@@ -455,7 +455,7 @@ const s = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFF5F3",
+    backgroundColor: Colors.primary + "12",
   },
   stepperValue: {
     minWidth: 36,
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontWeight: "700",
-    color: "#1A1A2E",
+    color: Colors.text.primary,
   },
 
   // Unit pills
@@ -475,8 +475,8 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#E0E0E0",
-    backgroundColor: "#FAFAFA",
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
@@ -485,7 +485,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary + "18",
     borderColor: Colors.primary,
   },
-  unitText: { fontSize: 13, fontWeight: "600", color: "#555" },
+  unitText: { fontSize: 13, fontWeight: "600", color: Colors.text.secondary },
   unitTextActive: { color: Colors.primary },
 
   // Preview
@@ -494,10 +494,10 @@ const s = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    backgroundColor: "#F5F3EE",
+    backgroundColor: Colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E8E8E3",
+    borderColor: Colors.border,
   },
   previewText: {
     flex: 1,
@@ -522,13 +522,13 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   addBtnDisabled: {
-    backgroundColor: "#CCCCCC",
+    backgroundColor: Colors.disabled,
     shadowOpacity: 0,
     elevation: 0,
   },
   addBtnText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text.inverse,
   },
 });

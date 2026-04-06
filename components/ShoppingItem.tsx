@@ -34,7 +34,7 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
 
   const checkBg = checkAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["#ffffff", Colors.primary],
+    outputRange: [Colors.surfaceElevated, Colors.primary],
   });
   const checkBorder = checkAnim.interpolate({
     inputRange: [0, 1],
@@ -54,8 +54,8 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
         activeOpacity={0.8}
       >
         <Animated.View style={{ transform: [{ scale }], opacity }}>
-          <Ionicons name="trash-outline" size={22} color="#fff" />
-          <Text style={s.deleteLabel}>מחק</Text>
+          <Ionicons name="trash-outline" size={22} color={Colors.text.inverse} />
+          <Text style={s.deleteLabel}>{isHe ? "מחק" : "Delete"}</Text>
         </Animated.View>
       </TouchableOpacity>
     );
@@ -87,7 +87,7 @@ export default function ShoppingItem({ item, onCheck, onDelete, isHe, isLast }: 
           ]}
         >
           {item.checked && (
-            <Ionicons name="checkmark" size={14} color="#fff" />
+            <Ionicons name="checkmark" size={14} color={Colors.text.inverse} />
           )}
         </Animated.View>
 
@@ -128,14 +128,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 14,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0EC",
+    borderBottomColor: Colors.border,
   },
   rowChecked: {
-    backgroundColor: "#FAFAFA",
+    backgroundColor: Colors.surface,
   },
   checkbox: {
     width: 26,
@@ -153,17 +153,17 @@ const s = StyleSheet.create({
   itemText: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#1A1A2E",
+    color: Colors.text.primary,
     lineHeight: 22,
   },
   itemTextDone: {
     textDecorationLine: "line-through",
-    color: "#B0B0BB",
+    color: Colors.text.disabled,
     fontWeight: "400",
   },
   itemQty: {
     fontSize: 13,
-    color: "#888",
+    color: Colors.text.tertiary,
     fontWeight: "400",
   },
   swipeHint: {
@@ -172,14 +172,14 @@ const s = StyleSheet.create({
   },
   deleteAction: {
     width: 72,
-    backgroundColor: "#FF4757",
+    backgroundColor: Colors.error,
     justifyContent: "center",
     alignItems: "center",
     gap: 3,
   },
   deleteLabel: {
     fontSize: 10,
-    color: "#fff",
+    color: Colors.text.inverse,
     fontWeight: "700",
   },
 });

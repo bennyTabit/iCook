@@ -304,7 +304,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <TouchableOpacity style={s.filterChip} onPress={onRemove} activeOpacity={0.75}>
       <Text style={s.filterChipText}>{label}</Text>
-      <Ionicons name="close" size={11} color="#c94040" />
+      <Ionicons name="close" size={11} color={Colors.text.error} />
     </TouchableOpacity>
   );
 }
@@ -343,7 +343,7 @@ function EmptyState({
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F0EB" },
+  container: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Hero
@@ -355,7 +355,7 @@ const s = StyleSheet.create({
   heroTitle: {
     fontSize: 26,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text.inverse,
     letterSpacing: -0.4,
     marginBottom: 2,
   },
@@ -369,7 +369,7 @@ const s = StyleSheet.create({
   searchBox: {
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -383,7 +383,7 @@ const s = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: "#1A1A1A",
+    color: Colors.text.primary,
     paddingVertical: 0,
   },
   filterBtn: {
@@ -411,11 +411,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  filterBadgeText: { fontSize: 9, color: "#fff", fontWeight: "700" },
+  filterBadgeText: { fontSize: 9, color: Colors.text.inverse, fontWeight: "700" },
 
   // Sort pills
   sortWrap: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     paddingVertical: 10,
@@ -449,7 +449,7 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: Colors.text.secondary,
   },
-  sortPillTextActive: { color: "#fff" },
+  sortPillTextActive: { color: Colors.text.inverse },
 
   // Active filter chips row
   activeRow: {
@@ -457,7 +457,7 @@ const s = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     alignItems: "center",
@@ -469,14 +469,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: "#FFE8E8",
+    backgroundColor: Colors.errorSurface,
     borderWidth: 1,
-    borderColor: "#FFBCBC",
+    borderColor: Colors.errorBorder,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#c94040",
+    color: Colors.text.error,
   },
   clearAllBtn: {
     paddingHorizontal: 8,
@@ -520,7 +520,7 @@ const s = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#FFE8D6",
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -553,6 +553,6 @@ const s = StyleSheet.create({
   emptyBtnText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text.inverse,
   },
 });
