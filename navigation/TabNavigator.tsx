@@ -21,6 +21,7 @@ import HomeScreen from "../screens/HomeMainScreen";
 import SearchScreen from "../screens/SearchScreen";
 import ShoppingScreen from "../screens/ShoppingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import MealPlannerScreen from "../screens/MealPlannerScreen";
 import RecipeDetailScreen from "../screens/RecipeDetailScreen";
 import AddRecipeScreen from "../screens/AddRecipeScreen";
 import OcrReviewScreen from "../screens/OcrReviewScreen";
@@ -32,6 +33,7 @@ export type TabParamList = {
   Search: undefined;
   Add: undefined;
   Shopping: undefined;
+  MealPlanner: undefined;
   Profile: undefined;
   RecipeDetail: { id: number };
   AddRecipe: undefined;
@@ -124,6 +126,7 @@ function getTabIconName(
   if (routeName === "Search") return focused ? "search" : "search-outline";
   if (routeName === "Add") return "add";
   if (routeName === "Shopping") return focused ? "basket" : "basket-outline";
+  if (routeName === "MealPlanner") return focused ? "calendar" : "calendar-outline";
   return focused ? "person" : "person-outline";
 }
 
@@ -446,13 +449,24 @@ export default function TabNavigator() {
           }}
         />
         <Tab.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{ title: t("profile"), headerShown: false }}
+          name="MealPlanner"
+          component={MealPlannerScreen}
+          options={{ title: t("mealPlanner"), headerShown: true }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
             },
+          }}
+        />
+
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            title: t("profile"),
+            headerShown: false,
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
           }}
         />
 

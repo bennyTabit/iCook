@@ -87,11 +87,14 @@ export async function initDB() {
     );
 
     CREATE TABLE IF NOT EXISTS meal_plans (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      plan_date   TEXT NOT NULL,
-      meal_type   TEXT CHECK(meal_type IN ('breakfast','lunch','dinner','snack')),
-      recipe_id   INTEGER REFERENCES recipes(id) ON DELETE SET NULL
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      date       TEXT NOT NULL,
+      meal_type  TEXT NOT NULL,
+      recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_meal_plans_slot
+      ON meal_plans(date, meal_type, recipe_id);
 
     CREATE TABLE IF NOT EXISTS shopping_lists (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -569,6 +572,50 @@ export async function getRecipesByFilter(filters: {
 
   sql += " ORDER BY r.created_at DESC";
   return db.getAllAsync<Recipe>(sql, params);
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+
+export interface MealPlanEntry {
+  id: number;
+  date: string;
+  meal_type: MealType;
+  recipe_id: number;
+  title_he: string;
+  title_en?: string;
+  image_uri?: string;
+}
+
+export async function getMealPlanForWeek(
+  weekStart: string,
+  weekEnd: string,
+): Promise<MealPlanEntry[]> {
+  const rows = await db.getAllAsync<MealPlanEntry>(
+    `SELECT mp.id, mp.date, mp.meal_type, mp.recipe_id,
+            r.title_he, r.title_en, r.image_uri
+     FROM meal_plans mp
+     JOIN recipes r ON r.id = mp.recipe_id
+     WHERE mp.date >= ? AND mp.date <= ?
+     ORDER BY mp.date, mp.meal_type`,
+    [weekStart, weekEnd],
+  );
+  return rows;
+}
+
+export async function insertMealPlan(
+  date: string,
+  mealType: MealType,
+  recipeId: number,
+): Promise<number> {
+  const result = await db.runAsync(
+    'INSERT OR IGNORE INTO meal_plans (date, meal_type, recipe_id) VALUES (?, ?, ?)',
+    [date, mealType, recipeId],
+  );
+  return result.lastInsertRowId;
+}
+
+export async function deleteMealPlan(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM meal_plans WHERE id = ?', [id]);
 }
 
 export default db;

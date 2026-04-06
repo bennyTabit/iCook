@@ -123,6 +123,21 @@ const he = {
   no: "לא",
   loading: "טוען...",
   titleRequired: "יש להזין כותרת",
+
+  // Meal planner
+  mealPlanner: "תכנון ארוחות",
+  breakfast: "ארוחת בוקר",
+  lunch: "ארוחת צהריים",
+  dinner: "ארוחת ערב",
+  addMeal: "הוסף ארוחה",
+  addToWeekShopping: "הוסף שבוע לקניות",
+  noMealsPlanned: "לא תוכננו ארוחות",
+  pickRecipe: "בחר מתכון",
+  weekOf: "שבוע של",
+  plannerEmpty: "תכנן את ארוחות השבוע",
+  plannerEmptySub: "הוסף מתכונים לכל יום",
+  removeMeal: "הסר ארוחה",
+  addedToShopping: "נוסף לרשימת הקניות",
 };
 
 const en: typeof he = {
@@ -221,6 +236,21 @@ const en: typeof he = {
   no: "No",
   loading: "Loading...",
   titleRequired: "Title is required",
+
+  // Meal planner
+  mealPlanner: "Meal Planner",
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  addMeal: "Add meal",
+  addToWeekShopping: "Add week to shopping",
+  noMealsPlanned: "No meals planned",
+  pickRecipe: "Pick a recipe",
+  weekOf: "Week of",
+  plannerEmpty: "Plan your week",
+  plannerEmptySub: "Add recipes to each day",
+  removeMeal: "Remove",
+  addedToShopping: "Added to shopping list",
 };
 
 export type TranslationKey = keyof typeof he;

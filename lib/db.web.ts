@@ -162,3 +162,44 @@ const db = {
 };
 
 export default db;
+
+// ── Meal Plans (web in-memory) ─────────────────────────────────────────────
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+
+export interface MealPlanEntry {
+  id: number;
+  date: string;
+  meal_type: MealType;
+  recipe_id: number;
+  title_he: string;
+  title_en?: string;
+  image_uri?: string;
+}
+
+let mealPlansStore: MealPlanEntry[] = [];
+let mealPlanNextId = 1;
+
+export async function getMealPlanForWeek(weekStart: string, weekEnd: string): Promise<MealPlanEntry[]> {
+  return mealPlansStore.filter(m => m.date >= weekStart && m.date <= weekEnd);
+}
+
+export async function insertMealPlan(date: string, mealType: MealType, recipeId: number): Promise<number> {
+  const exists = mealPlansStore.find(m => m.date === date && m.meal_type === mealType && m.recipe_id === recipeId);
+  if (exists) return exists.id;
+  const recipe = recipes.find(r => r.id === recipeId);
+  const entry: MealPlanEntry = {
+    id: mealPlanNextId++,
+    date,
+    meal_type: mealType,
+    recipe_id: recipeId,
+    title_he: recipe?.title_he ?? '',
+    title_en: recipe?.title_en,
+    image_uri: recipe?.image_uri,
+  };
+  mealPlansStore.push(entry);
+  return entry.id;
+}
+
+export async function deleteMealPlan(id: number): Promise<void> {
+  mealPlansStore = mealPlansStore.filter(m => m.id !== id);
+}
