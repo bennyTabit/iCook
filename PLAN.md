@@ -1,6 +1,6 @@
 # iCook — Production Roadmap
 
-> Last updated: 2026-04-05
+> Last updated: 2026-04-06
 > Track progress: ✅ Done | 🔄 In Progress | ⬜ Not Started
 
 ---
@@ -262,10 +262,34 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| 1 — Stability | ✅ Complete | 100% (1.1 ✅, 1.2 ✅, 1.3 ✅, 1.4 ✅) |
+| 1 — Stability | ✅ Complete | 100% — all 4 sections done, browser-verified |
 | 2 — Backend | ⬜ Not Started | 0% |
 | 3 — Features | ⬜ Not Started | 0% |
-| 4 — UX Polish | 🔄 In Progress | 20% (4.0 design system ✅, 4.0b full token coverage ✅) |
+| 4 — UX Polish | 🔄 In Progress | 20% — 4.0 design system ✅, 4.0b full token coverage ✅, browser-verified |
 | 5 — Testing | ⬜ Not Started | 0% |
 | 6 — Launch | ⬜ Not Started | 0% |
 | 7 — Growth | ⬜ Not Started | 0% |
+
+---
+
+## Next Decision Point
+
+The app is now **stable and visually consistent**. Three paths forward:
+
+### Option A — Continue Phase 4 UX Polish (recommended before backend)
+- Onboarding flow (4.1) — first impression matters for retention
+- Recipe Detail improvements (4.4) — "Made this" button, ratings, notes
+- Dark mode (4.6) + Accessibility (4.7)
+- *Prerequisite for App Store submission*
+
+### Option B — Phase 2 Backend (Firebase)
+- Users lose all data on reinstall — the biggest real user pain
+- Google/Apple Sign In → real Firebase Auth
+- Cloud sync: SQLite local + Firestore cloud, offline-first
+- *Required before any public launch*
+
+### Option C — Phase 3 Core Features
+- Social media import (Instagram/TikTok/YouTube profile browser)
+- AI-assisted import (Claude API fallback when scraping fails)
+- Meal Planner, Recipe Collections
+- *Differentiators that make the app worth using daily*
