@@ -18,6 +18,7 @@ import * as Clipboard from "expo-clipboard";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { getCookLog, type CookLogEntry } from '../lib/cookLog';
 import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
@@ -39,6 +40,7 @@ type QuickCategory = {
 };
 
 export default function HomeFeedScreen({ navigation }: any) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const {
@@ -214,7 +216,7 @@ export default function HomeFeedScreen({ navigation }: any) {
   ];
 
   return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
         <Animated.View
           style={{
@@ -227,16 +229,16 @@ export default function HomeFeedScreen({ navigation }: any) {
           }}
         >
           <LinearGradient
-            colors={["#FFCAB3", "#FFE3D0"]}
+            colors={C.heroGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={s.hero}
           >
             <Text style={s.heroDecor}>🍳</Text>
-            <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
               {`${getGreeting()}${firstName ? `, ${firstName}` : ''}! ${isHe ? 'מה נבשל היום? 🍽️' : 'What shall we cook? 🍽️'}`}
             </Text>
-            <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
               {isHe
                 ? "מצא מתכון לפי מצרכים או קטגוריות"
                 : "Find a recipe by ingredients or categories"}
@@ -273,7 +275,7 @@ export default function HomeFeedScreen({ navigation }: any) {
         {/* ── Recipe of the day ── */}
         {recipeOfDay && (
           <TouchableOpacity
-            style={[s.rotdCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
+            style={[s.rotdCard, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
             onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: recipeOfDay.id }); }}
             activeOpacity={0.9}
           >
@@ -282,14 +284,14 @@ export default function HomeFeedScreen({ navigation }: any) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.rotdLabel, { textAlign: isHe ? "right" : "left" }]}>{isHe ? "🌟 מתכון היום" : "🌟 Recipe of the day"}</Text>
-              <Text style={[s.rotdTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
+              <Text style={[s.rotdTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={1}>
                 {isHe ? recipeOfDay.title_he : recipeOfDay.title_en}
               </Text>
               <Text style={[s.rotdMeta, { textAlign: isHe ? "right" : "left" }]}>
                 ⏱ {recipeOfDay.cook_time_min ?? 0} {isHe ? "דקות" : "min"}
               </Text>
             </View>
-            <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={18} color={Colors.text.tertiary} />
+            <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={18} color={C.text.tertiary} />
           </TouchableOpacity>
         )}
 
@@ -337,7 +339,7 @@ export default function HomeFeedScreen({ navigation }: any) {
           }}
         >
           <TouchableOpacity
-            style={s.searchBar}
+            style={[s.searchBar, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
             onPress={() => {
               tap();
               navigation.navigate("Search");
@@ -499,16 +501,21 @@ export default function HomeFeedScreen({ navigation }: any) {
               return (
                 <TouchableOpacity
                   key={cat.key}
-                  style={[s.chip, selected && s.chipSelected, isHe ? { transform: [{ scaleX: -1 }] } : undefined]}
+                  style={[
+                    s.chip,
+                    { backgroundColor: C.surfaceElevated, borderColor: C.border },
+                    selected && s.chipSelected,
+                    isHe ? { transform: [{ scaleX: -1 }] } : undefined,
+                  ]}
                   onPress={cat.onPress}
                   activeOpacity={0.9}
                 >
                   <Ionicons
                     name={cat.icon}
                     size={14}
-                    color={selected ? Colors.text.inverse : Colors.text.secondary}
+                    color={selected ? C.text.inverse : C.text.secondary}
                   />
-                  <Text style={[s.chipText, selected && s.chipTextSelected]}>{cat.label}</Text>
+                  <Text style={[s.chipText, { color: C.text.secondary }, selected && s.chipTextSelected]}>{cat.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -546,7 +553,7 @@ export default function HomeFeedScreen({ navigation }: any) {
               {favorites.map((r) => (
                 <TouchableOpacity
                   key={r.id}
-                  style={s.favoriteCard}
+                  style={[s.favoriteCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
                   onPress={() => {
                     tap();
                     navigation.navigate("RecipeDetail", { id: r.id });
@@ -556,10 +563,10 @@ export default function HomeFeedScreen({ navigation }: any) {
                   <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                     <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                   </View>
-                  <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>
+                  <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={2}>
                     {isHe ? r.title_he : r.title_en}
                   </Text>
-                  <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left" }]}>
+                  <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
                     ⏱ {r.cook_time_min ?? 0} {isHe ? "דק׳" : "min"}  |  🍽 {r.servings ?? 2}
                   </Text>
                 </TouchableOpacity>
@@ -601,17 +608,17 @@ export default function HomeFeedScreen({ navigation }: any) {
                 {quickDinners.map((r) => (
                   <TouchableOpacity
                     key={`qd-${r.id}`}
-                    style={s.favoriteCard}
+                    style={[s.favoriteCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
                     onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: r.id }); }}
                     activeOpacity={0.9}
                   >
                     <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
                       <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
                     </View>
-                    <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>
+                    <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={2}>
                       {isHe ? r.title_he : r.title_en}
                     </Text>
-                    <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left" }]}>
+                    <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
                       ⚡ {r.cook_time_min} {isHe ? "דק׳" : "min"}
                     </Text>
                   </TouchableOpacity>
@@ -635,7 +642,7 @@ export default function HomeFeedScreen({ navigation }: any) {
           {(cookLog.length > 0 ? cookLog.slice(0, 6).map(log => recipes.find(r => r.id === log.id)).filter(Boolean) as typeof recipes : recent).map((r) => (
             <TouchableOpacity
               key={r.id}
-              style={[s.recentCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
+              style={[s.recentCard, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
               onPress={() => {
                 tap();
                 navigation.navigate("RecipeDetail", { id: r.id });
@@ -647,10 +654,10 @@ export default function HomeFeedScreen({ navigation }: any) {
               </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={[s.recentTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
+                <Text style={[s.recentTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={1}>
                   {isHe ? r.title_he : r.title_en}
                 </Text>
-                <Text style={[s.recentMeta, { textAlign: isHe ? "right" : "left" }]}>
+                <Text style={[s.recentMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
                   ⏱ {r.cook_time_min ?? 0} {isHe ? "דקות" : "min"}  |  🍽 {r.servings ?? 2} {isHe ? "מנות" : "servings"}{r.difficulty ? `  |  ${DIFFICULTY_LABEL[r.difficulty]?.[isHe ? "he" : "en"] ?? ""}` : ""}
                 </Text>
               </View>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { I18nManager, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import { I18nManager, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, useColorScheme } from 'react-native';
+import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import './lib/i18n'; // initialize i18n before anything else
@@ -37,6 +37,10 @@ const linking: any = {
 type DBState = 'loading' | 'ready' | 'error';
 
 export default function App() {
+  const colorScheme = useColorScheme();
+  const navTheme = colorScheme === 'dark'
+    ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: '#1C1917', card: '#2E2B28' } }
+    : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FCFAF5', card: '#FFFFFF' } };
   const [dbState, setDbState] = useState<DBState>('loading');
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -107,7 +111,7 @@ export default function App() {
     <ErrorBoundary context="app-root">
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer linking={linking} theme={navTheme}>
             <RootNavigator />
           </NavigationContainer>
         </SafeAreaProvider>

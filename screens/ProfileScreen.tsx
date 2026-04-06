@@ -22,6 +22,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { useAuthStore } from "../store/authStore";
 import i18n from "../lib/i18n";
@@ -46,6 +47,7 @@ type SettingRow = {
 };
 
 export default function ProfileScreen() {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
@@ -241,14 +243,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
       >
         {/* ── Hero banner ── */}
         <LinearGradient
-          colors={Colors.heroGradient}
+          colors={C.heroGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[s.hero, { paddingTop: insets.top + 20 }]}
@@ -300,7 +302,7 @@ export default function ProfileScreen() {
         <View style={s.body}>
           {/* ── Sign-in card (guest only) ── */}
           {!user && (
-            <View style={s.signInCard}>
+            <View style={[s.signInCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               <View style={s.signInIconWrap}>
                 <Ionicons name="shield-checkmark-outline" size={28} color={Colors.primary} />
               </View>
@@ -376,7 +378,7 @@ export default function ProfileScreen() {
             <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "כללי" : "General"}
             </Text>
-            <View style={s.card}>
+            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               {GENERAL_ROWS.map((row, i) => (
                 <TouchableOpacity
                   key={row.label}
@@ -388,7 +390,7 @@ export default function ProfileScreen() {
                   onPress={row.onPress}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: Colors.surface }]}>
+                  <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
                     <Ionicons name={row.icon} size={16} color={Colors.text.secondary} />
                   </View>
                   <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
@@ -410,7 +412,7 @@ export default function ProfileScreen() {
             <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "התראות" : "Notifications"}
             </Text>
-            <View style={s.card}>
+            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               {/* Toggle row */}
               <View style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }, s.rowBorder]}>
                 <View style={[s.rowIconWrap, { backgroundColor: "#FFF0E8" }]}>
@@ -434,7 +436,7 @@ export default function ProfileScreen() {
                   onPress={handleChangeReminderTime}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: Colors.surface }]}>
+                  <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
                     <Ionicons name="time-outline" size={16} color={Colors.text.secondary} />
                   </View>
                   <Text style={[s.rowLabel, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
@@ -459,7 +461,7 @@ export default function ProfileScreen() {
             <Text style={[s.groupLabel, { textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "נתונים וסנכרון" : "Data & Sync"}
             </Text>
-            <View style={s.card}>
+            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               {DATA_ROWS.map((row, i) => (
                 <TouchableOpacity
                   key={row.label}
@@ -474,7 +476,7 @@ export default function ProfileScreen() {
                   <View
                     style={[
                       s.rowIconWrap,
-                      { backgroundColor: row.tint ? row.tint + "20" : Colors.surface },
+                      { backgroundColor: row.tint ? row.tint + "20" : C.surface },
                     ]}
                   >
                     <Ionicons
@@ -504,13 +506,13 @@ export default function ProfileScreen() {
           {/* ── Sign out ── */}
           {user ? (
             <View style={s.sectionGroup}>
-              <View style={s.card}>
+              <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
                 <TouchableOpacity
                   style={[s.row, { flexDirection: isHe ? "row-reverse" : "row" }]}
                   onPress={handleSignOut}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: Colors.errorSurface }]}>
+                  <View style={[s.rowIconWrap, { backgroundColor: C.errorSurface }]}>
                     <Ionicons name="log-out-outline" size={16} color={Colors.error} />
                   </View>
                   <Text

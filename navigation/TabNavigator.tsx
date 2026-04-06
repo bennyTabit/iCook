@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import * as Haptics from "expo-haptics";
 
@@ -107,7 +108,8 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 function AddPlaceholderScreen() {
-  return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
+  const C = useThemeColors();
+  return <View style={{ flex: 1, backgroundColor: C.background }} />;
 }
 
 function HeaderIconButton({
@@ -117,6 +119,7 @@ function HeaderIconButton({
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
+  const C = useThemeColors();
   return (
     <TouchableOpacity
       onPress={() => {
@@ -126,7 +129,7 @@ function HeaderIconButton({
       style={s.headerIconBtn}
       activeOpacity={0.75}
     >
-      <Ionicons name={icon} size={20} color={Colors.text.primary} />
+      <Ionicons name={icon} size={20} color={C.text.primary} />
     </TouchableOpacity>
   );
 }
@@ -184,6 +187,7 @@ function MenuSheet({
   isHe: boolean;
   insets: { bottom: number };
 }) {
+  const C = useThemeColors();
   const [mounted, setMounted] = useState(false);
   const slide = useRef(new Animated.Value(400)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -257,6 +261,7 @@ function MenuSheet({
           {
             transform: [{ translateY: slide }],
             paddingBottom: Math.max(insets.bottom, 20),
+            backgroundColor: C.surfaceElevated,
           },
         ]}
       >
@@ -325,6 +330,7 @@ function MenuSheet({
 }
 
 export default function TabNavigator() {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
@@ -342,7 +348,7 @@ export default function TabNavigator() {
       <Tab.Navigator
         screenOptions={({ route, navigation }) => ({
           tabBarActiveTintColor: "#FFFFFF",
-          tabBarInactiveTintColor: "#7E7A74",
+          tabBarInactiveTintColor: C.text.secondary,
           tabBarStyle: {
             position: "absolute",
             left: 12,
@@ -354,7 +360,7 @@ export default function TabNavigator() {
             paddingHorizontal: 6,
             borderTopWidth: 0,
             borderRadius: 24,
-            backgroundColor: "#FFF8F3",
+            backgroundColor: C.surfaceElevated,
             shadowColor: Colors.shadow,
             shadowOffset: { width: 0, height: 8 },
             shadowOpacity: 0.08,
@@ -379,17 +385,17 @@ export default function TabNavigator() {
             marginTop: route.name === "Add" ? -8 : 0,
           },
           sceneStyle: {
-            backgroundColor: Colors.background,
+            backgroundColor: C.background,
             paddingBottom: 76 + Math.max(insets.bottom - 2, 0),
           },
           headerShown: true,
           headerShadowVisible: false,
           headerTitleAlign: "center",
           headerStyle: {
-            backgroundColor: Colors.surfaceElevated,
+            backgroundColor: C.surfaceElevated,
           },
           headerTitleStyle: {
-            color: Colors.text.primary,
+            color: C.text.primary,
             fontWeight: "600",
             fontSize: 18,
           },

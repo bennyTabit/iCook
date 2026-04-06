@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 
 import { Colors } from '../constants/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { isHebrew } from '../lib/i18n';
 import { MealType } from '../lib/db';
 import type { RecipeSummary } from '../lib/search';
@@ -390,22 +391,23 @@ function DayCard({
   onAdd: (date: string, mealType: MealType) => void;
   navigation: any;
 }) {
+  const C = useThemeColors();
   const { dayName, dayNum, isToday } = getDayLabel(date, isHe);
   const d = new Date(date + 'T00:00:00');
   const monthNum = d.getMonth() + 1;
 
   return (
-    <View style={[ds.card, isToday && ds.cardToday]}>
+    <View style={[ds.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }, isToday && ds.cardToday]}>
       {/* Day header */}
       <View style={[ds.dayHeader, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
-        <View style={[ds.dayNumWrap, isToday && ds.dayNumWrapToday]}>
-          <Text style={[ds.dayNum, isToday && ds.dayNumToday]}>{dayNum}</Text>
+        <View style={[ds.dayNumWrap, { backgroundColor: C.surface }, isToday && ds.dayNumWrapToday]}>
+          <Text style={[ds.dayNum, { color: C.text.primary }, isToday && ds.dayNumToday]}>{dayNum}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[ds.dayName, { textAlign: isHe ? 'right' : 'left' }]}>
+          <Text style={[ds.dayName, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]}>
             {dayName}
           </Text>
-          <Text style={[ds.dayDate, { textAlign: isHe ? 'right' : 'left' }]}>
+          <Text style={[ds.dayDate, { textAlign: isHe ? 'right' : 'left', color: C.text.tertiary }]}>
             {isHe ? `${dayNum}/${monthNum}` : `${monthNum}/${dayNum}`}
           </Text>
         </View>
@@ -510,6 +512,7 @@ const ds = StyleSheet.create({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function MealPlannerScreen({ navigation }: { navigation: any }) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
@@ -560,15 +563,15 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
   const hasEntries = entries.length > 0;
 
   return (
-    <SafeAreaView style={s.container} edges={['left', 'right']}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
       {/* Week navigator header */}
-      <View style={[s.weekNav, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+      <View style={[s.weekNav, { flexDirection: isHe ? 'row-reverse' : 'row', backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={handlePrevWeek} style={s.weekArrow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name={isHe ? 'chevron-forward' : 'chevron-back'} size={22} color={Colors.text.primary} />
+          <Ionicons name={isHe ? 'chevron-forward' : 'chevron-back'} size={22} color={C.text.primary} />
         </TouchableOpacity>
-        <Text style={s.weekLabel}>{weekLabel}</Text>
+        <Text style={[s.weekLabel, { color: C.text.primary }]}>{weekLabel}</Text>
         <TouchableOpacity onPress={handleNextWeek} style={s.weekArrow} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name={isHe ? 'chevron-back' : 'chevron-forward'} size={22} color={Colors.text.primary} />
+          <Ionicons name={isHe ? 'chevron-back' : 'chevron-forward'} size={22} color={C.text.primary} />
         </TouchableOpacity>
       </View>
 
@@ -596,7 +599,7 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
 
       {/* Add week to shopping sticky button */}
       {hasEntries && (
-        <View style={[s.stickyBottom, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={[s.stickyBottom, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: C.background, borderTopColor: C.border }]}>
           <TouchableOpacity style={s.shoppingBtn} onPress={handleAddToShopping} activeOpacity={0.85}>
             <Ionicons name="basket-outline" size={18} color="#fff" />
             <Text style={s.shoppingBtnText}>{t('addToWeekShopping')}</Text>

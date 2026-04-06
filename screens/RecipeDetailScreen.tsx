@@ -25,6 +25,7 @@ import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, type RecipeUserData } from "../lib/db";
 import { logCook } from '../lib/cookLog';
@@ -301,6 +302,7 @@ function CookingModeOverlay({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RecipeDetailScreen({ route, navigation }: any) {
+  const C = useThemeColors();
   const id: number | undefined = route.params?.id;
   const draft: DraftRecipe | undefined = route.params?.draft;
   const isDraft = !!draft;
@@ -579,7 +581,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     showToast(isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping list 🛒");
   }
 
-  if (!isDraft && !recipe) return <View style={s.container} />;
+  if (!isDraft && !recipe) return <View style={[s.container, { backgroundColor: C.background }]} />;
 
   const cookTimeMin = recipe?.cook_time_min ?? 0;
   const prepTimeMin = recipe?.prep_time_min ?? 0;
@@ -601,7 +603,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   });
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
       {/* ── Sticky title header (appears on scroll) ── */}
       <Animated.View
         style={[
@@ -728,7 +730,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         <View style={[s.infoStrip, { flexDirection: isHe ? "row-reverse" : "row" }]}>
           {totalMin > 0 ? (
             <TouchableOpacity
-              style={s.infoChip}
+              style={[s.infoChip, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
               onPress={() => handleTimerStart(cookTimeMin || totalMin)}
               activeOpacity={0.7}
             >
@@ -739,7 +741,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           ) : null}
 
-          <View style={[s.infoChip, ratio !== 1 && { borderColor: Colors.primary + "44", backgroundColor: Colors.primary + "12" }]}>
+          <View style={[s.infoChip, { backgroundColor: C.surfaceElevated, borderColor: C.border }, ratio !== 1 && { borderColor: Colors.primary + "44", backgroundColor: Colors.primary + "12" }]}>
             <Ionicons name="people-outline" size={15} color={ratio !== 1 ? Colors.primary : Colors.text.secondary} />
             <Text style={[s.infoChipText, ratio !== 1 && { color: Colors.primary }]}>
               {formatScaled(servings)} {isHe ? "מנות" : "servings"}
@@ -852,7 +854,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           </View>
 
           {/* ── Ingredients ── */}
-          <View style={s.section}>
+          <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={s.sectionTitle}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
@@ -950,7 +952,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           </View>
 
           {/* ── Steps ── */}
-          <View style={s.section}>
+          <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
@@ -1046,7 +1048,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 
           {/* ── Personal notes ── */}
           {!isDraft && (
-            <View style={s.section}>
+            <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 <Text style={s.sectionTitle}>{isHe ? "הערות אישיות" : "My notes"}</Text>
                 {noteSaving && <Text style={s.noteSavingText}>{isHe ? "שומר..." : "Saving..."}</Text>}
@@ -1067,15 +1069,15 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       </Animated.ScrollView>
 
       {/* ── Bottom action bar ── */}
-      <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+      <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: C.surfaceElevated, borderTopColor: C.border }]}>
         {isDraft ? (
           <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             <TouchableOpacity style={s.actionBtnPrimary} onPress={handleSaveDraft}>
               <Ionicons name="save-outline" size={18} color="#fff" />
               <Text style={s.actionBtnPrimaryText}>{isHe ? "שמור מתכון" : "Save recipe"}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtnSecondary} onPress={() => navigation.goBack()}>
-              <Text style={s.actionBtnSecondaryText}>{isHe ? "ביטול" : "Cancel"}</Text>
+            <TouchableOpacity style={[s.actionBtnSecondary, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => navigation.goBack()}>
+              <Text style={[s.actionBtnSecondaryText, { color: C.text.secondary }]}>{isHe ? "ביטול" : "Cancel"}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1085,18 +1087,18 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               <Text style={s.actionBtnPrimaryText}>{isHe ? "הוסף לקניות" : "Add to cart"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={s.actionBtnIcon}
+              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
               onPress={() => void handleOpenCollectionModal()}
             >
-              <Ionicons name="albums-outline" size={20} color={Colors.text.secondary} />
+              <Ionicons name="albums-outline" size={20} color={C.text.secondary} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={s.actionBtnIcon}
+              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
               onPress={() => recipe && void shareRecipe(recipe)}
             >
-              <Ionicons name="share-social-outline" size={20} color={Colors.text.secondary} />
+              <Ionicons name="share-social-outline" size={20} color={C.text.secondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtnIcon} onPress={handleDelete}>
+            <TouchableOpacity style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]} onPress={handleDelete}>
               <Ionicons name="trash-outline" size={20} color="#FF4757" />
             </TouchableOpacity>
           </View>
@@ -1123,7 +1125,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
           onPress={() => setCollectionModalVisible(false)}
         />
-        <View style={s.collectionSheet}>
+        <View style={[s.collectionSheet, { backgroundColor: C.surfaceElevated }]}>
           <View style={s.collectionHandle} />
           <Text style={[s.collectionTitle, { textAlign: isHe ? "right" : "left" }]}>
             {isHe ? "הוסף לאוסף" : "Add to collection"}
