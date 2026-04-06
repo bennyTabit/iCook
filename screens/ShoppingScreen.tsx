@@ -201,7 +201,7 @@ export default function ShoppingScreen({ navigation }: any) {
           renderSectionHeader={renderSectionHeader}
           renderItem={renderItem}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+          contentContainerStyle={{ paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
           renderSectionFooter={() => <View style={s.sectionFooter} />}
         />

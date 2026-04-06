@@ -581,7 +581,7 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 + insets.bottom }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
         >
           {weekDays.map((date) => (

@@ -364,7 +364,10 @@ export default function TabNavigator() {
             marginHorizontal: 2,
             marginTop: route.name === "Add" ? -8 : 0,
           },
-          sceneStyle: { backgroundColor: Colors.background },
+          sceneStyle: {
+            backgroundColor: Colors.background,
+            paddingBottom: 76 + Math.max(insets.bottom - 2, 0),
+          },
           headerShown: true,
           headerShadowVisible: false,
           headerTitleAlign: "center",
