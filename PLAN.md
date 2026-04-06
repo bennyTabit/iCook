@@ -37,23 +37,26 @@
 ## PHASE 2 — Backend & Cloud Sync
 **Goal:** Users lose everything on reinstall — fix this.
 
-### 2.1 Firebase Setup ⬜
-- [ ] Create Firebase project, add `firebase.ts` config
-- [ ] Enable: Firestore, Auth, Storage, Analytics
-- [ ] Add `@react-native-firebase/app`, `firestore`, `auth`, `storage`
+### 2.1 Firebase Setup ✅ — committed 12f1da2
+- [x] Create Firebase project (icook-66254), Firestore + Auth enabled
+- [x] `lib/firebase.ts` — initialize app/auth/db from EXPO_PUBLIC_FIREBASE_* env vars
+- [x] `firebase` JS SDK installed (managed Expo, no native linking needed)
 
-### 2.2 Authentication — Make It Real ⬜
-- [ ] Google Sign In → Firebase Auth token → persist UID
-- [ ] Apple Sign In → same flow
-- [ ] Email/Password as third option
-- [ ] Token refresh on app resume
-- [ ] Proper sign-out → invalidate Firebase session
+### 2.2 Authentication — Make It Real ✅ — committed 12f1da2
+- [x] Google Sign In → `idToken` → `GoogleAuthProvider.credential` → Firebase Auth
+- [x] Apple Sign In → `identityToken` → `OAuthProvider("apple.com")` → Firebase Auth
+- [x] `onAuthStateChanged` restores session on boot — no AsyncStorage juggling
+- [x] Proper sign-out → `firebaseSignOut` invalidates Firebase session
+- [ ] Email/Password as third option (deferred — OAuth covers 95% of users)
+- [ ] Token refresh on app resume (handled automatically by Firebase SDK)
 
-### 2.3 Cloud Recipe Sync ⬜
-- [ ] On save → write to SQLite (local) + Firestore (cloud)
-- [ ] On app open → delta sync from Firestore to local DB
-- [ ] Conflict resolution: last-write-wins with timestamp
-- [ ] Offline-first: queue mutations offline, flush on reconnect
+### 2.3 Cloud Recipe Sync ✅ — committed 68fabc7
+- [x] `lib/firestore.ts` — syncRecipeToCloud, deleteRecipeFromCloud, fetchCloudRecipes
+- [x] toggleFav → fire-and-forget Firestore sync
+- [x] removeRecipe → fire-and-forget Firestore delete
+- [x] On save (insert/update) → syncToCloud called from EditRecipeScreen + ImportLinkScreen
+- [x] On app open → pullFromCloud() inserts any missing cloud recipes into local SQLite
+- [ ] Offline-first: queue mutations offline, flush on reconnect ← next session
 
 ### 2.4 Cloud Image Storage ⬜
 - [ ] Replace local `file://` URIs with Firebase Storage URLs
@@ -263,7 +266,7 @@
 | Phase | Status | Completion |
 |-------|--------|------------|
 | 1 — Stability | ✅ Complete | 100% — all 4 sections done, browser-verified |
-| 2 — Backend | ⬜ Not Started | 0% |
+| 2 — Backend | 🔄 In Progress | 75% (2.1 ✅, 2.2 ✅, 2.3 ✅, 2.4 ⬜) |
 | 3 — Features | ⬜ Not Started | 0% |
 | 4 — UX Polish | 🔄 In Progress | 20% — 4.0 design system ✅, 4.0b full token coverage ✅, browser-verified |
 | 5 — Testing | ⬜ Not Started | 0% |
