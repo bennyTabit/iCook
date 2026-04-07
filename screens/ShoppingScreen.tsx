@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { useShoppingStore } from "../store/shoppingStore";
 import type { ShopItem } from "../store/shoppingStore";
@@ -32,6 +33,7 @@ import {
 } from "../lib/recurringItems";
 
 export default function ShoppingScreen({ navigation }: any) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
@@ -220,9 +222,9 @@ export default function ShoppingScreen({ navigation }: any) {
   function RecurringStrip() {
     if (recurring.length === 0) return null;
     return (
-      <View style={s.recurringWrap}>
+      <View style={[s.recurringWrap, { backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
         <View style={[s.recurringRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-          <Text style={s.recurringLabel}>
+          <Text style={[s.recurringLabel, { color: C.text.secondary }]}>
             {isHe ? '🔁 תמידיים:' : '🔁 Recurring:'}
           </Text>
           <ScrollView
@@ -265,7 +267,7 @@ export default function ShoppingScreen({ navigation }: any) {
   // ── Empty state ─────────────────────────────────────────────────────────────
   if (items.length === 0) {
     return (
-      <View style={[s.container, { paddingTop: insets.top }]}>
+      <View style={[s.container, { paddingTop: insets.top, backgroundColor: C.background }]}>
         <ScreenHeader
           isHe={isHe}
           checkedCount={0}
@@ -276,14 +278,14 @@ export default function ShoppingScreen({ navigation }: any) {
         />
         {recurring.length > 0 && <RecurringStrip />}
         <View style={s.emptyOuter}>
-          <View style={s.emptyCard}>
-            <View style={s.emptyIconWrap}>
+          <View style={[s.emptyCard, { backgroundColor: C.surfaceElevated }]}>
+            <View style={[s.emptyIconWrap, { backgroundColor: C.primary + "25" }]}>
               <Text style={s.emptyEmoji}>🛒</Text>
             </View>
-            <Text style={s.emptyTitle}>
+            <Text style={[s.emptyTitle, { color: C.text.primary }]}>
               {isHe ? "הרשימה ריקה" : "Your list is empty"}
             </Text>
-            <Text style={s.emptySub}>
+            <Text style={[s.emptySub, { color: C.text.secondary }]}>
               {isHe
                 ? "הוסף פריטים ידנית או ייבא ממתכון"
                 : "Add items manually or import from a recipe"}
@@ -293,7 +295,7 @@ export default function ShoppingScreen({ navigation }: any) {
                 <Ionicons name="add-circle-outline" size={16} color="#fff" />
                 <Text style={s.emptyBtnText}>{isHe ? "הוסף פריט" : "Add item"}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.emptyBtnSecondary} onPress={() => navigation.navigate("Search")} activeOpacity={0.85}>
+              <TouchableOpacity style={[s.emptyBtnSecondary, { backgroundColor: C.surface, borderColor: C.primary }]} onPress={() => navigation.navigate("Search")} activeOpacity={0.85}>
                 <Ionicons name="book-outline" size={16} color={Colors.primary} />
                 <Text style={s.emptyBtnSecondaryText}>{isHe ? "בחר מתכון" : "Browse"}</Text>
               </TouchableOpacity>
@@ -312,7 +314,7 @@ export default function ShoppingScreen({ navigation }: any) {
 
   // ── Main list ───────────────────────────────────────────────────────────────
   return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
+    <View style={[s.container, { paddingTop: insets.top, backgroundColor: C.background }]}>
         <ScreenHeader
           isHe={isHe}
           checkedCount={checkedCount}
@@ -323,9 +325,9 @@ export default function ShoppingScreen({ navigation }: any) {
         />
 
         {/* ── Progress strip ── */}
-        <View style={s.progressWrap}>
+        <View style={[s.progressWrap, { backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
           <View style={[s.progressInfo, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <Text style={s.progressLabel}>
+            <Text style={[s.progressLabel, { color: C.text.secondary }]}>
               {isHe
                 ? `${checkedCount} מתוך ${totalCount} פריטים`
                 : `${checkedCount} of ${totalCount} items`}
@@ -341,7 +343,7 @@ export default function ShoppingScreen({ navigation }: any) {
               <TouchableOpacity
                 onPress={handleClearAll}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={s.clearAllIconBtn}
+                style={[s.clearAllIconBtn, { backgroundColor: C.errorSurface, borderColor: C.errorBorder }]}
               >
                 <Ionicons name="trash-outline" size={16} color={Colors.error} />
               </TouchableOpacity>
@@ -354,7 +356,7 @@ export default function ShoppingScreen({ navigation }: any) {
           {/* ── Total cost row ── */}
           {hasPrices && (
             <View style={[s.costRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <Text style={s.costText}>
+              <Text style={[s.costText, { color: C.text.secondary }]}>
                 {isHe
                   ? `💰 סה״כ לא מסומן: ₪${uncheckedCost.toFixed(2)}  |  סה״כ: ₪${allCost.toFixed(2)}`
                   : `💰 Remaining: ₪${uncheckedCost.toFixed(2)}  |  Total: ₪${allCost.toFixed(2)}`}
@@ -375,7 +377,7 @@ export default function ShoppingScreen({ navigation }: any) {
           stickySectionHeadersEnabled={false}
           contentContainerStyle={{ paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
-          renderSectionFooter={() => <View style={s.sectionFooter} />}
+          renderSectionFooter={() => <View style={[s.sectionFooter, { backgroundColor: C.surface }]} />}
         />
 
         {/* ── FAB: Add item ── */}
@@ -462,7 +464,7 @@ function ScreenHeader({
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F0EB" },
+  container: { flex: 1 },
 
   // Hero header
   hero: {
@@ -519,11 +521,9 @@ const s = StyleSheet.create({
 
   // Progress
   progressWrap: {
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     gap: 8,
   },
   progressInfo: {
@@ -533,7 +533,6 @@ const s = StyleSheet.create({
   progressLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#555",
   },
   progressClearBtn: {
     fontSize: 12,
@@ -558,14 +557,11 @@ const s = StyleSheet.create({
   costText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#555",
   },
 
   // Recurring strip
   recurringWrap: {
-    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
@@ -576,7 +572,6 @@ const s = StyleSheet.create({
   recurringLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#555",
     flexShrink: 0,
   },
   chipsContainer: {
@@ -657,7 +652,6 @@ const s = StyleSheet.create({
   sectionFooter: {
     height: 4,
     marginHorizontal: 16,
-    backgroundColor: "#fff",
     borderBottomLeftRadius: 14,
     borderBottomRightRadius: 14,
   },
@@ -671,11 +665,9 @@ const s = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: "#FFF0F0",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#FFCDD2",
   },
 
   // Clear all (footer - kept for reference but no longer rendered)
@@ -731,7 +723,6 @@ const s = StyleSheet.create({
   emptyCard: {
     width: "100%",
     alignItems: "center",
-    backgroundColor: "#fff",
     borderRadius: 20,
     paddingVertical: 32,
     paddingHorizontal: 24,
@@ -746,7 +737,6 @@ const s = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: "#FFE8D6",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -755,12 +745,10 @@ const s = StyleSheet.create({
   emptyTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#1A1A2E",
     textAlign: "center",
   },
   emptySub: {
     fontSize: 15,
-    color: "#8A8A9A",
     textAlign: "center",
     lineHeight: 21,
   },
@@ -787,12 +775,10 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#fff",
     borderRadius: 14,
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
   },
   emptyBtnText: {
     fontSize: 15,

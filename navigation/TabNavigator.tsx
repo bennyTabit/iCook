@@ -128,7 +128,7 @@ function HeaderIconButton({
         void Haptics.selectionAsync();
         onPress();
       }}
-      style={s.headerIconBtn}
+      style={[s.headerIconBtn, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
       activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityLabel={label ?? (icon === "menu" ? "Open menu" : "")}
@@ -276,10 +276,10 @@ function MenuSheet({
         ]}
       >
         {/* drag handle */}
-        <View style={s.handle} />
+        <View style={[s.handle, { backgroundColor: C.border }]} />
 
         {/* header */}
-        <Text style={[s.sheetTitle, { textAlign: isHe ? "right" : "left" }]}>
+        <Text style={[s.sheetTitle, { textAlign: isHe ? "right" : "left" }, { color: C.text.tertiary }]}>
           {isHe ? "תפריט" : "Menu"}
         </Text>
 
@@ -309,24 +309,24 @@ function MenuSheet({
                 { alignItems: isHe ? "flex-end" : "flex-start", flex: 1 },
               ]}
             >
-              <Text style={s.menuItemTitle}>
+              <Text style={[s.menuItemTitle, { color: C.text.primary }]}>
                 {isHe ? item.titleHe : item.titleEn}
               </Text>
-              <Text style={s.menuItemSub}>
+              <Text style={[s.menuItemSub, { color: C.text.secondary }]}>
                 {isHe ? item.subHe : item.subEn}
               </Text>
             </View>
             <Ionicons
               name={isHe ? "chevron-back-outline" : "chevron-forward-outline"}
               size={16}
-              color={Colors.text.tertiary}
+              color={C.text.tertiary}
               style={{ alignSelf: "center" }}
             />
           </TouchableOpacity>
         ))}
 
         {/* cancel */}
-        <View style={s.sheetDivider} />
+        <View style={[s.sheetDivider, { backgroundColor: C.border }]} />
         <TouchableOpacity
           style={s.cancelBtn}
           onPress={() => {
@@ -337,7 +337,7 @@ function MenuSheet({
           accessibilityRole="button"
           accessibilityLabel={isHe ? "ביטול" : "Cancel"}
         >
-          <Text style={s.cancelText}>{isHe ? "ביטול" : "Cancel"}</Text>
+          <Text style={[s.cancelText, { color: C.text.secondary }]}>{isHe ? "ביטול" : "Cancel"}</Text>
         </TouchableOpacity>
       </Animated.View>
     </Modal>
