@@ -102,6 +102,7 @@ function CookingModeOverlay({
   onClose: () => void;
 }) {
   useKeepAwake();
+  const C = useThemeColors();
   const [current, setCurrent] = useState(0);
   const total = Math.max(steps.length, 1);
   const progress = (current + 1) / total;
@@ -132,28 +133,28 @@ function CookingModeOverlay({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={cm.container} edges={["top", "bottom"]}>
+      <SafeAreaView style={[cm.container, { backgroundColor: C.background }]} edges={["top", "bottom"]}>
         {/* Header */}
         <View style={cm.header}>
           <TouchableOpacity
-            style={cm.closeBtn}
+            style={[cm.closeBtn, { backgroundColor: C.surface, borderColor: C.border }]}
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel={isHe ? "סגור מצב בישול" : "Close cooking mode"}
           >
-            <Ionicons name="close" size={20} color={Colors.text.secondary} />
+            <Ionicons name="close" size={20} color={C.text.secondary} />
           </TouchableOpacity>
-          <Text style={cm.headerTitle}>
+          <Text style={[cm.headerTitle, { color: C.text.primary }]}>
             {isHe ? "מצב בישול" : "Cooking Mode"}
           </Text>
-          <Text style={cm.stepCounter}>
+          <Text style={[cm.stepCounter, { color: C.text.secondary }]}>
             {current + 1} / {total}
           </Text>
         </View>
 
         {/* Progress bar */}
-        <View style={cm.progressTrack}>
-          <View style={[cm.progressFill, { width: `${progress * 100}%` as any }]} />
+        <View style={[cm.progressTrack, { backgroundColor: C.border }]}>
+          <View style={[cm.progressFill, { width: `${progress * 100}%` as any, backgroundColor: C.primary }]} />
         </View>
 
         {/* Step dots */}
@@ -161,25 +162,30 @@ function CookingModeOverlay({
           {Array.from({ length: total }).map((_, i) => (
             <View
               key={i}
-              style={[cm.dot, i === current && cm.dotActive, i < current && cm.dotDone]}
+              style={[
+                cm.dot,
+                { backgroundColor: C.border },
+                i === current && { backgroundColor: C.primary, transform: [{ scale: 1.2 }] },
+                i < current && { backgroundColor: C.secondary },
+              ]}
             />
           ))}
         </View>
 
         {/* Step card */}
-        <View style={cm.stepCard}>
-          <View style={cm.stepBadge}>
-            <Text style={cm.stepBadgeText}>
+        <View style={[cm.stepCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+          <View style={[cm.stepBadge, { backgroundColor: C.primary + "18", borderColor: C.primary + "40" }]}>
+            <Text style={[cm.stepBadgeText, { color: C.primary }]}>
               {isHe ? "שלב" : "Step"} {current + 1}
             </Text>
           </View>
-          <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left" }]}>
+          <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
             {stepText}
           </Text>
           {stepMinutes ? (
             <View style={cm.timerChip}>
-              <Ionicons name="timer-outline" size={14} color={Colors.primary} />
-              <Text style={cm.timerChipText}>
+              <Ionicons name="timer-outline" size={14} color={C.primary} />
+              <Text style={[cm.timerChipText, { color: C.primary }]}>
                 {stepMinutes} {isHe ? "דקות" : "min"}
               </Text>
             </View>
@@ -189,7 +195,7 @@ function CookingModeOverlay({
         {/* Navigation */}
         <View style={cm.navRow}>
           <TouchableOpacity
-            style={[cm.navBtn, current <= 0 && cm.navBtnDisabled]}
+            style={[cm.navBtn, { borderColor: C.border, backgroundColor: C.surface }, current <= 0 && cm.navBtnDisabled]}
             disabled={current <= 0}
             onPress={goPrev}
             activeOpacity={0.8}
@@ -199,12 +205,13 @@ function CookingModeOverlay({
             <Ionicons
               name={isHe ? "chevron-forward" : "chevron-back"}
               size={20}
-              color={current <= 0 ? Colors.text.tertiary : Colors.text.primary}
+              color={current <= 0 ? C.text.tertiary : C.text.primary}
             />
             <Text
               style={[
                 cm.navBtnText,
-                current <= 0 && cm.navBtnTextDisabled,
+                { color: C.text.primary },
+                current <= 0 && { color: C.text.tertiary },
               ]}
             >
               {isHe ? "הקודם" : "Previous"}
@@ -212,7 +219,7 @@ function CookingModeOverlay({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[cm.navBtnPrimary, isLast && cm.navBtnFinish]}
+            style={[cm.navBtnPrimary, { backgroundColor: C.primary }, isLast && { backgroundColor: C.secondary }]}
             onPress={goNext}
             activeOpacity={0.85}
             accessibilityRole="button"
@@ -550,11 +557,11 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       <Animated.View
         style={[
           s.stickyHeader,
-          { paddingTop: insets.top + 6, opacity: stickyHeaderOpacity },
+          { paddingTop: insets.top + 6, opacity: stickyHeaderOpacity, backgroundColor: C.background },
         ]}
         pointerEvents="none"
       >
-        <Text style={s.stickyHeaderTitle} numberOfLines={1}>
+        <Text style={[s.stickyHeaderTitle, { color: C.text.primary }]} numberOfLines={1}>
           {title}
         </Text>
       </Animated.View>
@@ -720,16 +727,16 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               accessibilityRole="button"
               accessibilityLabel={isHe ? `הפעל טיימר ${totalMin} דקות` : `Start ${totalMin} minute timer`}
             >
-              <Ionicons name="timer-outline" size={15} color={Colors.primary} />
-              <Text style={[s.infoChipText, { color: Colors.primary }]}>
+              <Ionicons name="timer-outline" size={15} color={C.primary} />
+              <Text style={[s.infoChipText, { color: C.primary }]}>
                 {totalMin} {isHe ? "דקות" : "min"}
               </Text>
             </TouchableOpacity>
           ) : null}
 
-          <View style={[s.infoChip, { backgroundColor: C.surfaceElevated, borderColor: C.border }, ratio !== 1 && { borderColor: Colors.primary + "44", backgroundColor: Colors.primary + "12" }]}>
-            <Ionicons name="people-outline" size={15} color={ratio !== 1 ? Colors.primary : Colors.text.secondary} />
-            <Text style={[s.infoChipText, ratio !== 1 && { color: Colors.primary }]}>
+          <View style={[s.infoChip, { backgroundColor: C.surfaceElevated, borderColor: C.border }, ratio !== 1 && { borderColor: C.primary + "44", backgroundColor: C.primary + "12" }]}>
+            <Ionicons name="people-outline" size={15} color={ratio !== 1 ? C.primary : C.text.secondary} />
+            <Text style={[s.infoChipText, { color: C.text.secondary }, ratio !== 1 && { color: C.primary }]}>
               {formatScaled(servings)} {isHe ? "מנות" : "servings"}
               {ratio !== 1 ? ` (×${formatScaled(ratio)})` : ""}
             </Text>
@@ -748,7 +755,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         {/* ── Star rating ── */}
         {!isDraft && (
           <View style={[s.ratingRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <Text style={s.ratingLabel}>{isHe ? "דירוג:" : "Rating:"}</Text>
+            <Text style={[s.ratingLabel, { color: C.text.secondary }]}>{isHe ? "דירוג:" : "Rating:"}</Text>
             <View style={{ flexDirection: "row", gap: 4 }}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
@@ -763,13 +770,13 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   <Ionicons
                     name={(userData.rating ?? 0) >= star ? "star" : "star-outline"}
                     size={22}
-                    color={(userData.rating ?? 0) >= star ? "#FFD700" : Colors.text.tertiary}
+                    color={(userData.rating ?? 0) >= star ? "#FFD700" : C.text.tertiary}
                   />
                 </TouchableOpacity>
               ))}
             </View>
             {userData.last_cooked_at && (
-              <Text style={[s.lastCookedText, { marginStart: "auto" }]}>
+              <Text style={[s.lastCookedText, { marginStart: "auto", color: C.text.tertiary }]}>
                 {isHe
                   ? `בושל ב-${new Date(userData.last_cooked_at).toLocaleDateString('he-IL')}`
                   : `Cooked ${new Date(userData.last_cooked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
@@ -800,7 +807,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           {/* ── Servings stepper + cooked ── */}
           <View style={[s.servingsRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             <View style={{ alignItems: isHe ? "flex-end" : "flex-start" }}>
-              <Text style={s.servingsLabel}>{isHe ? "מנות" : "Servings"}</Text>
+              <Text style={[s.servingsLabel, { color: C.text.secondary }]}>{isHe ? "מנות" : "Servings"}</Text>
               {ratio !== 1 && (
                 <TouchableOpacity
                   onPress={() => { void Haptics.selectionAsync(); setServings(baseServings); }}
@@ -808,15 +815,15 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   accessibilityRole="button"
                   accessibilityLabel={isHe ? "איפוס מנות" : "Reset servings"}
                 >
-                  <Text style={s.servingsReset}>
+                  <Text style={[s.servingsReset, { color: C.primary }]}>
                     {isHe ? "איפוס" : "Reset"}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
-            <View style={[s.stepper, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <View style={[s.stepper, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               <TouchableOpacity
-                style={s.stepperBtn}
+                style={[s.stepperBtn, { backgroundColor: C.surface }]}
                 onPress={() => {
                   void Haptics.selectionAsync();
                   setServings((x) => Math.max(0.5, parseFloat((x - 0.5).toFixed(1))));
@@ -824,18 +831,18 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 accessibilityRole="button"
                 accessibilityLabel={isHe ? "הפחת מנה" : "Decrease servings"}
               >
-                <Ionicons name="remove" size={18} color={Colors.text.primary} />
+                <Ionicons name="remove" size={18} color={C.text.primary} />
               </TouchableOpacity>
               <View style={{ alignItems: "center" }}>
-                <Text style={s.stepperValue}>{formatScaled(servings)}</Text>
+                <Text style={[s.stepperValue, { color: C.text.primary }]}>{formatScaled(servings)}</Text>
                 {ratio !== 1 && (
-                  <Text style={s.stepperRatio}>
+                  <Text style={[s.stepperRatio, { color: C.primary }]}>
                     ×{formatScaled(ratio)}
                   </Text>
                 )}
               </View>
               <TouchableOpacity
-                style={s.stepperBtn}
+                style={[s.stepperBtn, { backgroundColor: C.surface }]}
                 onPress={() => {
                   void Haptics.selectionAsync();
                   setServings((x) => parseFloat((x + 0.5).toFixed(1)));
@@ -843,7 +850,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 accessibilityRole="button"
                 accessibilityLabel={isHe ? "הוסף מנה" : "Increase servings"}
               >
-                <Ionicons name="add" size={18} color={Colors.text.primary} />
+                <Ionicons name="add" size={18} color={C.text.primary} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -863,7 +870,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={s.sectionTitle}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
+                <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
                 {shownIngredients.length > 0 && (
                   <View style={s.countBadge}>
                     <Text style={s.countBadgeText}>{shownIngredients.length}</Text>
@@ -872,7 +879,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               </View>
               <View style={[s.sectionHeaderActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
                 <TouchableOpacity
-                  style={[s.pill, checklistMode && s.pillActive]}
+                  style={[s.pill, { borderColor: C.border, backgroundColor: C.surface }, checklistMode && s.pillActive]}
                   onPress={() => {
                     void Haptics.selectionAsync();
                     setChecklistMode((v) => !v);
@@ -884,9 +891,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   <Ionicons
                     name={checklistMode ? "checkmark-circle" : "checkmark-circle-outline"}
                     size={13}
-                    color={checklistMode ? "#fff" : Colors.text.secondary}
+                    color={checklistMode ? "#fff" : C.text.secondary}
                   />
-                  <Text style={[s.pillText, checklistMode && s.pillTextActive]}>
+                  <Text style={[s.pillText, { color: C.text.secondary }, checklistMode && s.pillTextActive]}>
                     {isHe ? "סימון" : "Check"}
                   </Text>
                 </TouchableOpacity>
@@ -907,7 +914,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </View>
 
             {shownIngredients.length === 0 ? (
-              <Text style={[s.emptyHint, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.emptyHint, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "אין מרכיבים — ערוך את המתכון להוספה" : "No ingredients — edit recipe to add"}
               </Text>
             ) : (
@@ -920,6 +927,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     key={`ing-${i}`}
                     style={[
                       s.ingredientRow,
+                      { borderBottomColor: C.border + "80" },
                       done && s.ingredientRowDone,
                       { flexDirection: isHe ? "row-reverse" : "row" },
                     ]}
@@ -930,28 +938,29 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     accessibilityLabel={ing}
                   >
                     {checklistMode ? (
-                      <View style={[s.checkbox, done && s.checkboxDone]}>
+                      <View style={[s.checkbox, { borderColor: C.border, backgroundColor: C.surface }, done && s.checkboxDone]}>
                         {done ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
                       </View>
                     ) : (
-                      <View style={s.bullet} />
+                      <View style={[s.bullet, { backgroundColor: C.primary }]} />
                     )}
                     <Text
                       style={[
                         s.ingredientText,
-                        done && s.ingredientTextDone,
+                        { color: C.text.primary },
+                        done && { color: C.text.tertiary, textDecorationLine: "line-through" },
                         { textAlign: isHe ? "right" : "left" },
                       ]}
                     >
                       {leadingQty ? (
                         <>
-                          <Text style={[s.qtyOriginal, done && s.ingredientTextDone]}>
+                          <Text style={[s.qtyOriginal, { color: C.text.tertiary }, done && { color: C.text.tertiary }]}>
                             {leadingQty.qtyStr}
                           </Text>
-                          <Text style={[s.qtyScaled, done && s.ingredientTextDone]}>
+                          <Text style={[s.qtyScaled, { color: C.primary }, done && { color: C.text.tertiary }]}>
                             {" "}{formatScaled(leadingQty.value * ratio)}
                           </Text>
-                          <Text style={done && s.ingredientTextDone}>
+                          <Text style={done ? { color: C.text.tertiary, textDecorationLine: "line-through" } : undefined}>
                             {leadingQty.rest}
                           </Text>
                         </>
@@ -969,7 +978,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
             <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={s.sectionTitle}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
+                <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
                 {rawSteps.length > 0 && (
                   <View style={s.countBadge}>
                     <Text style={s.countBadgeText}>{rawSteps.length}</Text>
@@ -993,7 +1002,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </View>
 
             {rawSteps.length === 0 ? (
-              <Text style={[s.emptyHint, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.emptyHint, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "אין שלבים — ערוך את המתכון להוספה" : "No steps — edit recipe to add"}
               </Text>
             ) : (
@@ -1020,6 +1029,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     <TouchableOpacity
                       style={[
                         s.stepCard,
+                        { backgroundColor: C.surfaceElevated, borderBottomColor: C.border + "80" },
                         done && s.stepCardDone,
                         { flexDirection: isHe ? "row-reverse" : "row" },
                       ]}
@@ -1029,18 +1039,19 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                       accessibilityLabel={isHe ? `שלב ${i + 1}: ${step}` : `Step ${i + 1}: ${step}`}
                       accessibilityHint={isHe ? "הקש לסימון כבוצע" : "Tap to mark as done"}
                     >
-                      <View style={[s.stepNumber, done && s.stepNumberDone]}>
+                      <View style={[s.stepNumber, { backgroundColor: C.primary }, done && { backgroundColor: C.secondary }]}>
                         {done ? (
                           <Ionicons name="checkmark" size={14} color="#fff" />
                         ) : (
-                          <Text style={s.stepNumberText}>{i + 1}</Text>
+                          <Text style={[s.stepNumberText, { color: "#fff" }]}>{i + 1}</Text>
                         )}
                       </View>
                       <View style={{ flex: 1, gap: 4 }}>
                         <Text
                           style={[
                             s.stepText,
-                            done && s.stepTextDone,
+                            { color: C.text.primary },
+                            done && { color: C.text.tertiary, textDecorationLine: "line-through" },
                             { textAlign: isHe ? "right" : "left" },
                           ]}
                         >
@@ -1053,8 +1064,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                             accessibilityRole="button"
                             accessibilityLabel={isHe ? `הפעל טיימר ${stepMins} דקות` : `Start ${stepMins} minute timer`}
                           >
-                            <Ionicons name="timer-outline" size={12} color={Colors.primary} />
-                            <Text style={s.stepTimerChipText}>
+                            <Ionicons name="timer-outline" size={12} color={C.primary} />
+                            <Text style={[s.stepTimerChipText, { color: C.primary }]}>
                               {stepMins} {isHe ? "דקות" : "min"}
                             </Text>
                           </TouchableOpacity>
@@ -1071,15 +1082,15 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           {!isDraft && (
             <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-                <Text style={s.sectionTitle}>{isHe ? "הערות אישיות" : "My notes"}</Text>
-                {noteSaving && <Text style={s.noteSavingText}>{isHe ? "שומר..." : "Saving..."}</Text>}
+                <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "הערות אישיות" : "My notes"}</Text>
+                {noteSaving && <Text style={[s.noteSavingText, { color: C.text.tertiary }]}>{isHe ? "שומר..." : "Saving..."}</Text>}
               </View>
               <TextInput
-                style={[s.noteInput, { textAlign: isHe ? "right" : "left" }]}
+                style={[s.noteInput, { textAlign: isHe ? "right" : "left", backgroundColor: C.surface, borderColor: C.border, color: C.text.primary }]}
                 value={noteText}
                 onChangeText={handleNoteChange}
                 placeholder={isHe ? "הוסף הערות אישיות, שינויים שעשית, ..." : "Add personal notes, changes you made, ..."}
-                placeholderTextColor={Colors.text.tertiary}
+                placeholderTextColor={C.text.tertiary}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -1171,12 +1182,12 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           onPress={() => setCollectionModalVisible(false)}
         />
         <View style={[s.collectionSheet, { backgroundColor: C.surfaceElevated }]}>
-          <View style={s.collectionHandle} />
-          <Text style={[s.collectionTitle, { textAlign: isHe ? "right" : "left" }]}>
+          <View style={[s.collectionHandle, { backgroundColor: C.border }]} />
+          <Text style={[s.collectionTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
             {isHe ? "הוסף לאוסף" : "Add to collection"}
           </Text>
           {collections.length === 0 ? (
-            <Text style={[s.collectionEmpty, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.collectionEmpty, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
               {isHe ? "אין אוספים — צור אוסף מהתפריט" : "No collections — create one from the menu"}
             </Text>
           ) : (
@@ -1196,13 +1207,13 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   <View style={[s.collectionIconWrap, { backgroundColor: col.color + "22" }]}>
                     <Text style={{ fontSize: 22 }}>{col.icon}</Text>
                   </View>
-                  <Text style={[s.collectionRowName, { flex: 1, textAlign: isHe ? "right" : "left" }]}>
+                  <Text style={[s.collectionRowName, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                     {colName}
                   </Text>
                   <Ionicons
                     name={inCol ? "checkmark-circle" : "ellipse-outline"}
                     size={22}
-                    color={inCol ? col.color : Colors.text.tertiary}
+                    color={inCol ? col.color : C.text.tertiary}
                   />
                 </TouchableOpacity>
               );
