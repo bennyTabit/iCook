@@ -12,6 +12,7 @@ import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import type { ShopItem } from "../store/shoppingStore";
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe, isLast }: Props) {
+  const C = useThemeColors();
   const swipeableRef = useRef<Swipeable>(null);
   const checkAnim = useRef(new Animated.Value(item.checked ? 1 : 0)).current;
 
@@ -59,9 +61,10 @@ export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe
     }
   }
 
+  // Animated checkbox — unchecked uses C.surfaceElevated as static string
   const checkBg = checkAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.surfaceElevated, Colors.primary],
+    outputRange: [C.surfaceElevated, Colors.primary],
   });
   const checkBorder = checkAnim.interpolate({
     inputRange: [0, 1],
@@ -100,8 +103,8 @@ export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe
         style={[
           s.row,
           { flexDirection: isHe ? "row-reverse" : "row" },
-          !isLast && s.rowBorder,
-          item.checked && s.rowChecked,
+          { backgroundColor: item.checked ? C.surface : C.surfaceElevated },
+          !isLast && [s.rowBorder, { borderBottomColor: C.border }],
         ]}
         onPress={handleCheck}
         onLongPress={Platform.OS === 'ios' ? handleLongPress : undefined}
@@ -125,19 +128,19 @@ export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe
             <Text
               style={[
                 s.itemText,
-                { textAlign: isHe ? "right" : "left" },
-                item.checked && s.itemTextDone,
+                { color: C.text.primary, textAlign: isHe ? "right" : "left" },
+                item.checked && { textDecorationLine: "line-through", color: C.text.disabled, fontWeight: "400" },
               ]}
               numberOfLines={1}
             >
               {item.text}
             </Text>
             {item.price != null && (
-              <Text style={s.priceTag}>₪{item.price.toFixed(2)}</Text>
+              <Text style={[s.priceTag, { color: C.text.tertiary }]}>₪{item.price.toFixed(2)}</Text>
             )}
           </View>
           {(item.quantity || item.unit) ? (
-            <Text style={[s.itemQty, { textAlign: isHe ? "right" : "left" }]}>
+            <Text style={[s.itemQty, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
               {[item.quantity, item.unit].filter(Boolean).join(" ")}
             </Text>
           ) : null}
@@ -147,7 +150,7 @@ export default function ShoppingItem({ item, onCheck, onDelete, onSetPrice, isHe
         <Ionicons
           name={isHe ? "chevron-back-outline" : "chevron-forward-outline"}
           size={14}
-          color={Colors.text.tertiary}
+          color={C.text.tertiary}
           style={s.swipeHint}
         />
       </TouchableOpacity>
@@ -161,14 +164,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 14,
-    backgroundColor: Colors.surfaceElevated,
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  rowChecked: {
-    backgroundColor: Colors.surface,
   },
   checkbox: {
     width: 26,
@@ -190,24 +188,16 @@ const s = StyleSheet.create({
   itemText: {
     fontSize: 17,
     fontWeight: "600",
-    color: Colors.text.primary,
     lineHeight: 22,
     flexShrink: 1,
   },
-  itemTextDone: {
-    textDecorationLine: "line-through",
-    color: Colors.text.disabled,
-    fontWeight: "400",
-  },
   priceTag: {
     fontSize: 12,
-    color: Colors.text.tertiary,
     fontWeight: "500",
     flexShrink: 0,
   },
   itemQty: {
     fontSize: 13,
-    color: Colors.text.tertiary,
     fontWeight: "400",
   },
   swipeHint: {

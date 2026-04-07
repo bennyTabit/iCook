@@ -14,11 +14,12 @@ import {
   FALLBACK_EMOJI,
   FALLBACK_BG,
 } from "../constants/recipes";
+import { useThemeColors } from "../hooks/useThemeColors";
 import type { RecipeSummary } from "../lib/search";
 
 type Props = {
   recipe: RecipeSummary;
-  query?: string; // reserved for future highlight usage
+  query?: string;
   onPress: () => void;
   onFav: () => void;
   onDelete: () => void;
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: Props) {
+  const C = useThemeColors();
   const swipeableRef = useRef<Swipeable>(null);
 
   const title = isHe ? recipe.title_he : (recipe.title_en || recipe.title_he);
@@ -34,7 +36,7 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
   const thumbBg = CATEGORY_BG[catKey] ?? FALLBACK_BG;
   const isFav = recipe.is_favorite === 1;
   const diff = recipe.difficulty ?? null;
-  const diffColor = diff ? (DIFFICULTY_COLOR[diff] ?? Colors.text.tertiary) : null;
+  const diffColor = diff ? (DIFFICULTY_COLOR[diff] ?? C.text.tertiary) : null;
   const diffLabel = diff ? (isHe ? DIFFICULTY_LABEL[diff]?.he : DIFFICULTY_LABEL[diff]?.en) : null;
   const sourceIcon = (SOURCE_ICON[recipe.source_type] ?? "document-outline") as React.ComponentProps<typeof Ionicons>["name"];
 
@@ -71,7 +73,7 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
       containerStyle={s.swipeContainer}
     >
       <TouchableOpacity
-        style={s.card}
+        style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
         onPress={() => {
           void Haptics.selectionAsync();
           onPress();
@@ -81,7 +83,7 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
         accessibilityLabel={title}
       >
         {/* Difficulty accent bar */}
-        <View style={[s.accentBar, { backgroundColor: diffColor ?? Colors.border }]} />
+        <View style={[s.accentBar, { backgroundColor: diffColor ?? C.border }]} />
 
         {/* Thumbnail */}
         <View style={[s.thumb, { backgroundColor: thumbBg }]}>
@@ -91,7 +93,7 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
         {/* Body */}
         <View style={s.body}>
           <Text
-            style={[s.title, { textAlign: isHe ? "right" : "left" }]}
+            style={[s.title, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}
             numberOfLines={2}
           >
             {title}
@@ -99,9 +101,9 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
 
           <View style={[s.chips, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             {recipe.cook_time_min != null && recipe.cook_time_min > 0 && (
-              <View style={s.chip}>
-                <Ionicons name="timer-outline" size={11} color={Colors.text.secondary} />
-                <Text style={s.chipText}>
+              <View style={[s.chip, { borderColor: C.border, backgroundColor: C.surface }]}>
+                <Ionicons name="timer-outline" size={11} color={C.text.secondary} />
+                <Text style={[s.chipText, { color: C.text.secondary }]}>
                   {recipe.cook_time_min} {isHe ? "דק׳" : "min"}
                 </Text>
               </View>
@@ -112,8 +114,8 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
                 <Text style={[s.chipText, { color: diffColor }]}>{diffLabel}</Text>
               </View>
             )}
-            <View style={[s.chip, s.sourceChip]}>
-              <Ionicons name={sourceIcon} size={11} color={Colors.text.tertiary} />
+            <View style={[s.chip, s.sourceChip, { borderColor: C.border, backgroundColor: C.surface }]}>
+              <Ionicons name={sourceIcon} size={11} color={C.text.tertiary} />
             </View>
           </View>
         </View>
@@ -132,7 +134,7 @@ export default function RecipeCard({ recipe, onPress, onFav, onDelete, isHe }: P
           <Ionicons
             name={isFav ? "heart" : "heart-outline"}
             size={20}
-            color={isFav ? Colors.error : Colors.text.tertiary}
+            color={isFav ? Colors.error : C.text.tertiary}
           />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -150,9 +152,7 @@ const s = StyleSheet.create({
   card: {
     flexDirection: "row",
     borderRadius: 16,
-    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
     overflow: "hidden",
     alignItems: "center",
   },
@@ -178,7 +178,6 @@ const s = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "600",
-    color: Colors.text.primary,
     lineHeight: 20,
   },
   chips: {
@@ -194,13 +193,10 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
   },
   chipText: {
     fontSize: 11,
     fontWeight: "600",
-    color: Colors.text.secondary,
   },
   diffDot: {
     width: 6,
