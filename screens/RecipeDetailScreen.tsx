@@ -195,13 +195,32 @@ function CookingModeOverlay({
     });
   }
 
+  // Wait up to `timeoutMs` for background audio generation to finish for a step
+  async function waitForStepAudio(idx: number, timeoutMs = 6000): Promise<string | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const uri = audioUrisRef.current[idx];
+      if (uri) return uri;
+      await new Promise(r => setTimeout(r, 250));
+    }
+    return null;
+  }
+
   async function speakStep(idx: number, onDone?: () => void) {
     if (isMutedRef.current) { onDone?.(); return; }
-    const uri = audioUrisRef.current[idx];
     const narration = narrationsRef.current[idx] ?? steps[idx] ?? "";
+
+    // Use cached audio if ready, otherwise wait up to 6s for background generation
+    let uri = audioUrisRef.current[idx];
+    if (!uri && isElevenLabsConfigured()) {
+      console.log('[speakStep] ⏳ Waiting for audio on step', idx);
+      uri = await waitForStepAudio(idx, 6000);
+    }
+
     if (uri) {
       await playFileAudio(uri, onDone);
     } else {
+      console.log('[speakStep] ⚠️ Falling back to expo-speech for step', idx);
       speakFallback(narration, onDone);
     }
   }
