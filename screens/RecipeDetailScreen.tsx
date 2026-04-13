@@ -128,6 +128,7 @@ function CookingModeOverlay({
   const [current, setCurrent]         = useState(0);
   const [isMuted, setIsMuted]         = useState(false);
   const [isSpeaking, setIsSpeaking]   = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [timerSec, setTimerSec]       = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerDone, setTimerDone]     = useState(false);
@@ -213,14 +214,14 @@ function CookingModeOverlay({
     // Use cached audio if ready, otherwise wait up to 6s for background generation
     let uri = audioUrisRef.current[idx];
     if (!uri && isElevenLabsConfigured()) {
-      console.log('[speakStep] ⏳ Waiting for audio on step', idx);
+      setIsLoadingAudio(true);
       uri = await waitForStepAudio(idx, 6000);
+      setIsLoadingAudio(false);
     }
 
     if (uri) {
       await playFileAudio(uri, onDone);
     } else {
-      console.log('[speakStep] ⚠️ Falling back to expo-speech for step', idx);
       speakFallback(narration, onDone);
     }
   }
@@ -267,7 +268,7 @@ function CookingModeOverlay({
   // ── AI Initialization ─────────────────────────────────────────────────────
 
   useEffect(() => {
-    void clearChefAudioCache().then(() => initChef()); // TEMP: clear cache on every open for debugging
+    void initChef();
     return () => {
       abortRef.current.abort();
       void stopAudio();
@@ -464,8 +465,14 @@ function CookingModeOverlay({
           <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>{loadingMsg}</Text>
 
           <View style={[cm.preparingBar, { backgroundColor: C.border }]}>
-            <View style={[cm.preparingBarFill, { backgroundColor: C.secondary, width: audioReady > 0 ? "60%" : "30%" }]} />
+            <View style={[cm.preparingBarFill, {
+              backgroundColor: C.secondary,
+              width: `${Math.max(8, Math.round((audioReady / Math.max(total, 1)) * 100))}%` as any
+            }]} />
           </View>
+          <Text style={{ color: C.text.tertiary, fontSize: 12, marginTop: 6 }}>
+            {audioReady}/{total} {isHe ? "שלבים מוכנים" : "steps ready"}
+          </Text>
 
           <Text style={[cm.preparingSkip, { color: C.text.tertiary }]}>
             {isHe ? `"${recipeName}"` : `"${recipeName}"`}
@@ -509,7 +516,7 @@ function CookingModeOverlay({
           </TouchableOpacity>
 
           <View style={cm.headerCenter}>
-            <Text style={cm.headerEmoji}>👨‍🍳</Text>
+            <Text style={cm.headerEmoji}>{chefGender === 'female' ? '👩‍🍳' : '👨‍🍳'}</Text>
             <Text style={[cm.headerTitle, { color: C.text.primary }]} numberOfLines={1}>{recipeName}</Text>
           </View>
 
@@ -581,11 +588,14 @@ function CookingModeOverlay({
             {stepText}
           </Text>
 
-          {/* Chef narration hint — shown when different from raw step */}
-          {stepNarration !== stepText && !isSpeaking && (
-            <Text style={[cm.narrationHint, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
-              💬 {stepNarration}
-            </Text>
+          {/* Loading indicator while waiting for audio */}
+          {isLoadingAudio && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <Ionicons name="hourglass-outline" size={14} color={C.text.tertiary} />
+              <Text style={{ color: C.text.tertiary, fontSize: 13 }}>
+                {isHe ? "מכין את קול השף..." : "Preparing chef voice..."}
+              </Text>
+            </View>
           )}
 
           {/* Live timer */}
