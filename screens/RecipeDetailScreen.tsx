@@ -27,7 +27,7 @@ import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import { useTranslation } from "react-i18next";
 import { generateChefScript, isClaudeConfigured } from "../lib/chefAI";
-import { synthesizeAudio, isElevenLabsConfigured } from "../lib/chefVoice";
+import { synthesizeAudio, isElevenLabsConfigured, type ChefGender } from "../lib/chefVoice";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
@@ -116,6 +116,8 @@ function CookingModeOverlay({
 
   // ── Chef AI state ─────────────────────────────────────────────────────────
   const [phase, setPhase]           = useState<ChefPhase>("preparing");
+  const [chefGender, setChefGender] = useState<ChefGender>('female');
+  const chefGenderRef               = useRef<ChefGender>('female');
   const [loadingMsg, setLoadingMsg] = useState(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
   const [narrations, setNarrations] = useState<string[]>(steps); // fallback = raw steps
   const [outroText, setOutroText]   = useState(isHe ? "כל הכבוד! בתיאבון!" : "Amazing! Enjoy your meal!");
@@ -257,6 +259,10 @@ function CookingModeOverlay({
   async function initChef() {
     const signal = abortRef.current.signal;
 
+    console.log('[initChef] 🚀 Starting');
+    console.log('[initChef] Claude configured:', isClaudeConfigured());
+    console.log('[initChef] ElevenLabs configured:', isElevenLabsConfigured());
+
     // ── Step 1: Generate chef narrations with Claude ──
     if (isClaudeConfigured()) {
       setLoadingMsg(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
@@ -272,7 +278,7 @@ function CookingModeOverlay({
         if (isElevenLabsConfigured()) {
           setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
           const introAndStep1 = script.intro + " " + script.steps[0];
-          const uri = await synthesizeAudio(introAndStep1, signal);
+          const uri = await synthesizeAudio(introAndStep1, chefGenderRef.current, isHe, signal);
           if (signal.aborted) return;
 
           if (uri) {
@@ -296,7 +302,7 @@ function CookingModeOverlay({
           return;
         }
         setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
-        const uri = await synthesizeAudio(steps[0] ?? "", signal);
+        const uri = await synthesizeAudio(steps[0] ?? "", chefGenderRef.current, isHe, signal);
         if (signal.aborted) return;
         if (uri) {
           audioUrisRef.current[0] = uri;
@@ -309,7 +315,7 @@ function CookingModeOverlay({
       setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
       const intro = isHe ? `בואו נכין את ${recipeName}! יש ${total} שלבים. מתחילים!` : `Let's cook ${recipeName}! ${total} steps. Let's go!`;
       const introAndStep1 = intro + " " + (steps[0] ?? "");
-      const uri = await synthesizeAudio(introAndStep1, signal);
+      const uri = await synthesizeAudio(introAndStep1, chefGenderRef.current, isHe, signal);
       if (signal.aborted) return;
       if (uri) {
         audioUrisRef.current[0] = uri;
@@ -337,7 +343,7 @@ function CookingModeOverlay({
     for (let i = startIdx; i < steps.length; i++) {
       if (signal.aborted) break;
       const narration = narrationsRef.current[i] ?? steps[i] ?? "";
-      const uri = await synthesizeAudio(narration, signal);
+      const uri = await synthesizeAudio(narration, chefGenderRef.current, isHe, signal);
       if (signal.aborted) break;
       if (uri) {
         audioUrisRef.current[i] = uri;
@@ -391,7 +397,7 @@ function CookingModeOverlay({
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await stopAudio();
       const outroUri = isElevenLabsConfigured()
-        ? await synthesizeAudio(outroText, abortRef.current.signal)
+        ? await synthesizeAudio(outroText, chefGenderRef.current, isHe, abortRef.current.signal)
         : null;
       if (outroUri) {
         await playFileAudio(outroUri, () => setTimeout(onClose, 600));
@@ -411,10 +417,31 @@ function CookingModeOverlay({
             <Ionicons name="close" size={20} color={C.text.secondary} />
           </TouchableOpacity>
 
-          <Text style={cm.preparingEmoji}>👨‍🍳</Text>
+          <Text style={cm.preparingEmoji}>{chefGender === 'female' ? '👩‍🍳' : '👨‍🍳'}</Text>
           <Text style={[cm.preparingTitle, { color: C.text.primary }]}>
             {isHe ? "השף מתכונן..." : "Chef is preparing..."}
           </Text>
+
+          {/* Gender toggle — only shown before cooking starts */}
+          <View style={cm.genderToggle}>
+            <TouchableOpacity
+              style={[cm.genderBtn, chefGender === 'female' && { backgroundColor: '#2E9E8F' }]}
+              onPress={() => { setChefGender('female'); chefGenderRef.current = 'female'; }}
+            >
+              <Text style={[cm.genderBtnText, chefGender === 'female' && { color: '#fff' }]}>
+                👩‍🍳 {isHe ? "שפית" : "Female"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[cm.genderBtn, chefGender === 'male' && { backgroundColor: '#2E9E8F' }]}
+              onPress={() => { setChefGender('male'); chefGenderRef.current = 'male'; }}
+            >
+              <Text style={[cm.genderBtnText, chefGender === 'male' && { color: '#fff' }]}>
+                👨‍🍳 {isHe ? "שף" : "Male"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>{loadingMsg}</Text>
 
           <View style={[cm.preparingBar, { backgroundColor: C.border }]}>
@@ -2369,6 +2396,24 @@ const cm = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 8,
+  },
+  genderToggle: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  genderBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#2E9E8F',
+  },
+  genderBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: '#2E9E8F',
   },
   preparingMsg: {
     fontSize: 15,

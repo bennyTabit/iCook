@@ -1,19 +1,43 @@
 /**
  * chefVoice.ts
- * Converts chef narration text to real human voice audio using ElevenLabs API.
+ * Converts chef narration text to real human voice audio using Google Cloud TTS.
  * Caches generated audio to expo-file-system so each step is only generated once.
  *
- * ⚠️  SECURITY NOTE: EXPO_PUBLIC_ keys are bundled into the client.
- *     For production, proxy these calls through a backend (Firebase Function, etc.)
+ * Uses the same Google Cloud project as Vision API — just enable Cloud TTS API
+ * in Google Cloud Console (no extra key needed).
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
 
-const API_KEY   = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-// Default: "Rachel" — warm, natural female voice (multilingual)
-// Override with EXPO_PUBLIC_ELEVENLABS_VOICE_ID in your .env
-const VOICE_ID  = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID ?? '21m00Tcm4TlvDq8ikWAM';
-const MODEL_ID  = 'eleven_multilingual_v2'; // supports Hebrew + English + more
+// Same GCP project as Vision API — reuse that key
+const API_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_TTS_API_KEY ??
+  process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY ??
+  '';
+
+const TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
+
+export type ChefGender = 'female' | 'male';
+
+// ── Voice selection ───────────────────────────────────────────────────────────
+// WaveNet = highest quality neural voices available on free tier
+
+interface VoiceConfig {
+  languageCode: string;
+  name: string;
+  ssmlGender: 'MALE' | 'FEMALE';
+}
+
+const VOICES: Record<'he' | 'en', Record<ChefGender, VoiceConfig>> = {
+  he: {
+    female: { languageCode: 'he-IL', name: 'he-IL-Wavenet-A', ssmlGender: 'FEMALE' },
+    male:   { languageCode: 'he-IL', name: 'he-IL-Wavenet-B', ssmlGender: 'MALE'   },
+  },
+  en: {
+    female: { languageCode: 'en-US', name: 'en-US-Wavenet-F', ssmlGender: 'FEMALE' },
+    male:   { languageCode: 'en-US', name: 'en-US-Wavenet-D', ssmlGender: 'MALE'   },
+  },
+};
 
 const CACHE_DIR = (FileSystem.documentDirectory ?? '') + 'chef_audio/';
 
@@ -26,94 +50,97 @@ async function ensureCacheDir(): Promise<void> {
   }
 }
 
-function makeCacheKey(raw: string): string {
-  // Create a short deterministic key from the text + voice
-  const slug = raw.trim().slice(0, 50).replace(/[^a-zA-Z0-9א-ת]/g, '_');
-  const hash = raw.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
-  return `${slug}_${VOICE_ID.slice(0, 8)}_${hash}`;
-}
-
-// ── ArrayBuffer → base64 (safe for long audio) ───────────────────────────────
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + chunkSize)));
-  }
-  return btoa(binary);
+function makeCacheKey(text: string, voiceName: string): string {
+  const slug = text.trim().slice(0, 40).replace(/[^a-zA-Z0-9א-ת]/g, '_');
+  const hash = text.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
+  return `${slug}_${voiceName.replace(/-/g, '_')}_${hash}`;
 }
 
 // ── Main synthesis function ───────────────────────────────────────────────────
 
 /**
- * Converts text to speech using ElevenLabs and caches the result.
+ * Converts text to speech using Google Cloud TTS and caches the result.
  * Returns a local file URI (playable with expo-av) or null on failure.
  */
 export async function synthesizeAudio(
   text: string,
+  gender: ChefGender = 'female',
+  isHebrew: boolean = true,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  if (!API_KEY || !text.trim()) return null;
+  const lang = isHebrew ? 'he' : 'en';
+  const voice = VOICES[lang][gender];
 
-  const cacheKey = makeCacheKey(text);
+  console.log('[chefVoice] synthesizeAudio — voice:', voice.name);
+  console.log('[chefVoice] API_KEY set?', !!API_KEY);
+  console.log('[chefVoice] text (first 60):', text.slice(0, 60));
+
+  if (!API_KEY || !text.trim()) {
+    console.warn('[chefVoice] ❌ Skipping — API_KEY empty or text empty');
+    return null;
+  }
+
+  const cacheKey = makeCacheKey(text, voice.name);
   const filePath = CACHE_DIR + cacheKey + '.mp3';
 
   try {
     await ensureCacheDir();
 
-    // Return cached file if it exists
     const cached = await FileSystem.getInfoAsync(filePath);
-    if (cached.exists) return filePath;
+    if (cached.exists) {
+      console.log('[chefVoice] ✅ Cache hit');
+      return filePath;
+    }
 
     if (signal?.aborted) return null;
 
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': API_KEY,
-          'Content-Type': 'application/json',
-          Accept: 'audio/mpeg',
+    console.log('[chefVoice] 📡 Calling Google Cloud TTS...');
+    const res = await fetch(`${TTS_URL}?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { text },
+        voice,
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: 0.92,   // slightly slower = clearer for cooking instructions
+          pitch: 0.0,
+          volumeGainDb: 2.0,    // a bit louder in kitchen noise
         },
-        body: JSON.stringify({
-          text,
-          model_id: MODEL_ID,
-          voice_settings: {
-            stability: 0.45,        // 0–1: lower = more expressive
-            similarity_boost: 0.80, // 0–1: voice consistency
-            style: 0.25,            // 0–1: speaking style exaggeration
-            use_speaker_boost: true,
-          },
-        }),
-        signal,
-      },
-    );
+      }),
+      signal,
+    });
+
+    console.log('[chefVoice] API response status:', res.status);
 
     if (!res.ok) {
-      console.warn('[chefVoice] ElevenLabs error:', res.status);
+      const errBody = await res.text().catch(() => '');
+      console.warn('[chefVoice] ❌ Google TTS error:', res.status, errBody);
       return null;
     }
 
-    const buffer = await res.arrayBuffer();
-    const base64 = arrayBufferToBase64(buffer);
+    // Google returns base64 directly — no arrayBuffer conversion needed!
+    const data = await res.json() as { audioContent: string };
+    if (!data.audioContent) {
+      console.warn('[chefVoice] ❌ No audioContent in response');
+      return null;
+    }
 
-    await FileSystem.writeAsStringAsync(filePath, base64, {
+    await FileSystem.writeAsStringAsync(filePath, data.audioContent, {
       encoding: FileSystem.EncodingType.Base64,
     });
 
+    console.log('[chefVoice] ✅ Saved to:', filePath);
     return filePath;
   } catch (err) {
     if ((err as Error).name === 'AbortError') return null;
-    console.warn('[chefVoice] error:', err);
+    console.warn('[chefVoice] ❌ error:', err);
     return null;
   }
 }
 
 /**
- * Deletes all cached chef audio for a recipe (call after recipe is deleted).
+ * Deletes all cached chef audio (call when clearing data or changing voice).
  */
 export async function clearChefAudioCache(): Promise<void> {
   try {
@@ -127,5 +154,6 @@ export async function clearChefAudioCache(): Promise<void> {
 }
 
 export function isElevenLabsConfigured(): boolean {
+  // Now using Google TTS — keep same function name so no breaking changes
   return !!API_KEY;
 }
