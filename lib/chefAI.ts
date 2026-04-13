@@ -47,12 +47,13 @@ Respond with ONLY valid JSON — no markdown, no extra text:
 }
 
 Rules:
-- Language: ${lang} only. Natural spoken ${lang} — sounds great read aloud.
+- Language: ${lang} ONLY. Every single word must be in ${lang}. NEVER mix in characters from other languages (no Korean, Japanese, Chinese, Arabic, or any other script).
 - intro: Greet warmly, say the recipe name, mention how many steps. Max 25 words.
 - steps: Narrate EACH step naturally. Add 1 practical tip or encouragement when it fits. Max 35 words per step. Sound like a knowledgeable friend, not a recipe book.
 - outro: Congratulate and wish them enjoyment. Max 18 words.
 - Return exactly ${rawSteps.length} step narrations in the array.
-- No lists, no markdown — pure natural spoken sentences.`;
+- No lists, no markdown — pure natural spoken sentences.
+- CRITICAL: Output ONLY ${lang} characters. No foreign scripts whatsoever.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -79,6 +80,7 @@ Rules:
 
     const data = await res.json() as { content: Array<{ text: string }> };
     const raw = data.content?.[0]?.text ?? '';
+    console.log('[chefAI] Raw response:', raw.slice(0, 300));
 
     // Extract JSON even if Claude wraps it in text
     const match = raw.match(/\{[\s\S]*\}/);

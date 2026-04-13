@@ -38,6 +38,21 @@ function makeCacheKey(text: string, voiceId: string): string {
   return `${slug}_${voiceId.slice(0, 8)}_${hash}`;
 }
 
+// ── Text sanitizer — strips non-Hebrew/Latin characters ──────────────────────
+
+/**
+ * Removes any characters that are not Hebrew, Latin, digits, punctuation or spaces.
+ * Prevents ElevenLabs from getting confused by mixed scripts (e.g. Korean chars
+ * that Claude accidentally injects).
+ */
+function sanitizeText(text: string): string {
+  // Allow: Hebrew (U+0590–U+05FF), Basic Latin, common punctuation, digits, whitespace
+  return text
+    .replace(/[^\u0590-\u05FF\u0020-\u007E\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ── ArrayBuffer → base64 (safe for long audio) ───────────────────────────────
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -64,15 +79,17 @@ export async function synthesizeAudio(
 ): Promise<string | null> {
   const voiceId = getVoiceId(gender);
 
+  const cleanText = sanitizeText(text);
   console.log('[chefVoice] synthesizeAudio — voice:', voiceId, '| gender:', gender);
   console.log('[chefVoice] API_KEY set?', !!API_KEY);
+  console.log('[chefVoice] FULL TEXT:', cleanText);
 
-  if (!API_KEY || !text.trim()) {
-    console.warn('[chefVoice] ❌ Skipping — API_KEY empty or text empty');
+  if (!API_KEY || !cleanText) {
+    console.warn('[chefVoice] ❌ Skipping — API_KEY empty or text empty after sanitization');
     return null;
   }
 
-  const cacheKey = makeCacheKey(text, voiceId);
+  const cacheKey = makeCacheKey(cleanText, voiceId);
   const filePath = CACHE_DIR + cacheKey + '.mp3';
 
   try {
@@ -97,7 +114,7 @@ export async function synthesizeAudio(
           Accept: 'audio/mpeg',
         },
         body: JSON.stringify({
-          text,
+          text: cleanText,
           model_id: MODEL_ID,
           voice_settings: {
             stability: 0.45,
