@@ -2,6 +2,8 @@
  * chefAI.ts
  * Uses Claude API to generate warm, natural chef narrations for each recipe step.
  * Language is always forced to match the app's current UI language (he/en).
+ * Ingredients with quantities are passed so Claude can say "add 3 tbsp butter"
+ * instead of just "add the butter".
  *
  * ⚠️  SECURITY NOTE: EXPO_PUBLIC_ keys are bundled into the client.
  *     For production, proxy these calls through a backend (Firebase Function, etc.)
@@ -18,29 +20,35 @@ export interface ChefScript {
 /**
  * Generates a full chef script (intro + per-step narrations + outro)
  * from raw recipe step text using Claude.
- * Language is strictly forced to match isHe — no mixing allowed.
- *
- * Returns null if the API key is missing or the call fails —
- * callers should fall back to raw step text in that case.
+ * Passes the ingredients list so Claude can embed exact quantities in narrations.
  */
 export async function generateChefScript(
   recipeName: string,
   rawSteps: string[],
+  ingredients: string[],
   isHe: boolean,
   signal?: AbortSignal,
 ): Promise<ChefScript | null> {
   if (!CLAUDE_API_KEY) return null;
 
-  const lang     = isHe ? 'Hebrew' : 'English';
-  const chefName = isHe ? 'אביב' : 'Aviv';
+  const lang      = isHe ? 'Hebrew' : 'English';
+  const chefName  = isHe ? 'אביב' : 'Aviv';
   const stepsText = rawSteps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  const ingredientsText = ingredients.length > 0
+    ? ingredients.join('\n')
+    : '';
 
   // System message strictly enforces the output language
   const systemPrompt = isHe
     ? `אתה ${chefName}, שף ביתי חם שמנחה בישול. אתה מדבר אך ורק בעברית. אסור בהחלט לשלב מילים, אותיות או תווים משפות אחרות — לא אנגלית, לא קוריאנית, לא יפנית ולא כל שפה אחרת. עברית בלבד, בכל מילה ובכל משפט.`
-    : `You are ${chefName}, a warm home chef guiding someone through cooking. You speak ONLY in English. Never mix in words, letters, or characters from any other language — not Hebrew, not Korean, not any other script. English only, in every word and sentence.`;
+    : `You are ${chefName}, a warm home chef guiding someone through cooking. You speak ONLY in English. Never mix in words, letters, or characters from any other language. English only, in every word and sentence.`;
+
+  const ingredientsSection = ingredientsText
+    ? `\nIngredient list with exact quantities:\n${ingredientsText}\n`
+    : '';
 
   const userPrompt = `Recipe: "${recipeName}"
+${ingredientsSection}
 Steps to narrate:
 ${stepsText}
 
@@ -53,7 +61,7 @@ Respond with ONLY valid JSON — no markdown, no code fences, no extra text:
 
 Rules:
 - intro: Greet warmly, say the recipe name, mention how many steps. Max 25 words.
-- steps: Narrate EACH step naturally. Add 1 practical tip or encouragement. Max 35 words per step.
+- steps: Narrate EACH step naturally. ALWAYS include the EXACT quantities from the ingredient list when that ingredient is used in the step — say "add 3 tablespoons of butter" not just "add the butter". Add 1 practical tip or encouragement. Max 40 words per step.
 - outro: Congratulate and wish enjoyment. Max 18 words.
 - Return exactly ${rawSteps.length} step narrations.
 - Pure spoken sentences — no lists, no markdown.`;
@@ -69,7 +77,7 @@ Rules:
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
-        max_tokens: 1500,
+        max_tokens: 1800,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -104,7 +112,7 @@ Rules:
       return null;
     }
 
-    // Ensure we have the right number of steps (pad with raw if needed)
+    // Ensure correct number of steps
     while (parsed.steps.length < rawSteps.length) {
       parsed.steps.push(rawSteps[parsed.steps.length] ?? '');
     }

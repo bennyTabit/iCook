@@ -289,7 +289,7 @@ function CookingModeOverlay({
     // ── Step 1: Generate chef narrations with Claude ──
     if (isClaudeConfigured()) {
       setLoadingMsg(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
-      const script = await generateChefScript(recipeName, steps, isHe, signal);
+      const script = await generateChefScript(recipeName, steps, ingredients, isHe, signal);
       if (signal.aborted) return;
 
       if (script) {
