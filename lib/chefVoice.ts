@@ -10,7 +10,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 const API_KEY  = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-const MODEL_ID = 'eleven_multilingual_v2'; // supports Hebrew + English
+const MODEL_ID = 'eleven_turbo_v2_5'; // supports language_code param including Hebrew
 
 export type ChefGender = 'female' | 'male';
 
