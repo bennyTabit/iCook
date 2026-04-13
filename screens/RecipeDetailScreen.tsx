@@ -1593,7 +1593,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       {cookingMode && rawSteps.length > 0 ? (
         <CookingModeOverlay
           steps={rawSteps}
-          ingredients={rawIngredients}
+          ingredients={shownIngredients}
           recipeName={isHe ? (recipe?.title_he ?? draft?.title ?? "") : (recipe?.title_en ?? recipe?.title_he ?? draft?.title ?? "")}
           isHe={isHe}
           onClose={() => setCookingMode(false)}
