@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 
 import { Colors } from '../constants/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { isHebrew } from '../lib/i18n';
 import { useCollectionStore } from '../store/collectionStore';
 import type { Collection } from '../lib/db';
@@ -44,6 +45,7 @@ function EditCollectionModal({
   onClose: () => void;
   isHe: boolean;
 }) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [color, setColor] = useState(PRESET_COLORS[0]);
@@ -70,29 +72,29 @@ function EditCollectionModal({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={em.backdrop} onPress={onClose} />
-      <View style={[em.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <View style={em.handle} />
-        <Text style={[em.title, { textAlign: isHe ? 'right' : 'left' }]}>
+      <View style={[em.sheet, { paddingBottom: Math.max(insets.bottom, 20), backgroundColor: C.surfaceElevated }]}>
+        <View style={[em.handle, { backgroundColor: C.border }]} />
+        <Text style={[em.title, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]}>
           {initial ? t('editCollection') : t('newCollection')}
         </Text>
 
         {/* Name input */}
         <TextInput
-          style={[em.input, { textAlign: isHe ? 'right' : 'left' }]}
+          style={[em.input, { textAlign: isHe ? 'right' : 'left', backgroundColor: C.surface, borderColor: C.border, color: C.text.primary }]}
           placeholder={t('collectionName')}
-          placeholderTextColor={Colors.text.tertiary}
+          placeholderTextColor={C.text.tertiary}
           value={name}
           onChangeText={setName}
           autoFocus
         />
 
         {/* Icon picker */}
-        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left' }]}>{t('pickIcon')}</Text>
+        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>{t('pickIcon')}</Text>
         <View style={em.iconGrid}>
           {PRESET_ICONS.map((ic) => (
             <TouchableOpacity
               key={ic}
-              style={[em.iconBtn, icon === ic && { borderColor: color, borderWidth: 2 }]}
+              style={[em.iconBtn, { backgroundColor: C.surface }, icon === ic && { borderColor: color, borderWidth: 2 }]}
               onPress={() => { void Haptics.selectionAsync(); setIcon(ic); }}
               accessibilityRole="button"
               accessibilityLabel={ic}
@@ -104,12 +106,12 @@ function EditCollectionModal({
         </View>
 
         {/* Color picker */}
-        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left' }]}>{t('pickColor')}</Text>
+        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>{t('pickColor')}</Text>
         <View style={em.colorRow}>
           {PRESET_COLORS.map((c) => (
             <TouchableOpacity
               key={c}
-              style={[em.colorDot, { backgroundColor: c }, color === c && em.colorDotActive]}
+              style={[em.colorDot, { backgroundColor: c }, color === c && [em.colorDotActive, { borderColor: C.text.primary }]]}
               onPress={() => { void Haptics.selectionAsync(); setColor(c); }}
               accessibilityRole="button"
               accessibilityLabel={c}
@@ -180,12 +182,13 @@ function CollectionCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const name = isHe ? item.name_he : (item.name_en ?? item.name_he);
 
   return (
     <TouchableOpacity
-      style={[cc.card, { borderLeftColor: item.color, borderLeftWidth: 4 }]}
+      style={[cc.card, { backgroundColor: C.surfaceElevated, borderLeftColor: item.color, borderLeftWidth: 4 }]}
       onPress={onPress}
       activeOpacity={0.75}
       accessibilityRole="button"
@@ -196,8 +199,8 @@ function CollectionCard({
         <Text style={{ fontSize: 28 }}>{item.icon}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[cc.name, { textAlign: isHe ? 'right' : 'left' }]} numberOfLines={1}>{name}</Text>
-        <Text style={[cc.count, { textAlign: isHe ? 'right' : 'left' }]}>
+        <Text style={[cc.name, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]} numberOfLines={1}>{name}</Text>
+        <Text style={[cc.count, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>
           {item.recipe_count ?? 0} {isHe ? 'מתכונים' : 'recipes'}
         </Text>
       </View>
@@ -209,7 +212,7 @@ function CollectionCard({
           accessibilityRole="button"
           accessibilityLabel={isHe ? `ערוך ${name}` : `Edit ${name}`}
         >
-          <Ionicons name="pencil-outline" size={18} color={Colors.text.tertiary} />
+          <Ionicons name="pencil-outline" size={18} color={C.text.tertiary} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onDelete}
@@ -250,6 +253,7 @@ const cc = StyleSheet.create({
 // ── Main Screen ────────────────────────────────────────────────────────────
 
 export default function CollectionsScreen({ navigation }: { navigation: any }) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const { collections, loading, loadCollections, createCollection, updateCollection, deleteCollection } = useCollectionStore();
@@ -295,12 +299,12 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
   }
 
   return (
-    <SafeAreaView style={s.container} edges={['left', 'right']}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
       {collections.length === 0 && !loading ? (
         <View style={s.empty}>
           <Text style={s.emptyEmoji}>📁</Text>
-          <Text style={[s.emptyTitle, { textAlign: 'center' }]}>{t('noCollections')}</Text>
-          <Text style={[s.emptySub, { textAlign: 'center' }]}>{t('noCollectionsSub')}</Text>
+          <Text style={[s.emptyTitle, { textAlign: 'center', color: C.text.primary }]}>{t('noCollections')}</Text>
+          <Text style={[s.emptySub, { textAlign: 'center', color: C.text.secondary }]}>{t('noCollectionsSub')}</Text>
           <TouchableOpacity
             style={s.createBtn}
             onPress={handleOpenNew}

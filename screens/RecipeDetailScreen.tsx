@@ -23,7 +23,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
+import * as Speech from "expo-speech";
+import { Audio } from "expo-av";
 import { useTranslation } from "react-i18next";
+import { generateChefScript, isClaudeConfigured } from "../lib/chefAI";
+import { synthesizeAudio, isElevenLabsConfigured } from "../lib/chefVoice";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
@@ -62,9 +66,11 @@ function parseSectionLines(notes: string, section: "ingredients" | "steps") {
 
   const ingredientMarkers = ["מרכיבים", "ingredients"];
   const stepMarkers = ["שלבים", "steps", "הוראות"];
+  const noteMarkers = ["הערות", "notes"];
   const markers = section === "ingredients" ? ingredientMarkers : stepMarkers;
-  const stopMarkers =
-    section === "ingredients" ? stepMarkers : ingredientMarkers;
+  const stopMarkers = section === "ingredients"
+    ? [...stepMarkers, ...noteMarkers]
+    : [...ingredientMarkers, ...noteMarkers];
 
   let inSection = false;
   const out: string[] = [];
@@ -92,64 +98,397 @@ function parseMinutesFromStep(step: string) {
 
 // ─── Cooking Mode Overlay ─────────────────────────────────────────────────────
 
+type ChefPhase = "preparing" | "cooking";
+
 function CookingModeOverlay({
   steps,
+  recipeName,
   isHe,
   onClose,
 }: {
   steps: string[];
+  recipeName: string;
   isHe: boolean;
   onClose: () => void;
 }) {
   useKeepAwake();
   const C = useThemeColors();
-  const [current, setCurrent] = useState(0);
-  const total = Math.max(steps.length, 1);
-  const progress = (current + 1) / total;
+
+  // ── Chef AI state ─────────────────────────────────────────────────────────
+  const [phase, setPhase]           = useState<ChefPhase>("preparing");
+  const [loadingMsg, setLoadingMsg] = useState(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
+  const [narrations, setNarrations] = useState<string[]>(steps); // fallback = raw steps
+  const [outroText, setOutroText]   = useState(isHe ? "כל הכבוד! בתיאבון!" : "Amazing! Enjoy your meal!");
+  const [audioUris, setAudioUris]   = useState<(string | null)[]>(Array(steps.length).fill(null));
+  const [audioReady, setAudioReady] = useState(0); // steps with audio ready
+
+  // ── Playback state ────────────────────────────────────────────────────────
+  const [current, setCurrent]         = useState(0);
+  const [isMuted, setIsMuted]         = useState(false);
+  const [isSpeaking, setIsSpeaking]   = useState(false);
+  const [timerSec, setTimerSec]       = useState<number | null>(null);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerDone, setTimerDone]     = useState(false);
+
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const isMutedRef         = useRef(false);
+  const soundRef           = useRef<Audio.Sound | null>(null);
+  const abortRef           = useRef(new AbortController());
+  const timerIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const narrationsRef      = useRef<string[]>(steps);
+  const audioUrisRef       = useRef<(string | null)[]>(Array(steps.length).fill(null));
+  const isFirstStepRef     = useRef(true);
+
+  const total    = Math.max(steps.length, 1);
+  const isLast   = current >= steps.length - 1;
+  const stepText = steps[current] ?? "";
+  const stepNarration = narrationsRef.current[current] ?? stepText;
+  const stepMinutes   = parseMinutesFromStep(stepText);
+  const progress      = (current + 1) / total;
+  const hasAI         = isClaudeConfigured() || isElevenLabsConfigured();
+
+  // ── Audio helpers ─────────────────────────────────────────────────────────
+
+  async function stopAudio() {
+    Speech.stop();
+    setIsSpeaking(false);
+    if (soundRef.current) {
+      try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
+      soundRef.current = null;
+    }
+  }
+
+  async function playFileAudio(uri: string, onDone?: () => void) {
+    if (isMutedRef.current) { onDone?.(); return; }
+    await stopAudio();
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: true });
+      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1 });
+      soundRef.current = sound;
+      setIsSpeaking(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsSpeaking(false);
+          soundRef.current = null;
+          onDone?.();
+        }
+      });
+    } catch (err) {
+      console.warn("[CookMode] playFileAudio error:", err);
+      setIsSpeaking(false);
+      onDone?.();
+    }
+  }
+
+  function speakFallback(text: string, onDone?: () => void) {
+    if (isMutedRef.current) { onDone?.(); return; }
+    Speech.stop();
+    setIsSpeaking(true);
+    Speech.speak(text, {
+      language: isHe ? "he-IL" : "en-US",
+      rate: 0.88,
+      onDone: () => { setIsSpeaking(false); onDone?.(); },
+      onStopped: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
+  }
+
+  async function speakStep(idx: number, onDone?: () => void) {
+    if (isMutedRef.current) { onDone?.(); return; }
+    const uri = audioUrisRef.current[idx];
+    const narration = narrationsRef.current[idx] ?? steps[idx] ?? "";
+    if (uri) {
+      await playFileAudio(uri, onDone);
+    } else {
+      speakFallback(narration, onDone);
+    }
+  }
+
+  // ── Timer helpers ─────────────────────────────────────────────────────────
+
+  function clearTimer() {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = null;
+    setTimerSec(null);
+    setTimerRunning(false);
+    setTimerDone(false);
+  }
+
+  function startTimer(minutes: number) {
+    clearTimer();
+    setTimerSec(minutes * 60);
+    setTimerDone(false);
+    setTimerRunning(true);
+    timerIntervalRef.current = setInterval(() => {
+      setTimerSec((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timerIntervalRef.current!);
+          timerIntervalRef.current = null;
+          setTimerRunning(false);
+          setTimerDone(true);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const msg = isHe ? "הטיימר הסתיים! אפשר להמשיך." : "Timer done! You can move on.";
+          const timerUri = audioUrisRef.current.find(u => u?.includes('timer'));
+          void (timerUri ? playFileAudio(timerUri) : speakFallback(msg));
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function formatTime(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  // ── AI Initialization ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    void initChef();
+    return () => {
+      abortRef.current.abort();
+      void stopAudio();
+      clearTimer();
+    };
+  }, []);
+
+  async function initChef() {
+    const signal = abortRef.current.signal;
+
+    // ── Step 1: Generate chef narrations with Claude ──
+    if (isClaudeConfigured()) {
+      setLoadingMsg(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
+      const script = await generateChefScript(recipeName, steps, isHe, signal);
+      if (signal.aborted) return;
+
+      if (script) {
+        narrationsRef.current = script.steps;
+        setNarrations(script.steps);
+        setOutroText(script.outro);
+
+        // ── Step 2: Generate audio for intro+step1 together ──
+        if (isElevenLabsConfigured()) {
+          setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
+          const introAndStep1 = script.intro + " " + script.steps[0];
+          const uri = await synthesizeAudio(introAndStep1, signal);
+          if (signal.aborted) return;
+
+          if (uri) {
+            audioUrisRef.current[0] = uri;
+            setAudioUris(prev => { const n = [...prev]; n[0] = uri; return n; });
+            setAudioReady(1);
+          }
+        } else {
+          // No ElevenLabs: speak intro with expo-speech then enter cook mode
+          setPhase("cooking");
+          speakFallback(script.intro, () => setTimeout(() => speakStep(0), 300));
+          void generateRemainingAudio(signal, 1);
+          return;
+        }
+      } else {
+        // Claude failed: skip to ElevenLabs with raw steps, or go straight to cooking
+        if (!isElevenLabsConfigured()) {
+          setPhase("cooking");
+          const intro = isHe ? `בואו נכין את ${recipeName}! יש ${total} שלבים.` : `Let's cook ${recipeName}! ${total} steps. Let's go!`;
+          speakFallback(intro, () => setTimeout(() => speakStep(0), 300));
+          return;
+        }
+        setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
+        const uri = await synthesizeAudio(steps[0] ?? "", signal);
+        if (signal.aborted) return;
+        if (uri) {
+          audioUrisRef.current[0] = uri;
+          setAudioUris(prev => { const n = [...prev]; n[0] = uri; return n; });
+          setAudioReady(1);
+        }
+      }
+    } else if (isElevenLabsConfigured()) {
+      // No Claude, but has ElevenLabs: generate voice for raw steps
+      setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
+      const intro = isHe ? `בואו נכין את ${recipeName}! יש ${total} שלבים. מתחילים!` : `Let's cook ${recipeName}! ${total} steps. Let's go!`;
+      const introAndStep1 = intro + " " + (steps[0] ?? "");
+      const uri = await synthesizeAudio(introAndStep1, signal);
+      if (signal.aborted) return;
+      if (uri) {
+        audioUrisRef.current[0] = uri;
+        setAudioUris(prev => { const n = [...prev]; n[0] = uri; return n; });
+        setAudioReady(1);
+      }
+    } else {
+      // No API keys: basic expo-speech mode
+      setPhase("cooking");
+      const intro = isHe ? `בואו נכין את ${recipeName}! יש ${total} שלבים. מתחילים!` : `Let's cook ${recipeName}! ${total} steps. Let's go!`;
+      speakFallback(intro, () => setTimeout(() => speakStep(0), 300));
+      return;
+    }
+
+    // ── Enter cook mode and play step 1 ──
+    if (signal.aborted) return;
+    setPhase("cooking");
+    void speakStep(0);
+
+    // ── Generate remaining audio in background ──
+    void generateRemainingAudio(signal, 1);
+  }
+
+  async function generateRemainingAudio(signal: AbortSignal, startIdx: number) {
+    for (let i = startIdx; i < steps.length; i++) {
+      if (signal.aborted) break;
+      const narration = narrationsRef.current[i] ?? steps[i] ?? "";
+      const uri = await synthesizeAudio(narration, signal);
+      if (signal.aborted) break;
+      if (uri) {
+        audioUrisRef.current[i] = uri;
+        setAudioUris(prev => { const n = [...prev]; n[i] = uri; return n; });
+        setAudioReady(prev => prev + 1);
+      }
+    }
+  }
+
+  // ── Step change ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (isFirstStepRef.current) { isFirstStepRef.current = false; return; }
+    clearTimer();
+    void speakStep(current);
+  }, [current]);
+
+  // Auto-start timer after speech finishes
+  useEffect(() => {
+    if (!isSpeaking && stepMinutes && timerSec === null && !timerDone && phase === "cooking") {
+      const t = setTimeout(() => startTimer(stepMinutes), 600);
+      return () => clearTimeout(t);
+    }
+  }, [isSpeaking, stepMinutes, phase]);
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+
+  function toggleMute() {
+    void Haptics.selectionAsync();
+    const next = !isMutedRef.current;
+    isMutedRef.current = next;
+    setIsMuted(next);
+    if (next) { void stopAudio(); } else { void speakStep(current); }
+  }
+
+  function repeatStep() {
+    void Haptics.selectionAsync();
+    void speakStep(current);
+  }
 
   function goPrev() {
     void Haptics.selectionAsync();
     setCurrent((x) => Math.max(x - 1, 0));
   }
 
-  function goNext() {
+  async function goNext() {
     void Haptics.selectionAsync();
     if (current < steps.length - 1) {
       setCurrent((x) => x + 1);
     } else {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onClose();
+      await stopAudio();
+      const outroUri = isElevenLabsConfigured()
+        ? await synthesizeAudio(outroText, abortRef.current.signal)
+        : null;
+      if (outroUri) {
+        await playFileAudio(outroUri, () => setTimeout(onClose, 600));
+      } else {
+        speakFallback(outroText, () => setTimeout(onClose, 600));
+      }
     }
   }
 
-  const isLast = current >= steps.length - 1;
-  const stepText = steps[current] ?? "";
-  const stepMinutes = parseMinutesFromStep(stepText);
+  // ── Preparing screen ──────────────────────────────────────────────────────
+
+  if (phase === "preparing") {
+    return (
+      <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+        <SafeAreaView style={[cm.container, { backgroundColor: C.background, justifyContent: "center", alignItems: "center" }]} edges={["top", "bottom"]}>
+          <TouchableOpacity style={[cm.iconBtn, { backgroundColor: C.surface, borderColor: C.border, position: "absolute", top: 16, left: 16 }]} onPress={onClose}>
+            <Ionicons name="close" size={20} color={C.text.secondary} />
+          </TouchableOpacity>
+
+          <Text style={cm.preparingEmoji}>👨‍🍳</Text>
+          <Text style={[cm.preparingTitle, { color: C.text.primary }]}>
+            {isHe ? "השף מתכונן..." : "Chef is preparing..."}
+          </Text>
+          <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>{loadingMsg}</Text>
+
+          <View style={[cm.preparingBar, { backgroundColor: C.border }]}>
+            <View style={[cm.preparingBarFill, { backgroundColor: C.secondary, width: audioReady > 0 ? "60%" : "30%" }]} />
+          </View>
+
+          <Text style={[cm.preparingSkip, { color: C.text.tertiary }]}>
+            {isHe ? `"${recipeName}"` : `"${recipeName}"`}
+          </Text>
+
+          {/* Skip to basic mode */}
+          <TouchableOpacity
+            style={[cm.skipBtn, { borderColor: C.border }]}
+            onPress={() => {
+              abortRef.current.abort();
+              abortRef.current = new AbortController();
+              setPhase("cooking");
+              const intro = isHe ? `בואו נכין את ${recipeName}!` : `Let's cook ${recipeName}!`;
+              speakFallback(intro, () => speakFallback(steps[0] ?? ""));
+            }}
+          >
+            <Text style={[cm.skipBtnText, { color: C.text.secondary }]}>
+              {isHe ? "דלג — השתמש בקול בסיסי" : "Skip — use basic voice"}
+            </Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
+
+  // ── Cook mode screen ──────────────────────────────────────────────────────
 
   return (
-    <Modal
-      visible
-      animationType="slide"
-      presentationStyle="fullScreen"
-      onRequestClose={onClose}
-    >
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <SafeAreaView style={[cm.container, { backgroundColor: C.background }]} edges={["top", "bottom"]}>
+
         {/* Header */}
         <View style={cm.header}>
           <TouchableOpacity
-            style={[cm.closeBtn, { backgroundColor: C.surface, borderColor: C.border }]}
+            style={[cm.iconBtn, { backgroundColor: C.surface, borderColor: C.border }]}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel={isHe ? "סגור מצב בישול" : "Close cooking mode"}
+            accessibilityLabel={isHe ? "סגור" : "Close"}
           >
             <Ionicons name="close" size={20} color={C.text.secondary} />
           </TouchableOpacity>
-          <Text style={[cm.headerTitle, { color: C.text.primary }]}>
-            {isHe ? "מצב בישול" : "Cooking Mode"}
-          </Text>
-          <Text style={[cm.stepCounter, { color: C.text.secondary }]}>
-            {current + 1} / {total}
-          </Text>
+
+          <View style={cm.headerCenter}>
+            <Text style={cm.headerEmoji}>👨‍🍳</Text>
+            <Text style={[cm.headerTitle, { color: C.text.primary }]} numberOfLines={1}>{recipeName}</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={[cm.iconBtn, { backgroundColor: C.surface, borderColor: C.border }]}
+              onPress={repeatStep}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "חזור" : "Repeat"}
+            >
+              <Ionicons name="refresh-outline" size={18} color={C.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[cm.iconBtn, { backgroundColor: isMuted ? C.border : C.surface, borderColor: C.border }]}
+              onPress={toggleMute}
+              accessibilityRole="button"
+              accessibilityLabel={isMuted ? (isHe ? "הפעל" : "Unmute") : (isHe ? "השתק" : "Mute")}
+            >
+              <Ionicons
+                name={isMuted ? "volume-mute-outline" : isSpeaking ? "volume-high" : "volume-high-outline"}
+                size={18}
+                color={isMuted ? C.text.tertiary : isSpeaking ? C.secondary : C.text.secondary}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress bar */}
@@ -163,9 +502,8 @@ function CookingModeOverlay({
             <View
               key={i}
               style={[
-                cm.dot,
-                { backgroundColor: C.border },
-                i === current && { backgroundColor: C.primary, transform: [{ scale: 1.2 }] },
+                cm.dot, { backgroundColor: C.border },
+                i === current && { backgroundColor: C.primary, transform: [{ scale: 1.3 }] },
                 i < current && { backgroundColor: C.secondary },
               ]}
             />
@@ -174,22 +512,62 @@ function CookingModeOverlay({
 
         {/* Step card */}
         <View style={[cm.stepCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-          <View style={[cm.stepBadge, { backgroundColor: C.primary + "18", borderColor: C.primary + "40" }]}>
-            <Text style={[cm.stepBadgeText, { color: C.primary }]}>
-              {isHe ? "שלב" : "Step"} {current + 1}
-            </Text>
+          <View style={{ flexDirection: isHe ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={[cm.stepBadge, { backgroundColor: C.primary + "18", borderColor: C.primary + "40" }]}>
+              <Text style={[cm.stepBadgeText, { color: C.primary }]}>
+                {isHe ? `שלב ${current + 1} מתוך ${total}` : `Step ${current + 1} of ${total}`}
+              </Text>
+            </View>
+            {isSpeaking && !isMuted && (
+              <View style={[cm.speakingBadge, { backgroundColor: C.secondary + "20", borderColor: C.secondary + "50" }]}>
+                <Ionicons name={audioUrisRef.current[current] ? "musical-notes" : "mic"} size={11} color={C.secondary} />
+                <Text style={[cm.speakingBadgeText, { color: C.secondary }]}>
+                  {audioUrisRef.current[current]
+                    ? (isHe ? "השף מדבר..." : "Chef speaking...")
+                    : (isHe ? "מקריא..." : "Reading...")}
+                </Text>
+              </View>
+            )}
           </View>
+
+          {/* Raw step instruction — what to actually do */}
           <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
             {stepText}
           </Text>
-          {stepMinutes ? (
-            <View style={cm.timerChip}>
-              <Ionicons name="timer-outline" size={14} color={C.primary} />
-              <Text style={[cm.timerChipText, { color: C.primary }]}>
-                {stepMinutes} {isHe ? "דקות" : "min"}
+
+          {/* Chef narration hint — shown when different from raw step */}
+          {stepNarration !== stepText && !isSpeaking && (
+            <Text style={[cm.narrationHint, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+              💬 {stepNarration}
+            </Text>
+          )}
+
+          {/* Live timer */}
+          {timerSec !== null && (
+            <TouchableOpacity
+              onPress={() => { if (!timerRunning && !timerDone) startTimer(stepMinutes ?? 0); }}
+              activeOpacity={timerRunning || timerDone ? 1 : 0.7}
+              style={[
+                cm.timerChip,
+                { backgroundColor: timerDone ? C.secondary + "20" : timerRunning ? C.primary + "15" : "#FFF0F0" },
+                { borderColor: timerDone ? C.secondary + "60" : timerRunning ? C.primary + "40" : "#FFCACA" },
+              ]}
+            >
+              <Ionicons
+                name={timerDone ? "checkmark-circle" : timerRunning ? "timer" : "timer-outline"}
+                size={16}
+                color={timerDone ? C.secondary : C.primary}
+              />
+              <Text style={[cm.timerChipText, { color: timerDone ? C.secondary : C.primary, fontSize: 15 }]}>
+                {timerDone ? (isHe ? "הטיימר הסתיים ✓" : "Timer done ✓") : formatTime(timerSec)}
               </Text>
-            </View>
-          ) : null}
+              {!timerRunning && !timerDone && (
+                <Text style={[cm.timerChipText, { color: C.text.tertiary, fontWeight: "500", fontSize: 12 }]}>
+                  {isHe ? "· הקש להתחיל" : "· tap to start"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Navigation */}
@@ -202,45 +580,23 @@ function CookingModeOverlay({
             accessibilityRole="button"
             accessibilityLabel={isHe ? "שלב קודם" : "Previous step"}
           >
-            <Ionicons
-              name={isHe ? "chevron-forward" : "chevron-back"}
-              size={20}
-              color={current <= 0 ? C.text.tertiary : C.text.primary}
-            />
-            <Text
-              style={[
-                cm.navBtnText,
-                { color: C.text.primary },
-                current <= 0 && { color: C.text.tertiary },
-              ]}
-            >
-              {isHe ? "הקודם" : "Previous"}
+            <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={20} color={current <= 0 ? C.text.tertiary : C.text.primary} />
+            <Text style={[cm.navBtnText, { color: current <= 0 ? C.text.tertiary : C.text.primary }]}>
+              {isHe ? "הקודם" : "Back"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[cm.navBtnPrimary, { backgroundColor: C.primary }, isLast && { backgroundColor: C.secondary }]}
-            onPress={goNext}
+            style={[cm.navBtnPrimary, { backgroundColor: isLast ? C.secondary : C.primary }]}
+            onPress={() => void goNext()}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={isLast ? (isHe ? "סיום בישול" : "Done cooking") : (isHe ? "שלב הבא" : "Next step")}
           >
             <Text style={cm.navBtnPrimaryText}>
-              {isLast
-                ? isHe
-                  ? "סיום בישול 🎉"
-                  : "Done cooking 🎉"
-                : isHe
-                  ? "הבא"
-                  : "Next"}
+              {isLast ? (isHe ? "סיום בישול 🎉" : "Done cooking 🎉") : (isHe ? "הבא" : "Next")}
             </Text>
-            {!isLast && (
-              <Ionicons
-                name={isHe ? "chevron-back" : "chevron-forward"}
-                size={20}
-                color="#fff"
-              />
-            )}
+            {!isLast && <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={20} color="#fff" />}
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -897,19 +1253,6 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     {isHe ? "סימון" : "Check"}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.pillTeal}
-                  onPress={() => {
-                    if (!recipe) return;
-                    addFromRecipe(recipe, rawIngredients);
-                    showToast(isHe ? "נוסף לרשימת קניות 🛒" : "Added to shopping 🛒");
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? "הוסף מצרכים לקניות" : "Add ingredients to shopping list"}
-                >
-                  <Ionicons name="cart-outline" size={13} color="#2C756A" />
-                  <Text style={s.pillTealText}>{isHe ? "לקניות" : "Shop"}</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
@@ -985,20 +1328,6 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
               </View>
-              {rawSteps.length > 0 && (
-                <TouchableOpacity
-                  style={s.pillCoral}
-                  onPress={() => {
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setCookingMode(true);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? "הפעל מצב בישול" : "Start cooking mode"}
-                >
-                  <Ionicons name="restaurant" size={13} color="#fff" />
-                  <Text style={s.pillCoralText}>{isHe ? "מצב בישול" : "Cook mode"}</Text>
-                </TouchableOpacity>
-              )}
             </View>
 
             {rawSteps.length === 0 ? (
@@ -1123,6 +1452,22 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
         ) : (
+          <>
+            {/* Start Cooking — hero button */}
+            {rawSteps.length > 0 && (
+              <TouchableOpacity
+                style={s.startCookingBtn}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setCookingMode(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "התחל לבשל" : "Start cooking"}
+              >
+                <Text style={s.startCookingEmoji}>👨‍🍳</Text>
+                <Text style={s.startCookingText}>{isHe ? "התחל לבשל" : "Start Cooking"}</Text>
+              </TouchableOpacity>
+            )}
           <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             <TouchableOpacity
               style={s.actionBtnPrimary}
@@ -1158,6 +1503,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               <Ionicons name="trash-outline" size={20} color="#FF4757" />
             </TouchableOpacity>
           </View>
+          </>
         )}
       </View>
 
@@ -1165,6 +1511,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       {cookingMode && rawSteps.length > 0 ? (
         <CookingModeOverlay
           steps={rawSteps}
+          recipeName={isHe ? (recipe?.title_he ?? draft?.title ?? "") : (recipe?.title_en ?? recipe?.title_he ?? draft?.title ?? "")}
           isHe={isHe}
           onClose={() => setCookingMode(false)}
         />
@@ -1793,6 +2140,27 @@ const s = StyleSheet.create({
     lineHeight: 20,
     minHeight: 80,
   },
+
+  // Start Cooking hero button
+  startCookingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 15,
+    marginBottom: 10,
+    backgroundColor: "#2E9E8F",
+    borderRadius: 16,
+  },
+  startCookingEmoji: {
+    fontSize: 20,
+  },
+  startCookingText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.3,
+  },
 });
 
 // ─── Cooking Mode Styles ──────────────────────────────────────────────────────
@@ -1808,7 +2176,7 @@ const cm = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  closeBtn: {
+  iconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -1818,19 +2186,35 @@ const cm = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
-    textAlign: "center",
-    fontSize: 16,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  headerEmoji: {
+    fontSize: 18,
+  },
+  headerTitle: {
+    fontSize: 15,
     fontWeight: "700",
     color: Colors.text.primary,
+    flexShrink: 1,
   },
-  stepCounter: {
-    fontSize: 14,
+  speakingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  speakingBadgeText: {
+    fontSize: 11,
     fontWeight: "600",
-    color: Colors.text.secondary,
-    width: 36,
-    textAlign: "right",
   },
 
   // Progress
@@ -1965,5 +2349,56 @@ const cm = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#fff",
+  },
+
+  // Chef narration hint (shown below step text)
+  narrationHint: {
+    fontSize: 14,
+    fontStyle: "italic",
+    color: Colors.text.secondary,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+
+  // Preparing screen
+  preparingEmoji: {
+    fontSize: 72,
+    marginBottom: 20,
+  },
+  preparingTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  preparingMsg: {
+    fontSize: 15,
+    marginBottom: 28,
+    textAlign: "center",
+    paddingHorizontal: 32,
+  },
+  preparingBar: {
+    width: 200,
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  preparingBarFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  preparingSkip: {
+    fontSize: 13,
+    marginBottom: 32,
+  },
+  skipBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  skipBtnText: {
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../constants/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { isHebrew } from '../lib/i18n';
 import { useCollectionStore } from '../store/collectionStore';
 import type { Recipe } from '../lib/db';
@@ -18,27 +19,28 @@ function RecipeRow({
   isHe: boolean;
   onPress: () => void;
 }) {
+  const C = useThemeColors();
   const title = isHe ? recipe.title_he : (recipe.title_en ?? recipe.title_he);
   return (
     <TouchableOpacity
-      style={r.card}
+      style={[r.card, { backgroundColor: C.surfaceElevated }]}
       onPress={() => {
         void Haptics.selectionAsync();
         onPress();
       }}
       activeOpacity={0.8}
     >
-      <View style={r.iconWrap}>
+      <View style={[r.iconWrap, { backgroundColor: C.surface }]}>
         <Text style={{ fontSize: 26 }}>🍽️</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[r.title, { textAlign: isHe ? 'right' : 'left' }]} numberOfLines={2}>
+        <Text style={[r.title, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]} numberOfLines={2}>
           {title}
         </Text>
         {recipe.cook_time_min != null && (
           <View style={[r.chipRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
-            <Ionicons name="timer-outline" size={12} color={Colors.text.tertiary} />
-            <Text style={r.chipText}>
+            <Ionicons name="timer-outline" size={12} color={C.text.tertiary} />
+            <Text style={[r.chipText, { color: C.text.tertiary }]}>
               {recipe.cook_time_min} {isHe ? "דק׳" : 'min'}
             </Text>
           </View>
@@ -47,7 +49,7 @@ function RecipeRow({
       <Ionicons
         name={isHe ? 'chevron-back-outline' : 'chevron-forward-outline'}
         size={16}
-        color={Colors.text.tertiary}
+        color={C.text.tertiary}
       />
     </TouchableOpacity>
   );
@@ -94,6 +96,7 @@ const r = StyleSheet.create({
 });
 
 export default function CollectionDetailScreen({ route, navigation }: { route: any; navigation: any }) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const { id } = route.params as { id: number; name: string };
@@ -105,14 +108,14 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
   }, [id]);
 
   return (
-    <SafeAreaView style={s.container} edges={['left', 'right']}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
       {recipes.length === 0 ? (
         <View style={s.empty}>
           <Text style={s.emptyEmoji}>🍽️</Text>
-          <Text style={s.emptyText}>
+          <Text style={[s.emptyText, { color: C.text.primary }]}>
             {isHe ? 'אין מתכונים באוסף זה' : 'No recipes in this collection'}
           </Text>
-          <Text style={s.emptySub}>
+          <Text style={[s.emptySub, { color: C.text.secondary }]}>
             {isHe ? 'הוסף מתכונים מדף המתכון' : 'Add recipes from the recipe page'}
           </Text>
         </View>

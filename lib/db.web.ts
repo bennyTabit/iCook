@@ -58,6 +58,8 @@ let recipes: Recipe[] = [
     is_favorite: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    notes_he: 'מרכיבים:\n- 200 גרם פסטה\n- 2 כפות שמן זית\n- 2 שיני שום\n- מלח ופלפל\n\nשלבים:\n1. הרתיחו מים עם מלח בסיר גדול\n2. בשלו את הפסטה 8 דקות עד לאל-דנטה\n3. בזמן הבישול, חממו שמן זית במחבת ואדו שום 2 דקות\n4. סננו את הפסטה ושמרו כוס ממי הבישול\n5. ערבבו פסטה עם שמן השום, הוסיפו מעט מי בישול לפי הצורך\n6. טעמו ותבלו במלח ופלפל לפי הטעם\n\nהערות:\nאפשר להוסיף פרמזן מגורר',
+    notes_en: 'Ingredients:\n- 200g pasta\n- 2 tbsp olive oil\n- 2 garlic cloves\n- salt and pepper\n\nSteps:\n1. Boil salted water in a large pot\n2. Cook pasta 8 minutes until al-dente\n3. Meanwhile heat olive oil and saute garlic for 2 minutes\n4. Drain pasta, reserve a cup of cooking water\n5. Toss pasta with garlic oil, add cooking water as needed\n6. Season with salt and pepper to taste\n\nNotes:\nAdd grated parmesan if desired',
   },
 ];
 

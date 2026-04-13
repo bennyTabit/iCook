@@ -21,6 +21,7 @@ import { isHebrew } from "../lib/i18n";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import { Spacing } from "../constants/spacing";
+import { useThemeColors } from "../hooks/useThemeColors";
 import type { ImportedRecipe } from "../lib/importer";
 import WebViewImporter from "../components/WebViewImporter";
 
@@ -34,6 +35,7 @@ function isValidHttpUrl(text: string) {
 }
 
 export default function ImportLinkScreen({ route, navigation }: any) {
+  const C = useThemeColors();
   const isHe = isHebrew();
   const { loadRecipes, syncToCloud } = useRecipeStore();
   const autoTriggered = useRef(false);
@@ -207,14 +209,14 @@ export default function ImportLinkScreen({ route, navigation }: any) {
       />
     )}
     <ScrollView
-      style={s.container}
+      style={[s.container, { backgroundColor: C.background }]}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[s.title, { textAlign: isHe ? "right" : "left" }]}>
+      <Text style={[s.title, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
         {isHe ? "ייבוא מתכון מהאינטרנט" : "Import recipe from the web"}
       </Text>
-      <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left" }]}>
+      <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
         {isHe
           ? "הדבק קישור ואנחנו נמלא הכל עבורך"
           : "Paste a link and we will auto-fill it for you"}
@@ -235,7 +237,7 @@ export default function ImportLinkScreen({ route, navigation }: any) {
               {isHe ? "זיהינו קישור בלוח — להשתמש בו?" : "Detected a link in clipboard — use it?"}
             </Text>
             <Text
-              style={[s.clipBannerUrl, { textAlign: isHe ? "right" : "left" }]}
+              style={[s.clipBannerUrl, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}
               numberOfLines={1}
             >
               {clipboardUrl}
@@ -251,7 +253,7 @@ export default function ImportLinkScreen({ route, navigation }: any) {
 
       <View style={s.urlWrap}>
         <TextInput
-          style={[s.input, { textAlign: isHe ? "right" : "left" }]}
+          style={[s.input, { textAlign: isHe ? "right" : "left", borderColor: C.border, backgroundColor: C.surfaceElevated, color: C.text.primary }]}
           value={url}
           onChangeText={setUrl}
           placeholder={
@@ -259,12 +261,12 @@ export default function ImportLinkScreen({ route, navigation }: any) {
               ? "הדבק כאן קישור למתכון (למשל: מאקו, וואלה, בלוגים...)"
               : "Paste recipe URL here (blog, food site, etc...)"
           }
-          placeholderTextColor={Colors.text.tertiary}
+          placeholderTextColor={C.text.tertiary}
           autoCapitalize="none"
           keyboardType="url"
         />
-        <TouchableOpacity style={s.pasteBtn} onPress={handlePaste}>
-          <Text style={s.pasteBtnText}>{isHe ? "הדבק" : "Paste"}</Text>
+        <TouchableOpacity style={[s.pasteBtn, { backgroundColor: C.surface, borderColor: C.border }]} onPress={handlePaste}>
+          <Text style={[s.pasteBtnText, { color: C.text.secondary }]}>{isHe ? "הדבק" : "Paste"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -325,9 +327,9 @@ export default function ImportLinkScreen({ route, navigation }: any) {
       )}
 
       {result && (
-        <View style={s.preview}>
+        <View style={[s.preview, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
           <Text
-            style={[s.previewTitle, { textAlign: isHe ? "right" : "left" }]}
+            style={[s.previewTitle, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}
           >
             {isHe ? "תצוגה לפני שמירה" : "Preview before save"}
           </Text>
@@ -353,23 +355,23 @@ export default function ImportLinkScreen({ route, navigation }: any) {
           {result.imageUrl ? (
             <Image
               source={{ uri: result.imageUrl }}
-              style={s.previewImage}
+              style={[s.previewImage, { backgroundColor: C.surface }]}
               resizeMode="cover"
             />
           ) : (
-            <View style={s.previewImageFallback}>
+            <View style={[s.previewImageFallback, { backgroundColor: C.surface }]}>
               <Text style={s.previewFallbackText}>🍲</Text>
             </View>
           )}
 
           <Text
-            style={[s.recipeTitle, { textAlign: isHe ? "right" : "left" }]}
+            style={[s.recipeTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}
             numberOfLines={2}
           >
             {result.title}
           </Text>
 
-          <Text style={[s.meta, { textAlign: isHe ? "right" : "left" }]}>
+          <Text style={[s.meta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
             ⏱ {result.cookTime ?? 0} {isHe ? "דקות" : "min"} | 🍽{" "}
             {result.servings ?? 2} {isHe ? "מנות" : "servings"}
           </Text>

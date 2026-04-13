@@ -20,6 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { pickRecipeImage, runOCR, parseOcrText } from "../lib/ocr";
 
@@ -34,6 +35,7 @@ function OcrLoadingOverlay({
   isHe: boolean;
   count: number;
 }) {
+  const C = useThemeColors();
   const fade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -47,17 +49,17 @@ function OcrLoadingOverlay({
   if (!visible) return null;
   return (
     <Animated.View style={[StyleSheet.absoluteFill, ol.overlay, { opacity: fade }]}>
-      <View style={ol.card}>
+      <View style={[ol.card, { backgroundColor: C.surfaceElevated }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={ol.text}>
+        <Text style={[ol.text, { color: C.text.primary }]}>
           {isHe ? "מנתח את המתכון..." : "Analysing recipe..."}
         </Text>
         {count > 1 && (
-          <Text style={ol.sub}>
+          <Text style={[ol.sub, { color: C.text.secondary }]}>
             {isHe ? `מעבד ${count} תמונות` : `Processing ${count} photos`}
           </Text>
         )}
-        <Text style={ol.sub}>
+        <Text style={[ol.sub, { color: C.text.secondary }]}>
           {isHe ? "זה עלול לקחת כמה שניות" : "This may take a few seconds"}
         </Text>
       </View>
@@ -82,11 +84,12 @@ function PhotoStrip({
   ocrLoading: boolean;
   isHe: boolean;
 }) {
+  const C = useThemeColors();
   return (
-    <View style={ps.container}>
+    <View style={[ps.container, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
       <View style={[ps.header, { flexDirection: isHe ? "row-reverse" : "row" }]}>
         <Ionicons name="images-outline" size={16} color={Colors.secondary} />
-        <Text style={ps.headerText}>
+        <Text style={[ps.headerText, { color: C.text.secondary }]}>
           {isHe ? `${uris.length} תמונות נבחרו` : `${uris.length} photo${uris.length > 1 ? "s" : ""} selected`}
         </Text>
       </View>
@@ -112,9 +115,9 @@ function PhotoStrip({
           </View>
         ))}
 
-        <TouchableOpacity style={ps.addThumb} onPress={() => { void Haptics.selectionAsync(); onAdd(); }}>
-          <Ionicons name="add" size={26} color={Colors.text.tertiary} />
-          <Text style={ps.addThumbText}>{isHe ? "עוד" : "Add"}</Text>
+        <TouchableOpacity style={[ps.addThumb, { borderColor: C.border }]} onPress={() => { void Haptics.selectionAsync(); onAdd(); }}>
+          <Ionicons name="add" size={26} color={C.text.tertiary} />
+          <Text style={[ps.addThumbText, { color: C.text.tertiary }]}>{isHe ? "עוד" : "Add"}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -187,6 +190,7 @@ const OPTIONS: AddOption[] = [
 ];
 
 export default function AddRecipeScreen({ navigation }: any) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -286,13 +290,13 @@ export default function AddRecipeScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
       <View style={s.content}>
         <View style={s.header}>
-          <Text style={[s.heading, { textAlign: isHe ? "right" : "left" }]}>
+          <Text style={[s.heading, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
             {isHe ? "איך תוסיף את המתכון?" : "How would you like to add a recipe?"}
           </Text>
-          <Text style={[s.headingSub, { textAlign: isHe ? "right" : "left" }]}>
+          <Text style={[s.headingSub, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
             {isHe ? "בחר את הדרך הנוחה לך" : "Choose the way that works best for you"}
           </Text>
         </View>
@@ -301,7 +305,7 @@ export default function AddRecipeScreen({ navigation }: any) {
           <Pressable
             key={option.key}
             onPress={() => handleOptionPress(option.key)}
-            style={({ pressed }) => [s.card, pressed && s.cardPressed]}
+            style={({ pressed }) => [s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }, pressed && s.cardPressed]}
           >
             <LinearGradient
               colors={option.gradientColors}
@@ -314,7 +318,7 @@ export default function AddRecipeScreen({ navigation }: any) {
 
             <View style={s.cardBody}>
               <View style={[s.titleRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-                <Text style={[s.cardTitle, { textAlign: isHe ? "right" : "left" }]}>
+                <Text style={[s.cardTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
                   {isHe ? option.titleHe : option.titleEn}
                 </Text>
                 {option.recommended && (
@@ -323,7 +327,7 @@ export default function AddRecipeScreen({ navigation }: any) {
                   </View>
                 )}
               </View>
-              <Text style={[s.cardSub, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.cardSub, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
                 {isHe ? option.subtitleHe : option.subtitleEn}
               </Text>
             </View>
@@ -331,7 +335,7 @@ export default function AddRecipeScreen({ navigation }: any) {
             <Ionicons
               name={isHe ? "chevron-back" : "chevron-forward"}
               size={18}
-              color={Colors.text.tertiary}
+              color={C.text.tertiary}
               style={{ marginRight: isHe ? 0 : 14, marginLeft: isHe ? 14 : 0 }}
             />
           </Pressable>

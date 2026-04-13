@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe, updateRecipe } from "../lib/db";
 import { pickRecipeImage, requestMediaPermissions } from "../lib/ocr";
@@ -30,8 +31,11 @@ function parseSectionLines(notes: string, section: "ingredients" | "steps") {
   const lines = notes.split("\n").map((l) => l.trim()).filter(Boolean);
   const ingredientMarkers = ["מרכיבים", "ingredients"];
   const stepMarkers = ["שלבים", "steps", "הוראות"];
+  const noteMarkers = ["הערות", "notes"];
   const markers = section === "ingredients" ? ingredientMarkers : stepMarkers;
-  const stopMarkers = section === "ingredients" ? stepMarkers : ingredientMarkers;
+  const stopMarkers = section === "ingredients"
+    ? [...stepMarkers, ...noteMarkers]
+    : [...ingredientMarkers, ...noteMarkers];
   let inSection = false;
   const out: string[] = [];
   for (const line of lines) {
@@ -111,15 +115,16 @@ function SectionHeader({
   count?: number;
   isHe?: boolean;
 }) {
+  const C = useThemeColors();
   return (
     <View style={[s.sectionHeaderRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
       <View style={s.sectionAccent} />
-      <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left" }]}>
+      <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
         {title}
       </Text>
       {count != null && count > 0 && (
-        <View style={s.sectionCountBadge}>
-          <Text style={s.sectionCountText}>{count}</Text>
+        <View style={[s.sectionCountBadge, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <Text style={[s.sectionCountText, { color: C.text.secondary }]}>{count}</Text>
         </View>
       )}
     </View>
@@ -130,6 +135,7 @@ function SectionHeader({
 
 export default function EditRecipeScreen({ route, navigation }: any) {
   const { id } = route.params;
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const { loadRecipes, syncToCloud } = useRecipeStore();
@@ -372,7 +378,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.container} edges={["left", "right"]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -384,7 +390,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
         {/* Screen title */}
-        <Text style={[s.screenTitle, { textAlign: isHe ? "right" : "left" }]}>
+        <Text style={[s.screenTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
           {id
             ? (isHe ? "עריכת מתכון" : "Edit recipe")
             : (isHe ? "מתכון חדש" : "New recipe")}
@@ -392,16 +398,16 @@ export default function EditRecipeScreen({ route, navigation }: any) {
 
         {/* ── Recipe name ── */}
         <TextInput
-          style={[s.titleInput, { textAlign: isHe ? "right" : "left" }]}
+          style={[s.titleInput, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}
           value={state.title}
           onChangeText={(v) => patch({ title: v })}
           placeholder={isHe ? "שם המתכון..." : "Recipe name..."}
-          placeholderTextColor={Colors.text.tertiary}
+          placeholderTextColor={C.text.tertiary}
           autoFocus={!id}
         />
 
         {/* ── Photo ── */}
-        <TouchableOpacity style={s.imageArea} onPress={handlePickImage} activeOpacity={0.85}>
+        <TouchableOpacity style={[s.imageArea, { backgroundColor: C.surface, borderColor: C.border }]} onPress={handlePickImage} activeOpacity={0.85}>
           {state.imageUri ? (
             <>
               <Image
@@ -436,11 +442,11 @@ export default function EditRecipeScreen({ route, navigation }: any) {
             return (
               <TouchableOpacity
                 key={c.key}
-                style={[s.chip, selected && s.chipActive, isHe ? { transform: [{ scaleX: -1 }] } : undefined]}
+                style={[s.chip, { borderColor: C.border, backgroundColor: C.surfaceElevated }, selected && s.chipActive, isHe ? { transform: [{ scaleX: -1 }] } : undefined]}
                 onPress={() => patch({ categoryKey: c.key })}
                 activeOpacity={0.8}
               >
-                <Text style={[s.chipText, selected && s.chipTextActive]}>
+                <Text style={[s.chipText, { color: C.text.secondary }, selected && s.chipTextActive]}>
                   {isHe ? c.labelHe : c.labelEn}
                 </Text>
               </TouchableOpacity>
@@ -450,53 +456,53 @@ export default function EditRecipeScreen({ route, navigation }: any) {
 
         {/* ── Details card ── */}
         <SectionHeader title={isHe ? "פרטים" : "Details"} isHe={isHe} />
-        <View style={[s.tripleRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+        <View style={[s.tripleRow, { flexDirection: isHe ? "row-reverse" : "row", borderColor: C.border, backgroundColor: C.surfaceElevated }]}>
           <View style={s.tripleCell}>
-            <Text style={s.tripleLabel}>
+            <Text style={[s.tripleLabel, { color: C.text.tertiary }]}>
               {isHe ? "הכנה (דק׳)" : "Prep (min)"}
             </Text>
             <TextInput
-              style={s.tripleInput}
+              style={[s.tripleInput, { color: C.text.primary }]}
               value={state.prepTime}
               onChangeText={(v) => patch({ prepTime: v })}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor={Colors.text.tertiary}
+              placeholderTextColor={C.text.tertiary}
               textAlign="center"
             />
           </View>
-          <View style={s.tripleDivider} />
+          <View style={[s.tripleDivider, { backgroundColor: C.border }]} />
           <View style={s.tripleCell}>
-            <Text style={s.tripleLabel}>
+            <Text style={[s.tripleLabel, { color: C.text.tertiary }]}>
               {isHe ? "בישול (דק׳)" : "Cook (min)"}
             </Text>
             <TextInput
-              style={s.tripleInput}
+              style={[s.tripleInput, { color: C.text.primary }]}
               value={state.cookTime}
               onChangeText={(v) => patch({ cookTime: v })}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor={Colors.text.tertiary}
+              placeholderTextColor={C.text.tertiary}
               textAlign="center"
             />
           </View>
-          <View style={s.tripleDivider} />
+          <View style={[s.tripleDivider, { backgroundColor: C.border }]} />
           <View style={s.tripleCell}>
-            <Text style={s.tripleLabel}>{isHe ? "מנות" : "Servings"}</Text>
+            <Text style={[s.tripleLabel, { color: C.text.tertiary }]}>{isHe ? "מנות" : "Servings"}</Text>
             <TextInput
-              style={s.tripleInput}
+              style={[s.tripleInput, { color: C.text.primary }]}
               value={state.servings}
               onChangeText={(v) => patch({ servings: v })}
               keyboardType="number-pad"
               placeholder="2"
-              placeholderTextColor={Colors.text.tertiary}
+              placeholderTextColor={C.text.tertiary}
               textAlign="center"
             />
           </View>
         </View>
 
         {/* Difficulty */}
-        <Text style={[s.fieldLabel, { textAlign: isHe ? "right" : "left", marginTop: 16 }]}>
+        <Text style={[s.fieldLabel, { textAlign: isHe ? "right" : "left", marginTop: 16, color: C.text.secondary }]}>
           {isHe ? "רמת קושי" : "Difficulty"}
         </Text>
         <View style={[s.diffRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
@@ -509,12 +515,12 @@ export default function EditRecipeScreen({ route, navigation }: any) {
             return (
               <TouchableOpacity
                 key={d}
-                style={[s.diffChip, selected && { backgroundColor: color, borderColor: color }]}
+                style={[s.diffChip, { borderColor: C.border, backgroundColor: C.surfaceElevated }, selected && { backgroundColor: color, borderColor: color }]}
                 onPress={() => patch({ difficulty: selected ? "" : d })}
                 activeOpacity={0.8}
               >
                 <View style={[s.diffDot, { backgroundColor: selected ? Colors.text.inverse : color }]} />
-                <Text style={[s.diffChipText, selected && { color: Colors.text.inverse }]}>
+                <Text style={[s.diffChipText, { color: C.text.secondary }, selected && { color: Colors.text.inverse }]}>
                   {t(d as any)}
                 </Text>
               </TouchableOpacity>
@@ -537,15 +543,15 @@ export default function EditRecipeScreen({ route, navigation }: any) {
               <Text style={s.listBulletText}>•</Text>
             </View>
             <TextInput
-              style={[s.listInput, { textAlign: isHe ? "right" : "left" }]}
+              style={[s.listInput, { textAlign: isHe ? "right" : "left", borderColor: C.border, backgroundColor: C.surfaceElevated, color: C.text.primary }]}
               value={item}
               onChangeText={(v) => patchIngredient(i, v)}
               placeholder={isHe ? `רכיב ${i + 1}` : `Ingredient ${i + 1}`}
-              placeholderTextColor={Colors.text.tertiary}
+              placeholderTextColor={C.text.tertiary}
               returnKeyType="next"
             />
-            <TouchableOpacity style={s.removeBtn} onPress={() => removeIngredient(i)}>
-              <Ionicons name="close" size={16} color={Colors.text.tertiary} />
+            <TouchableOpacity style={[s.removeBtn, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => removeIngredient(i)}>
+              <Ionicons name="close" size={16} color={C.text.tertiary} />
             </TouchableOpacity>
           </View>
         ))}
@@ -571,16 +577,16 @@ export default function EditRecipeScreen({ route, navigation }: any) {
               <Text style={s.stepNumText}>{i + 1}</Text>
             </View>
             <TextInput
-              style={[s.listInput, s.listInputMulti, { textAlign: isHe ? "right" : "left" }]}
+              style={[s.listInput, s.listInputMulti, { textAlign: isHe ? "right" : "left", borderColor: C.border, backgroundColor: C.surfaceElevated, color: C.text.primary }]}
               value={item}
               onChangeText={(v) => patchStep(i, v)}
               placeholder={isHe ? `שלב ${i + 1}` : `Step ${i + 1}`}
-              placeholderTextColor={Colors.text.tertiary}
+              placeholderTextColor={C.text.tertiary}
               multiline
               scrollEnabled={false}
             />
-            <TouchableOpacity style={s.removeBtn} onPress={() => removeStep(i)}>
-              <Ionicons name="close" size={16} color={Colors.text.tertiary} />
+            <TouchableOpacity style={[s.removeBtn, { backgroundColor: C.surface, borderColor: C.border }]} onPress={() => removeStep(i)}>
+              <Ionicons name="close" size={16} color={C.text.tertiary} />
             </TouchableOpacity>
           </View>
         ))}
@@ -592,11 +598,11 @@ export default function EditRecipeScreen({ route, navigation }: any) {
         {/* ── Notes ── */}
         <SectionHeader title={isHe ? "הערות" : "Notes"} isHe={isHe} />
         <TextInput
-          style={[s.notesInput, { textAlign: isHe ? "right" : "left" }]}
+          style={[s.notesInput, { textAlign: isHe ? "right" : "left", borderColor: C.border, backgroundColor: C.surfaceElevated, color: C.text.primary }]}
           value={state.notes}
           onChangeText={(v) => patch({ notes: v })}
           placeholder={isHe ? "הערות, טיפים, וריאציות..." : "Notes, tips, variations..."}
-          placeholderTextColor={Colors.text.tertiary}
+          placeholderTextColor={C.text.tertiary}
           multiline
           scrollEnabled={false}
           textAlignVertical="top"

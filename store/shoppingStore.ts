@@ -4,6 +4,13 @@ import type { Recipe } from "../lib/db";
 
 const STORAGE_KEY = "@icook_shopping_items";
 
+// Monotonically increasing counter — guarantees unique IDs even when
+// multiple items are created within the same millisecond (e.g. batch adds).
+let _idSeq = 0;
+function nextId(prefix: string) {
+  return `${prefix}-${Date.now()}-${_idSeq++}`;
+}
+
 export type ShopItem = {
   id: string;
   text: string;
@@ -136,7 +143,7 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
       const newItems: ShopItem[] = source
         .filter((text) => !existing.find((i) => i.text === text))
         .map((text, index) => ({
-          id: `${recipe.id ?? "recipe"}-${Date.now()}-${index}`,
+          id: nextId(String(recipe.id ?? "recipe")),
           text,
           quantity: undefined,
           unit: undefined,
@@ -156,7 +163,7 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
       const existing = get().items;
       if (existing.find((i) => i.text === trimmed)) return;
       const item: ShopItem = {
-        id: `manual-${Date.now()}`,
+        id: nextId("manual"),
         text: trimmed,
         quantity: p.quantity?.trim() || undefined,
         unit: p.unit?.trim() || undefined,

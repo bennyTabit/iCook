@@ -4,8 +4,8 @@
     {
       "name": "Expo Web",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\npx.cmd",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
-      "env": { "CI": "1" },
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8081", "--reset-cache"],
+      "env": {},
       "cwd": "C:\\Users\\BennyMargalit\\iCook",
       "port": 8081
     }

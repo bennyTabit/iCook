@@ -16,6 +16,7 @@ import { useRecipeStore } from "../store/recipeStore";
 import type { OcrResult } from "../lib/ocr";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
+import { useThemeColors } from "../hooks/useThemeColors";
 
 type Props = {
   route: { params?: { ocr?: OcrResult } };
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export default function OcrReviewScreen({ route, navigation }: Props) {
+  const C = useThemeColors();
   const { t } = useTranslation();
   const isHe = isHebrew();
   const { loadRecipes } = useRecipeStore();
@@ -137,7 +139,7 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
   }
 
   return (
-    <ScrollView style={s.container}>
+    <ScrollView style={[s.container, { backgroundColor: C.background }]}>
       <View style={s.tipCard}>
         <Text style={[s.tipTitle, { textAlign: isHe ? "right" : "left" }]}>
           {isHe
@@ -190,22 +192,22 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         </View>
       ) : null}
 
-      <Text style={s.label}>{isHe ? "כותרת" : "Title"}</Text>
+      <Text style={[s.label, { color: C.text.secondary }]}>{isHe ? "כותרת" : "Title"}</Text>
       <TextInput
-        style={s.input}
+        style={[s.input, { borderColor: C.border, color: C.text.primary, backgroundColor: C.surfaceElevated }]}
         value={title}
         onChangeText={setTitle}
         textAlign={isHe ? "right" : "left"}
       />
 
-      <Text style={s.label}>
+      <Text style={[s.label, { color: C.text.secondary }]}>
         {isHe ? "מרכיבים (שורה לכל מרכיב)" : "Ingredients (one per line)"}
       </Text>
       <TextInput
         style={[
           s.input,
           s.multiline,
-          { writingDirection: isHe ? "rtl" : "ltr" },
+          { writingDirection: isHe ? "rtl" : "ltr", borderColor: C.border, color: C.text.primary, backgroundColor: C.surfaceElevated },
         ]}
         multiline
         value={ingredients}
@@ -214,14 +216,14 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         textAlignVertical="top"
       />
 
-      <Text style={s.label}>
+      <Text style={[s.label, { color: C.text.secondary }]}>
         {isHe ? "שלבים (שורה לכל שלב)" : "Steps (one per line)"}
       </Text>
       <TextInput
         style={[
           s.input,
           s.multiline,
-          { writingDirection: isHe ? "rtl" : "ltr" },
+          { writingDirection: isHe ? "rtl" : "ltr", borderColor: C.border, color: C.text.primary, backgroundColor: C.surfaceElevated },
         ]}
         multiline
         value={steps}
@@ -231,14 +233,14 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
       />
 
       <TouchableOpacity
-        style={[s.confirmRow, confirmed && s.confirmRowChecked]}
+        style={[s.confirmRow, { borderColor: C.border, backgroundColor: C.surface }, confirmed && s.confirmRowChecked]}
         onPress={() => setConfirmed((prev) => !prev)}
         activeOpacity={0.8}
       >
-        <View style={[s.checkbox, confirmed && s.checkboxChecked]}>
+        <View style={[s.checkbox, { borderColor: C.border }, confirmed && s.checkboxChecked]}>
           {confirmed ? <Text style={s.checkboxTick}>✓</Text> : null}
         </View>
-        <Text style={[s.confirmText, confirmed && s.confirmTextChecked]}>
+        <Text style={[s.confirmText, { color: C.text.secondary }, confirmed && s.confirmTextChecked]}>
           {isHe
             ? "עברתי על הטקסט ואני מאשר/ת שהוא מוכן לשמירה"
             : "I reviewed the text and confirm it is ready to save"}
@@ -263,10 +265,10 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={s.btnSecondary}
+          style={[s.btnSecondary, { borderColor: C.border, backgroundColor: C.surfaceElevated }]}
           onPress={() => navigation.goBack()}
         >
-          <Text style={s.btnSecondaryText}>{isHe ? "ביטול" : "Cancel"}</Text>
+          <Text style={[s.btnSecondaryText, { color: C.text.secondary }]}>{isHe ? "ביטול" : "Cancel"}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
