@@ -102,11 +102,13 @@ type ChefPhase = "preparing" | "cooking";
 
 function CookingModeOverlay({
   steps,
+  ingredients,
   recipeName,
   isHe,
   onClose,
 }: {
   steps: string[];
+  ingredients: string[];
   recipeName: string;
   isHe: boolean;
   onClose: () => void;
@@ -129,6 +131,7 @@ function CookingModeOverlay({
   const [isMuted, setIsMuted]         = useState(false);
   const [isSpeaking, setIsSpeaking]   = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [showIngredients, setShowIngredients] = useState(false);
   const [timerSec, setTimerSec]       = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerDone, setTimerDone]     = useState(false);
@@ -522,6 +525,14 @@ function CookingModeOverlay({
 
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity
+              style={[cm.iconBtn, { backgroundColor: showIngredients ? C.primary + "20" : C.surface, borderColor: showIngredients ? C.primary : C.border }]}
+              onPress={() => { void Haptics.selectionAsync(); setShowIngredients(v => !v); }}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "מרכיבים" : "Ingredients"}
+            >
+              <Ionicons name="list-outline" size={18} color={showIngredients ? C.primary : C.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[cm.iconBtn, { backgroundColor: C.surface, borderColor: C.border }]}
               onPress={repeatStep}
               accessibilityRole="button"
@@ -625,6 +636,20 @@ function CookingModeOverlay({
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Ingredients quick-reference panel */}
+        {showIngredients && ingredients.length > 0 && (
+          <View style={[cm.ingredientsPanel, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+            <Text style={[cm.ingredientsPanelTitle, { color: C.text.secondary }]}>
+              {isHe ? "🧂 מרכיבים" : "🧂 Ingredients"}
+            </Text>
+            {ingredients.map((ing, i) => (
+              <Text key={i} style={[cm.ingredientsPanelItem, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+                • {ing}
+              </Text>
+            ))}
+          </View>
+        )}
 
         {/* Navigation */}
         <View style={cm.navRow}>
@@ -816,6 +841,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           style: "destructive",
           onPress: async () => {
             await removeRecipe(id);
+            await clearChefAudioCache(); // free up storage when recipe is deleted
             navigation.goBack();
           },
         },
@@ -1567,6 +1593,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       {cookingMode && rawSteps.length > 0 ? (
         <CookingModeOverlay
           steps={rawSteps}
+          ingredients={rawIngredients}
           recipeName={isHe ? (recipe?.title_he ?? draft?.title ?? "") : (recipe?.title_en ?? recipe?.title_he ?? draft?.title ?? "")}
           isHe={isHe}
           onClose={() => setCookingMode(false)}
@@ -2474,5 +2501,23 @@ const cm = StyleSheet.create({
   skipBtnText: {
     fontSize: 13,
     fontWeight: "500",
+  },
+  ingredientsPanel: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 6,
+  },
+  ingredientsPanelTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  ingredientsPanelItem: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
