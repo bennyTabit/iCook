@@ -10,7 +10,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 const API_KEY  = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-const MODEL_ID = 'eleven_turbo_v2_5'; // supports language_code param including Hebrew
+const MODEL_ID = 'eleven_multilingual_v2'; // auto-detects Hebrew from Unicode text
 
 export type ChefGender = 'female' | 'male';
 
@@ -116,7 +116,6 @@ export async function synthesizeAudio(
         body: JSON.stringify({
           text: cleanText,
           model_id: MODEL_ID,
-          language_code: _isHebrew ? 'he' : 'en', // force correct language
           voice_settings: {
             stability: 0.45,
             similarity_boost: 0.80,
