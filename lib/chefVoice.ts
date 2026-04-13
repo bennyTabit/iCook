@@ -116,6 +116,7 @@ export async function synthesizeAudio(
         body: JSON.stringify({
           text: cleanText,
           model_id: MODEL_ID,
+          language_code: _isHebrew ? 'he' : 'en', // force correct language
           voice_settings: {
             stability: 0.45,
             similarity_boost: 0.80,

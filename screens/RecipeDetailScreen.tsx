@@ -27,7 +27,7 @@ import * as Speech from "expo-speech";
 import { Audio } from "expo-av";
 import { useTranslation } from "react-i18next";
 import { generateChefScript, isClaudeConfigured } from "../lib/chefAI";
-import { synthesizeAudio, isElevenLabsConfigured, type ChefGender } from "../lib/chefVoice";
+import { synthesizeAudio, isElevenLabsConfigured, clearChefAudioCache, type ChefGender } from "../lib/chefVoice";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
@@ -267,7 +267,7 @@ function CookingModeOverlay({
   // ── AI Initialization ─────────────────────────────────────────────────────
 
   useEffect(() => {
-    void initChef();
+    void clearChefAudioCache().then(() => initChef()); // TEMP: clear cache on every open for debugging
     return () => {
       abortRef.current.abort();
       void stopAudio();
