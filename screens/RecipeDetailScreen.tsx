@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
   Alert,
   Image,
@@ -98,7 +99,7 @@ function parseMinutesFromStep(step: string) {
 
 // ─── Cooking Mode Overlay ─────────────────────────────────────────────────────
 
-type ChefPhase = "preparing" | "cooking";
+type ChefPhase = "preparing" | "intro" | "cooking";
 
 function CookingModeOverlay({
   steps,
@@ -140,10 +141,12 @@ function CookingModeOverlay({
   const isMutedRef         = useRef(false);
   const soundRef           = useRef<Audio.Sound | null>(null);
   const abortRef           = useRef(new AbortController());
-  const timerIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const narrationsRef      = useRef<string[]>(steps);
-  const audioUrisRef       = useRef<(string | null)[]>(Array(steps.length).fill(null));
-  const isFirstStepRef     = useRef(true);
+  const timerIntervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const narrationsRef         = useRef<string[]>(steps);
+  const audioUrisRef          = useRef<(string | null)[]>(Array(steps.length).fill(null));
+  const ingredientIntroUriRef = useRef<string | null>(null);
+  const ingredientIntroText   = useRef<string>('');
+  const isFirstStepRef        = useRef(true);
 
   const total    = Math.max(steps.length, 1);
   const isLast   = current >= steps.length - 1;
@@ -296,24 +299,29 @@ function CookingModeOverlay({
         narrationsRef.current = script.steps;
         setNarrations(script.steps);
         setOutroText(script.outro);
+        ingredientIntroText.current = script.ingredientIntro;
 
-        // ── Step 2: Generate audio for intro+step1 together ──
+        // ── Step 2: Generate ingredient intro audio ──
         if (isElevenLabsConfigured()) {
           setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
-          const introAndStep1 = script.intro + " " + script.steps[0];
-          const uri = await synthesizeAudio(introAndStep1, chefGenderRef.current, isHe, signal);
+          const ingIntroUri = await synthesizeAudio(script.ingredientIntro, chefGenderRef.current, isHe, signal);
           if (signal.aborted) return;
+          if (ingIntroUri) ingredientIntroUriRef.current = ingIntroUri;
 
-          if (uri) {
-            audioUrisRef.current[0] = uri;
-            setAudioUris(prev => { const n = [...prev]; n[0] = uri; return n; });
+          // Also generate step 1 audio
+          const step1Uri = await synthesizeAudio(script.intro + " " + script.steps[0], chefGenderRef.current, isHe, signal);
+          if (signal.aborted) return;
+          if (step1Uri) {
+            audioUrisRef.current[0] = step1Uri;
+            setAudioUris(prev => { const n = [...prev]; n[0] = step1Uri; return n; });
             setAudioReady(1);
           }
         } else {
-          // No ElevenLabs: speak intro with expo-speech then enter cook mode
-          setPhase("cooking");
-          speakFallback(script.intro, () => setTimeout(() => speakStep(0), 300));
-          void generateRemainingAudio(signal, 1);
+          // No ElevenLabs: go straight to intro phase with expo-speech
+          setPhase("intro");
+          const fallbackIntro = script.ingredientIntro || script.intro;
+          speakFallback(fallbackIntro);
+          void generateRemainingAudio(signal, 0);
           return;
         }
       } else {
@@ -353,10 +361,15 @@ function CookingModeOverlay({
       return;
     }
 
-    // ── Enter cook mode and play step 1 ──
+    // ── Show ingredient intro screen and play ingredient intro ──
     if (signal.aborted) return;
-    setPhase("cooking");
-    void speakStep(0);
+    setPhase("intro");
+    if (ingredientIntroUriRef.current) {
+      void playFileAudio(ingredientIntroUriRef.current);
+    } else {
+      const fallback = ingredientIntroText.current || (isHe ? `בואו נכין את ${recipeName}!` : `Let's cook ${recipeName}!`);
+      speakFallback(fallback);
+    }
 
     // ── Generate remaining audio in background ──
     void generateRemainingAudio(signal, 1);
@@ -501,6 +514,89 @@ function CookingModeOverlay({
     );
   }
 
+  // ── Ingredient intro screen ───────────────────────────────────────────────
+
+  if (phase === "intro") {
+    return (
+      <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+        <SafeAreaView style={[cm.container, { backgroundColor: C.background, justifyContent: "flex-start" }]} edges={["top", "bottom"]}>
+          {/* Close */}
+          <TouchableOpacity
+            style={[cm.iconBtn, { backgroundColor: C.surface, borderColor: C.border, position: "absolute", top: 16, left: 16, zIndex: 10 }]}
+            onPress={onClose}
+          >
+            <Ionicons name="close" size={20} color={C.text.secondary} />
+          </TouchableOpacity>
+
+          {/* Title */}
+          <View style={{ alignItems: "center", paddingTop: 60, paddingBottom: 20 }}>
+            <Text style={{ fontSize: 48, marginBottom: 8 }}>{chefGender === 'female' ? '👩‍🍳' : '👨‍🍳'}</Text>
+            <Text style={[cm.preparingTitle, { color: C.text.primary }]}>
+              {isHe ? "מה צריך להכין?" : "Let's get ready!"}
+            </Text>
+            <Text style={{ fontSize: 14, color: C.text.secondary, marginTop: 4 }}>
+              {isHe ? "וודאו שיש לכם את כל המרכיבים" : "Make sure you have everything ready"}
+            </Text>
+            {isSpeaking && (
+              <View style={[cm.speakingBadge, { backgroundColor: C.secondary + "20", borderColor: C.secondary + "50", marginTop: 10 }]}>
+                <Ionicons name="musical-notes" size={11} color={C.secondary} />
+                <Text style={[cm.speakingBadgeText, { color: C.secondary }]}>
+                  {isHe ? "השף מדבר..." : "Chef speaking..."}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Ingredient list */}
+          <View style={[cm.ingredientsPanel, { backgroundColor: C.surfaceElevated, borderColor: C.border, marginHorizontal: 20, flex: 1, maxHeight: "55%" }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {ingredients.map((ing, i) => (
+                <View key={i} style={{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: i < ingredients.length - 1 ? 1 : 0, borderBottomColor: C.border }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary, marginHorizontal: 10 }} />
+                  <Text style={{ fontSize: 16, color: C.text.primary, flex: 1, textAlign: isHe ? "right" : "left" }}>
+                    {ing}
+                  </Text>
+                </View>
+              ))}
+              {ingredients.length === 0 && (
+                <Text style={{ color: C.text.tertiary, textAlign: "center", padding: 20 }}>
+                  {isHe ? "אין מרכיבים" : "No ingredients listed"}
+                </Text>
+              )}
+            </ScrollView>
+          </View>
+
+          {/* Start cooking button */}
+          <TouchableOpacity
+            style={[cm.navBtnPrimary, { marginHorizontal: 20, marginTop: 16, marginBottom: 8, justifyContent: "center" }]}
+            onPress={() => {
+              void stopAudio();
+              setPhase("cooking");
+              void speakStep(0);
+            }}
+          >
+            <Text style={cm.navBtnPrimaryText}>
+              {isHe ? "מוכנים! נתחיל לבשל 🍳" : "Ready! Let's cook 🍳"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Replay intro */}
+          <TouchableOpacity
+            style={{ alignItems: "center", paddingBottom: 12 }}
+            onPress={() => {
+              if (ingredientIntroUriRef.current) void playFileAudio(ingredientIntroUriRef.current);
+              else speakFallback(ingredientIntroText.current);
+            }}
+          >
+            <Text style={{ color: C.text.tertiary, fontSize: 13 }}>
+              🔁 {isHe ? "האזן שוב" : "Listen again"}
+            </Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
+
   // ── Cook mode screen ──────────────────────────────────────────────────────
 
   return (
@@ -594,10 +690,16 @@ function CookingModeOverlay({
             )}
           </View>
 
-          {/* Raw step instruction — what to actually do */}
+          {/* AI narration as main text (includes quantities) — fallback to raw step */}
           <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-            {stepText}
+            {stepNarration !== stepText ? stepNarration : stepText}
           </Text>
+          {/* Show raw step as subtle subtitle when AI narration differs */}
+          {stepNarration !== stepText && (
+            <Text style={{ fontSize: 12, color: C.text.tertiary, marginTop: 6, textAlign: isHe ? "right" : "left" }}>
+              {stepText}
+            </Text>
+          )}
 
           {/* Loading indicator while waiting for audio */}
           {isLoadingAudio && (
