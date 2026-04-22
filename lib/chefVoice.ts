@@ -1,35 +1,46 @@
 /**
  * chefVoice.ts
- * Converts chef narration text to real human voice audio using ElevenLabs API.
- * Caches generated audio to expo-file-system so each step is only generated once.
+ * Hybrid TTS engine:
+ *   Hebrew  → Google Cloud TTS (he-IL WaveNet) — reliable, correct pronunciation
+ *   English → ElevenLabs (custom voices)        — warm, human quality
  *
- * ⚠️  SECURITY NOTE: EXPO_PUBLIC_ keys are bundled into the client.
- *     For production, proxy these calls through a backend (Firebase Function, etc.)
+ * All audio cached locally — zero API calls on replay.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
 
-const API_KEY  = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-const MODEL_ID = 'eleven_multilingual_v2'; // auto-detects Hebrew from Unicode text
+// ── ElevenLabs (English) ──────────────────────────────────────────────────────
+const EL_API_KEY  = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
+const EL_MODEL    = 'eleven_multilingual_v2';
 
 export type ChefGender = 'female' | 'male';
 
-export const VOICE_FEMALE = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_FEMALE ?? 'ILc5yWuthKSyc7tYivz6';
-export const VOICE_MALE   = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_MALE   ?? '2V5jPbyEsuNjvkjeM6OL';
+export const VOICE_FEMALE = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_FEMALE ?? '21m00Tcm4TlvDq8ikWAM';
+export const VOICE_MALE   = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_MALE   ?? 'TxGEqnHWrfWFTfGW9XjX';
 
 export function getVoiceId(gender: ChefGender): string {
   return gender === 'male' ? VOICE_MALE : VOICE_FEMALE;
 }
 
-const CACHE_DIR = (FileSystem.documentDirectory ?? '') + 'chef_audio/';
+// ── Google Cloud TTS (Hebrew) ─────────────────────────────────────────────────
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_TTS_API_KEY
+  ?? process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY
+  ?? '';
 
-// ── Cache helpers ─────────────────────────────────────────────────────────────
+const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
+
+// Best Hebrew WaveNet voices
+const HE_VOICES: Record<ChefGender, { name: string; ssmlGender: string }> = {
+  female: { name: 'he-IL-Wavenet-A', ssmlGender: 'FEMALE' },
+  male:   { name: 'he-IL-Wavenet-B', ssmlGender: 'MALE'   },
+};
+
+// ── Cache ─────────────────────────────────────────────────────────────────────
+const CACHE_DIR = (FileSystem.documentDirectory ?? '') + 'chef_audio/';
 
 async function ensureCacheDir(): Promise<void> {
   const info = await FileSystem.getInfoAsync(CACHE_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
-  }
+  if (!info.exists) await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 }
 
 function makeCacheKey(text: string, voiceId: string): string {
@@ -38,23 +49,15 @@ function makeCacheKey(text: string, voiceId: string): string {
   return `${slug}_${voiceId.slice(0, 8)}_${hash}`;
 }
 
-// ── Text sanitizer — strips non-Hebrew/Latin characters ──────────────────────
-
-/**
- * Removes any characters that are not Hebrew, Latin, digits, punctuation or spaces.
- * Prevents ElevenLabs from getting confused by mixed scripts (e.g. Korean chars
- * that Claude accidentally injects).
- */
+// ── Text sanitizer ────────────────────────────────────────────────────────────
 function sanitizeText(text: string): string {
-  // Allow: Hebrew (U+0590–U+05FF), Basic Latin, common punctuation, digits, whitespace
   return text
-    .replace(/[^\u0590-\u05FF\u0020-\u007E\s]/g, '')
+    .replace(/[^\u0590-\u05FF\u0020-\u007E\s]/g, '') // keep Hebrew + Latin only
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-// ── ArrayBuffer → base64 (safe for long audio) ───────────────────────────────
-
+// ── ArrayBuffer → base64 ──────────────────────────────────────────────────────
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -65,31 +68,127 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-// ── Main synthesis function ───────────────────────────────────────────────────
+// ── Hebrew synthesis via Google Cloud TTS ────────────────────────────────────
+async function synthesizeHebrew(
+  text: string,
+  gender: ChefGender,
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!GOOGLE_API_KEY) {
+    console.warn('[chefVoice] ❌ No Google API key for Hebrew TTS');
+    return null;
+  }
+
+  const voice = HE_VOICES[gender];
+  console.log('[chefVoice] 🇮🇱 Google TTS — voice:', voice.name);
+
+  const res = await fetch(`${GOOGLE_TTS_URL}?key=${GOOGLE_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: { text },
+      voice: { languageCode: 'he-IL', name: voice.name, ssmlGender: voice.ssmlGender },
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: 0.90,
+        pitch: 0.0,
+        volumeGainDb: 2.0,
+      },
+    }),
+    signal,
+  });
+
+  console.log('[chefVoice] Google TTS status:', res.status);
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.warn('[chefVoice] ❌ Google TTS error:', res.status, err);
+    return null;
+  }
+
+  const data = await res.json() as { audioContent: string };
+  if (!data.audioContent) { console.warn('[chefVoice] ❌ No audioContent'); return null; }
+
+  await FileSystem.writeAsStringAsync(filePath, data.audioContent, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  console.log('[chefVoice] ✅ Hebrew audio saved');
+  return filePath;
+}
+
+// ── English synthesis via ElevenLabs ─────────────────────────────────────────
+async function synthesizeEnglish(
+  text: string,
+  gender: ChefGender,
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!EL_API_KEY) {
+    console.warn('[chefVoice] ❌ No ElevenLabs key for English TTS');
+    return null;
+  }
+
+  const voiceId = getVoiceId(gender);
+  console.log('[chefVoice] 🇺🇸 ElevenLabs — voice:', voiceId);
+
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': EL_API_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: EL_MODEL,
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.80,
+        style: 0.25,
+        use_speaker_boost: true,
+      },
+    }),
+    signal,
+  });
+
+  console.log('[chefVoice] ElevenLabs status:', res.status);
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.warn('[chefVoice] ❌ ElevenLabs error:', res.status, err);
+    return null;
+  }
+
+  const buffer = await res.arrayBuffer();
+  console.log('[chefVoice] ✅ English audio received, bytes:', buffer.byteLength);
+
+  await FileSystem.writeAsStringAsync(filePath, arrayBufferToBase64(buffer), {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  console.log('[chefVoice] ✅ English audio saved');
+  return filePath;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Converts text to speech using ElevenLabs and caches the result.
- * Returns a local file URI (playable with expo-av) or null on failure.
+ * Synthesizes text to audio and caches it locally.
+ * Routes Hebrew → Google Cloud TTS, English → ElevenLabs.
  */
 export async function synthesizeAudio(
   text: string,
   gender: ChefGender = 'female',
-  _isHebrew: boolean = true, // kept for API compatibility, ElevenLabs is multilingual
+  isHebrew: boolean = false,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const voiceId = getVoiceId(gender);
-
   const cleanText = sanitizeText(text);
-  console.log('[chefVoice] synthesizeAudio — voice:', voiceId, '| gender:', gender);
-  console.log('[chefVoice] API_KEY set?', !!API_KEY);
-  console.log('[chefVoice] FULL TEXT:', cleanText);
+  if (!cleanText) return null;
 
-  if (!API_KEY || !cleanText) {
-    console.warn('[chefVoice] ❌ Skipping — API_KEY empty or text empty after sanitization');
-    return null;
-  }
-
-  const cacheKey = makeCacheKey(cleanText, voiceId);
+  const cacheVoiceKey = isHebrew ? HE_VOICES[gender].name : getVoiceId(gender);
+  const cacheKey = makeCacheKey(cleanText, cacheVoiceKey);
   const filePath = CACHE_DIR + cacheKey + '.mp3';
 
   try {
@@ -103,48 +202,11 @@ export async function synthesizeAudio(
 
     if (signal?.aborted) return null;
 
-    console.log('[chefVoice] 📡 Calling ElevenLabs...');
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': API_KEY,
-          'Content-Type': 'application/json',
-          Accept: 'audio/mpeg',
-        },
-        body: JSON.stringify({
-          text: cleanText,
-          model_id: MODEL_ID,
-          voice_settings: {
-            stability: 0.45,
-            similarity_boost: 0.80,
-            style: 0.25,
-            use_speaker_boost: true,
-          },
-        }),
-        signal,
-      },
-    );
-
-    console.log('[chefVoice] API response status:', res.status);
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      console.warn('[chefVoice] ❌ ElevenLabs error:', res.status, errBody);
-      return null;
+    if (isHebrew) {
+      return await synthesizeHebrew(cleanText, gender, filePath, signal);
+    } else {
+      return await synthesizeEnglish(cleanText, gender, filePath, signal);
     }
-
-    const buffer = await res.arrayBuffer();
-    console.log('[chefVoice] ✅ Audio received, bytes:', buffer.byteLength);
-    const base64 = arrayBufferToBase64(buffer);
-
-    await FileSystem.writeAsStringAsync(filePath, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    console.log('[chefVoice] ✅ Saved to cache');
-    return filePath;
   } catch (err) {
     if ((err as Error).name === 'AbortError') return null;
     console.warn('[chefVoice] ❌ error:', err);
@@ -152,20 +214,15 @@ export async function synthesizeAudio(
   }
 }
 
-/**
- * Deletes all cached chef audio (call when changing voice or clearing data).
- */
 export async function clearChefAudioCache(): Promise<void> {
   try {
     const info = await FileSystem.getInfoAsync(CACHE_DIR);
-    if (info.exists) {
-      await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
-    }
+    if (info.exists) await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
   } catch (err) {
     console.warn('[chefVoice] clearCache error:', err);
   }
 }
 
 export function isElevenLabsConfigured(): boolean {
-  return !!API_KEY;
+  return !!EL_API_KEY || !!GOOGLE_API_KEY;
 }
