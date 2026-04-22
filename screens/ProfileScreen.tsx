@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  DevSettings,
   I18nManager,
   Modal,
   Platform,
@@ -240,8 +241,14 @@ export default function ProfileScreen() {
         },
         {
           text: next === "he" ? "הפעל מחדש עכשיו" : "Restart now",
-          onPress: () => {
-            void Updates.reloadAsync();
+          onPress: async () => {
+            try {
+              // Works in standalone/production builds
+              await Updates.reloadAsync();
+            } catch {
+              // Fallback for Expo Go (development)
+              DevSettings.reload();
+            }
           },
         },
       ],

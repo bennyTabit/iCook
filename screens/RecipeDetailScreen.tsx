@@ -672,41 +672,46 @@ function CookingModeOverlay({
 
         {/* Step card */}
         <View style={[cm.stepCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+
+          {/* Top row: step counter + speaking status */}
           <View style={{ flexDirection: isHe ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }}>
             <View style={[cm.stepBadge, { backgroundColor: C.primary + "18", borderColor: C.primary + "40" }]}>
               <Text style={[cm.stepBadgeText, { color: C.primary }]}>
                 {isHe ? `שלב ${current + 1} מתוך ${total}` : `Step ${current + 1} of ${total}`}
               </Text>
             </View>
-            {isSpeaking && !isMuted && (
+            {isSpeaking && !isMuted ? (
               <View style={[cm.speakingBadge, { backgroundColor: C.secondary + "20", borderColor: C.secondary + "50" }]}>
-                <Ionicons name={audioUrisRef.current[current] ? "musical-notes" : "mic"} size={11} color={C.secondary} />
+                <Ionicons name={audioUrisRef.current[current] ? "musical-notes" : "mic"} size={14} color={C.secondary} />
                 <Text style={[cm.speakingBadgeText, { color: C.secondary }]}>
                   {audioUrisRef.current[current]
                     ? (isHe ? "השף מדבר..." : "Chef speaking...")
                     : (isHe ? "מקריא..." : "Reading...")}
                 </Text>
               </View>
-            )}
+            ) : isLoadingAudio ? (
+              <View style={[cm.speakingBadge, { backgroundColor: C.border + "80", borderColor: C.border }]}>
+                <Ionicons name="hourglass-outline" size={14} color={C.text.tertiary} />
+                <Text style={[cm.speakingBadgeText, { color: C.text.tertiary }]}>
+                  {isHe ? "מכין קול..." : "Loading voice..."}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
-          {/* AI narration as main text (includes quantities) — fallback to raw step */}
+          {/* Divider */}
+          <View style={{ height: 1, backgroundColor: C.border + "60" }} />
+
+          {/* AI narration — main text with quantities */}
           <Text style={[cm.stepText, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
             {stepNarration !== stepText ? stepNarration : stepText}
           </Text>
-          {/* Show raw step as subtle subtitle when AI narration differs */}
-          {stepNarration !== stepText && (
-            <Text style={{ fontSize: 12, color: C.text.tertiary, marginTop: 6, textAlign: isHe ? "right" : "left" }}>
-              {stepText}
-            </Text>
-          )}
 
-          {/* Loading indicator while waiting for audio */}
-          {isLoadingAudio && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
-              <Ionicons name="hourglass-outline" size={14} color={C.text.tertiary} />
-              <Text style={{ color: C.text.tertiary, fontSize: 13 }}>
-                {isHe ? "מכין את קול השף..." : "Preparing chef voice..."}
+          {/* Original recipe step as a styled note box */}
+          {stepNarration !== stepText && (
+            <View style={[cm.stepOriginalBox, { backgroundColor: C.background, borderColor: C.border, borderLeftColor: isHe ? undefined : C.primary + "60", borderRightColor: isHe ? C.primary + "60" : undefined }]}>
+              <Text style={[cm.stepOriginalText, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+                {stepText}
               </Text>
             </View>
           )}
@@ -2391,23 +2396,23 @@ const cm = StyleSheet.create({
   speakingBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
   },
   speakingBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   // Progress
   progressTrack: {
-    height: 4,
+    height: 6,
     backgroundColor: Colors.border,
     marginHorizontal: 16,
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: "hidden",
   },
   progressFill: {
@@ -2447,8 +2452,8 @@ const cm = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: Colors.border,
-    justifyContent: "center",
-    gap: 16,
+    justifyContent: "flex-start",
+    gap: 14,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -2457,15 +2462,15 @@ const cm = StyleSheet.create({
   },
   stepBadge: {
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     backgroundColor: Colors.primary + "18",
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.primary + "40",
   },
   stepBadgeText: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "700",
     color: Colors.primary,
   },
@@ -2473,7 +2478,20 @@ const cm = StyleSheet.create({
     fontSize: 22,
     fontWeight: "500",
     color: Colors.text.primary,
-    lineHeight: 32,
+    lineHeight: 34,
+  },
+  stepOriginalBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.background,
+  },
+  stepOriginalText: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    lineHeight: 20,
   },
   timerChip: {
     flexDirection: "row",
@@ -2498,22 +2516,22 @@ const cm = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   navBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 14,
+    gap: 6,
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
-  navBtnDisabled: { opacity: 0.4 },
+  navBtnDisabled: { opacity: 0.35 },
   navBtnText: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
     color: Colors.text.primary,
   },
@@ -2523,15 +2541,15 @@ const cm = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 14,
+    gap: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    borderRadius: 16,
     backgroundColor: Colors.primary,
   },
   navBtnFinish: { backgroundColor: Colors.secondary },
   navBtnPrimaryText: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "700",
     color: "#fff",
   },
