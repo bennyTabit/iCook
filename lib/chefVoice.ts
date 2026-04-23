@@ -82,8 +82,7 @@ async function synthesizeElevenLabs(
   }
 
   const voiceId = getVoiceId(gender);
-  const lang = isHebrew ? 'heb' : 'eng';
-  console.log(`[chefVoice] 🎙️ ElevenLabs v3 — voice: ${voiceId}, lang: ${lang}`);
+  console.log(`[chefVoice] 🎙️ ElevenLabs v3 — voice: ${voiceId}, lang: ${isHebrew ? 'he (auto-detect)' : 'en (auto-detect)'}`);
 
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
@@ -95,7 +94,7 @@ async function synthesizeElevenLabs(
     body: JSON.stringify({
       text,
       model_id: EL_MODEL_V3,
-      language_code: lang,
+      // eleven_v3 auto-detects language from the text — no language_code needed
       voice_settings: {
         stability: 0.50,
         similarity_boost: 0.80,
