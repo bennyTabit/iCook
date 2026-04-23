@@ -23,19 +23,46 @@ export async function generateChefScript(
 ): Promise<ChefScript | null> {
   if (!CLAUDE_API_KEY) return null;
 
-  const chefName     = isHe ? 'אביב' : 'Aviv';
-  const stepsText    = rawSteps.map((s, i) => `${i + 1}. ${s}`).join('\n');
-  const ingList      = ingredients.length > 0 ? ingredients.join('\n') : '';
+  const chefName  = isHe ? 'אביב' : 'Aviv';
+  const stepsText = rawSteps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  const ingList   = ingredients.length > 0 ? ingredients.join('\n') : '';
 
   const systemPrompt = isHe
-    ? `אתה ${chefName}, שף ביתי חם שמנחה בישול. אתה מדבר אך ורק בעברית. אסור בהחלט לשלב מילים, אותיות או תווים משפות אחרות — לא אנגלית, לא קוריאנית, לא יפנית ולא כל שפה אחרת. עברית בלבד, בכל מילה ובכל משפט.`
-    : `You are ${chefName}, a warm home chef guiding someone through cooking. You speak ONLY in English. Never mix in words, letters, or characters from any other language. English only, in every word and sentence.`;
+    ? `אתה ${chefName}, שף ביתי חם שמדריך בבישול. אתה מדבר אך ורק בעברית תקנית ונכונה — ללא שגיאות כתיב, ללא מילים מלועזיות מיותרות, ללא אנגלית, ללא קוריאנית ולא כל שפה אחרת. עברית בלבד, בכל מילה ובכל משפט. השתמש בשפה חמה, ברורה ויומיומית המתאימה למטבח הביתי.
+
+כללי שפה חשובים:
+- כתוב מספרים במילים: "שלושה" ולא "3", "כף" ולא tbsp
+- כמויות: "שתי כפות שמן זית", "מאה גרם חמאה", "חצי כוס קמח"
+- פעלים: השתמש בגוף ראשון רבים "אנחנו מוסיפים" או פנייה ישירה "הוסיפו"
+- אל תשתמש במילים: "וואו", "גיאל", "מגניב" — שמור על סגנון מקצועי וחם`
+    : `You are ${chefName}, a warm home chef guiding someone through cooking. You speak ONLY in English — no mixing of other languages. Use clear, natural spoken language as if talking to a friend in the kitchen. Be warm, encouraging, and precise with measurements.`;
 
   const ingredientsSection = ingList
     ? `\nIngredients with exact quantities:\n${ingList}\n`
     : '';
 
-  const userPrompt = `Recipe: "${recipeName}"
+  const userPrompt = isHe
+    ? `מתכון: "${recipeName}"
+${ingredientsSection}
+שלבים:
+${stepsText}
+
+החזר JSON תקני בלבד — ללא markdown, ללא גרשיים כפולים בתוך ערכים:
+{
+  "ingredientIntro": "...",
+  "intro": "...",
+  "steps": ["...", ...],
+  "outro": "..."
+}
+
+כללים:
+- ingredientIntro: משפט פתיחה חם כמו "לפני שנתחיל, בואו נוודא שיש לנו הכל מוכן!" ואז קרא כל מרכיב עם הכמות המדויקת שלו בצורה טבעית. מקסימום 80 מילים.
+- intro: ברכה חמה, שם המתכון, כמה שלבים. מקסימום 20 מילים.
+- steps: לכל שלב — תאר מה עושים, תמיד ציין את הכמות המדויקת של כל מרכיב שמשתמשים בו. הוסף טיפ קצר או עידוד. מקסימום 40 מילים לשלב.
+- outro: ברכות חמות בסיום. מקסימום 15 מילים.
+- החזר בדיוק ${rawSteps.length} נרציות לשלבים.
+- משפטים טבעיים לדיבור בלבד — ללא רשימות, ללא נקודות.`
+    : `Recipe: "${recipeName}"
 ${ingredientsSection}
 Steps:
 ${stepsText}
@@ -49,7 +76,7 @@ Respond with ONLY valid JSON — no markdown, no code fences:
 }
 
 Rules:
-- ingredientIntro: Warm sentence like "Before we start, let's make sure we have everything ready!" then read EVERY ingredient with its exact quantity naturally, one by one. Max 80 words. Sound like a friendly chef doing a prep check, not reading a list robotically.
+- ingredientIntro: Warm sentence like "Before we start, let's make sure we have everything ready!" then read EVERY ingredient with its exact quantity naturally, one by one. Max 80 words.
 - intro: Greet warmly, say the recipe name, say how many steps. Max 20 words.
 - steps: Narrate EACH step. ALWAYS say the EXACT quantity when an ingredient is used — "add 3 tablespoons of butter" not "add butter". Add 1 tip or encouragement. Max 40 words per step.
 - outro: Congratulate warmly. Max 15 words.

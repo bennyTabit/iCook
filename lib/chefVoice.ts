@@ -1,17 +1,18 @@
 /**
  * chefVoice.ts
  * Hybrid TTS engine:
- *   Hebrew  → Google Cloud TTS (he-IL WaveNet) — reliable, correct pronunciation
- *   English → ElevenLabs (custom voices)        — warm, human quality
+ *   Hebrew  → ElevenLabs eleven_v3 (he language, warm voice) — preferred
+ *             → Google Cloud TTS (he-IL WaveNet)              — fallback
+ *   English → ElevenLabs eleven_v3 (custom voices)           — warm, human
  *
  * All audio cached locally — zero API calls on replay.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
 
-// ── ElevenLabs (English) ──────────────────────────────────────────────────────
+// ── ElevenLabs ────────────────────────────────────────────────────────────────
 const EL_API_KEY  = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-const EL_MODEL    = 'eleven_multilingual_v2';
+const EL_MODEL_V3 = 'eleven_v3';
 
 export type ChefGender = 'female' | 'male';
 
@@ -22,14 +23,13 @@ export function getVoiceId(gender: ChefGender): string {
   return gender === 'male' ? VOICE_MALE : VOICE_FEMALE;
 }
 
-// ── Google Cloud TTS (Hebrew) ─────────────────────────────────────────────────
+// ── Google Cloud TTS (Hebrew fallback) ───────────────────────────────────────
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_TTS_API_KEY
   ?? process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY
   ?? '';
 
 const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
-// Best Hebrew WaveNet voices
 const HE_VOICES: Record<ChefGender, { name: string; ssmlGender: string }> = {
   female: { name: 'he-IL-Wavenet-A', ssmlGender: 'FEMALE' },
   male:   { name: 'he-IL-Wavenet-B', ssmlGender: 'MALE'   },
@@ -68,20 +68,77 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-// ── Hebrew synthesis via Google Cloud TTS ────────────────────────────────────
-async function synthesizeHebrew(
+// ── ElevenLabs v3 synthesis (Hebrew + English) ────────────────────────────────
+async function synthesizeElevenLabs(
+  text: string,
+  gender: ChefGender,
+  isHebrew: boolean,
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!EL_API_KEY) {
+    console.warn('[chefVoice] ❌ No ElevenLabs key');
+    return null;
+  }
+
+  const voiceId = getVoiceId(gender);
+  const lang = isHebrew ? 'heb' : 'eng';
+  console.log(`[chefVoice] 🎙️ ElevenLabs v3 — voice: ${voiceId}, lang: ${lang}`);
+
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': EL_API_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: EL_MODEL_V3,
+      language_code: lang,
+      voice_settings: {
+        stability: 0.50,
+        similarity_boost: 0.80,
+        style: 0.30,
+        use_speaker_boost: true,
+      },
+    }),
+    signal,
+  });
+
+  console.log('[chefVoice] ElevenLabs v3 status:', res.status);
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.warn('[chefVoice] ❌ ElevenLabs v3 error:', res.status, err);
+    return null;
+  }
+
+  const buffer = await res.arrayBuffer();
+  console.log('[chefVoice] ✅ ElevenLabs v3 audio received, bytes:', buffer.byteLength);
+
+  await FileSystem.writeAsStringAsync(filePath, arrayBufferToBase64(buffer), {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  console.log('[chefVoice] ✅ ElevenLabs v3 audio saved');
+  return filePath;
+}
+
+// ── Google Cloud TTS (Hebrew fallback) ───────────────────────────────────────
+async function synthesizeGoogleHebrew(
   text: string,
   gender: ChefGender,
   filePath: string,
   signal?: AbortSignal,
 ): Promise<string | null> {
   if (!GOOGLE_API_KEY) {
-    console.warn('[chefVoice] ❌ No Google API key for Hebrew TTS');
+    console.warn('[chefVoice] ❌ No Google API key for Hebrew fallback');
     return null;
   }
 
   const voice = HE_VOICES[gender];
-  console.log('[chefVoice] 🇮🇱 Google TTS — voice:', voice.name);
+  console.log('[chefVoice] 🇮🇱 Google TTS fallback — voice:', voice.name);
 
   const res = await fetch(`${GOOGLE_TTS_URL}?key=${GOOGLE_API_KEY}`, {
     method: 'POST',
@@ -114,61 +171,7 @@ async function synthesizeHebrew(
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  console.log('[chefVoice] ✅ Hebrew audio saved');
-  return filePath;
-}
-
-// ── English synthesis via ElevenLabs ─────────────────────────────────────────
-async function synthesizeEnglish(
-  text: string,
-  gender: ChefGender,
-  filePath: string,
-  signal?: AbortSignal,
-): Promise<string | null> {
-  if (!EL_API_KEY) {
-    console.warn('[chefVoice] ❌ No ElevenLabs key for English TTS');
-    return null;
-  }
-
-  const voiceId = getVoiceId(gender);
-  console.log('[chefVoice] 🇺🇸 ElevenLabs — voice:', voiceId);
-
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': EL_API_KEY,
-      'Content-Type': 'application/json',
-      Accept: 'audio/mpeg',
-    },
-    body: JSON.stringify({
-      text,
-      model_id: EL_MODEL,
-      voice_settings: {
-        stability: 0.45,
-        similarity_boost: 0.80,
-        style: 0.25,
-        use_speaker_boost: true,
-      },
-    }),
-    signal,
-  });
-
-  console.log('[chefVoice] ElevenLabs status:', res.status);
-
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    console.warn('[chefVoice] ❌ ElevenLabs error:', res.status, err);
-    return null;
-  }
-
-  const buffer = await res.arrayBuffer();
-  console.log('[chefVoice] ✅ English audio received, bytes:', buffer.byteLength);
-
-  await FileSystem.writeAsStringAsync(filePath, arrayBufferToBase64(buffer), {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  console.log('[chefVoice] ✅ English audio saved');
+  console.log('[chefVoice] ✅ Google Hebrew fallback audio saved');
   return filePath;
 }
 
@@ -176,7 +179,9 @@ async function synthesizeEnglish(
 
 /**
  * Synthesizes text to audio and caches it locally.
- * Routes Hebrew → Google Cloud TTS, English → ElevenLabs.
+ *
+ * Hebrew: tries ElevenLabs v3 first (native Hebrew support), falls back to Google TTS.
+ * English: ElevenLabs v3 only.
  */
 export async function synthesizeAudio(
   text: string,
@@ -187,7 +192,8 @@ export async function synthesizeAudio(
   const cleanText = sanitizeText(text);
   if (!cleanText) return null;
 
-  const cacheVoiceKey = isHebrew ? HE_VOICES[gender].name : getVoiceId(gender);
+  // Cache key uses voice + language so Hebrew/English of same text don't collide
+  const cacheVoiceKey = `${getVoiceId(gender)}_${isHebrew ? 'he' : 'en'}`;
   const cacheKey = makeCacheKey(cleanText, cacheVoiceKey);
   const filePath = CACHE_DIR + cacheKey + '.mp3';
 
@@ -202,11 +208,21 @@ export async function synthesizeAudio(
 
     if (signal?.aborted) return null;
 
-    if (isHebrew) {
-      return await synthesizeHebrew(cleanText, gender, filePath, signal);
-    } else {
-      return await synthesizeEnglish(cleanText, gender, filePath, signal);
+    // Primary: ElevenLabs v3 (supports both Hebrew and English)
+    if (EL_API_KEY) {
+      const result = await synthesizeElevenLabs(cleanText, gender, isHebrew, filePath, signal);
+      if (result) return result;
+      console.warn('[chefVoice] ElevenLabs v3 failed, trying fallback...');
     }
+
+    if (signal?.aborted) return null;
+
+    // Hebrew fallback: Google Cloud TTS WaveNet
+    if (isHebrew && GOOGLE_API_KEY) {
+      return await synthesizeGoogleHebrew(cleanText, gender, filePath, signal);
+    }
+
+    return null;
   } catch (err) {
     if ((err as Error).name === 'AbortError') return null;
     console.warn('[chefVoice] ❌ error:', err);
