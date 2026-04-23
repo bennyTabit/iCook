@@ -25,7 +25,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Speech from "expo-speech";
-import { Audio } from "expo-av";
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useTranslation } from "react-i18next";
 import { generateChefScript, isClaudeConfigured } from "../lib/chefAI";
 import { synthesizeAudio, isElevenLabsConfigured, clearChefAudioCache, type ChefGender } from "../lib/chefVoice";
@@ -164,7 +164,7 @@ function CookingModeOverlay({
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const isMutedRef         = useRef(false);
-  const soundRef           = useRef<Audio.Sound | null>(null);
+  const soundRef           = useRef<AudioPlayer | null>(null);
   const abortRef           = useRef(new AbortController());
   const timerIntervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const narrationsRef         = useRef<string[]>(steps);
@@ -187,7 +187,7 @@ function CookingModeOverlay({
     Speech.stop();
     setIsSpeaking(false);
     if (soundRef.current) {
-      try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
+      try { soundRef.current.remove(); } catch {}
       soundRef.current = null;
     }
   }
@@ -196,17 +196,19 @@ function CookingModeOverlay({
     if (isMutedRef.current) { onDone?.(); return; }
     await stopAudio();
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: true });
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1 });
-      soundRef.current = sound;
+      await setAudioModeAsync({ playsInSilentMode: true });
+      const player = createAudioPlayer({ uri });
+      soundRef.current = player;
       setIsSpeaking(true);
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) {
           setIsSpeaking(false);
+          try { player.remove(); } catch {}
           soundRef.current = null;
           onDone?.();
         }
       });
+      player.play();
     } catch (err) {
       console.warn("[CookMode] playFileAudio error:", err);
       setIsSpeaking(false);
