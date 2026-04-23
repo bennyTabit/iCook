@@ -4,11 +4,12 @@ import type { Recipe } from "../lib/db";
 
 const STORAGE_KEY = "@icook_shopping_items";
 
-// Monotonically increasing counter — guarantees unique IDs even when
-// multiple items are created within the same millisecond (e.g. batch adds).
-let _idSeq = 0;
+// Generates a collision-resistant ID using timestamp + random suffix.
+// Random is used (not a module-level counter) so IDs stay unique even
+// after Expo Go hot-reloads reset module state while AsyncStorage persists.
 function nextId(prefix: string) {
-  return `${prefix}-${Date.now()}-${_idSeq++}`;
+  const rand = Math.random().toString(36).slice(2, 9);
+  return `${prefix}-${Date.now()}-${rand}`;
 }
 
 export type ShopItem = {
@@ -151,7 +152,10 @@ export const useShoppingStore = create<ShoppingStore>((set, get) => {
           category: guessCategory(text),
         }));
 
-      const merged = [...existing, ...newItems];
+      // Deduplicate by text (case-insensitive) in case of rapid double-calls
+      const seen = new Set(existing.map((i) => i.text.toLowerCase()));
+      const safe = newItems.filter((i) => !seen.has(i.text.toLowerCase()));
+      const merged = [...existing, ...safe];
       persist(merged);
       set({ items: merged, grouped: groupItems(merged) });
     },
