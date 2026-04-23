@@ -28,13 +28,16 @@ export async function generateChefScript(
   const ingList   = ingredients.length > 0 ? ingredients.join('\n') : '';
 
   const systemPrompt = isHe
-    ? `אתה ${chefName}, שף ביתי חם שמדריך בבישול. אתה מדבר אך ורק בעברית תקנית ונכונה — ללא שגיאות כתיב, ללא מילים מלועזיות מיותרות, ללא אנגלית, ללא קוריאנית ולא כל שפה אחרת. עברית בלבד, בכל מילה ובכל משפט. השתמש בשפה חמה, ברורה ויומיומית המתאימה למטבח הביתי.
+    ? `אתה ${chefName}, שף ביתי חם שמדריך בבישול. אתה מדבר אך ורק בעברית תקנית ונכונה.
 
-כללי שפה חשובים:
-- כתוב מספרים במילים: "שלושה" ולא "3", "כף" ולא tbsp
-- כמויות: "שתי כפות שמן זית", "מאה גרם חמאה", "חצי כוס קמח"
-- פעלים: השתמש בגוף ראשון רבים "אנחנו מוסיפים" או פנייה ישירה "הוסיפו"
-- אל תשתמש במילים: "וואו", "גיאל", "מגניב" — שמור על סגנון מקצועי וחם`
+חוקים מחייבים:
+- השתמש אך ורק במילים עבריות שקיימות במילון — אל תמציא מילים או צורות פועל שאינן קיימות.
+- אם אינך בטוח בצורה הנכונה של מילה — בחר מילה פשוטה יותר שאתה בטוח בה.
+- ללא אנגלית, ללא קוריאנית, ללא שום שפה זרה — עברית בלבד בכל מילה.
+- כמויות: "שתי כפות שמן זית", "מאה גרם חמאה", "חצי כוס קמח" — מילים ולא ספרות.
+- פעלים בצורות פשוטות ונפוצות: "מוסיפים", "מערבבים", "מחממים", "אופים" — לא צורות נדירות או מגומגמות.
+- גוף ראשון רבים "אנחנו מוסיפים" או ציווי ישיר "הוסיפו", "ערבבו".
+- שפה חמה, ברורה ויומיומית של המטבח הביתי — לא ספרותית ולא רשמית מדי.`
     : `You are ${chefName}, a warm home chef guiding someone through cooking. You speak ONLY in English — no mixing of other languages. Use clear, natural spoken language as if talking to a friend in the kitchen. Be warm, encouraging, and precise with measurements.`;
 
   const ingredientsSection = ingList
@@ -93,7 +96,7 @@ Rules:
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
+        model: 'claude-sonnet-4-5',
         max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
