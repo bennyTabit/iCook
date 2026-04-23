@@ -123,6 +123,31 @@ function CookingModeOverlay({
   const chefGenderRef               = useRef<ChefGender>('female');
   const [loadingMsg, setLoadingMsg] = useState(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
   const [narrations, setNarrations] = useState<string[]>(steps); // fallback = raw steps
+
+  // ── Preparing animation ───────────────────────────────────────────────────
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+  const [msgIdx, setMsgIdx] = useState(0);
+
+  const preparingMessages = isHe
+    ? ["השף קורא את המתכון...", "מכין הנחיות מותאמות אישית...", "מייצר קול לכל שלב...", "כמעט מוכן..."]
+    : ["Chef is reading your recipe...", "Preparing personalized instructions...", "Generating voice for each step...", "Almost ready..."];
+
+  useEffect(() => {
+    if (phase !== "preparing") return;
+    const makeDot = (anim: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: 1,   duration: 350, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.25, duration: 350, useNativeDriver: true }),
+        Animated.delay(Math.max(0, 700 - delay)),
+      ]));
+    const anims = [makeDot(dot1, 0), makeDot(dot2, 220), makeDot(dot3, 440)];
+    anims.forEach(a => a.start());
+    const msgTimer = setInterval(() => setMsgIdx(i => (i + 1) % preparingMessages.length), 2800);
+    return () => { anims.forEach(a => a.stop()); clearInterval(msgTimer); };
+  }, [phase]);
   const [outroText, setOutroText]   = useState(isHe ? "כל הכבוד! בתיאבון!" : "Amazing! Enjoy your meal!");
   const [audioUris, setAudioUris]   = useState<(string | null)[]>(Array(steps.length).fill(null));
   const [audioReady, setAudioReady] = useState(0); // steps with audio ready
@@ -453,12 +478,13 @@ function CookingModeOverlay({
             <Ionicons name="close" size={20} color={C.text.secondary} />
           </TouchableOpacity>
 
+          {/* Chef emoji */}
           <Text style={cm.preparingEmoji}>{chefGender === 'female' ? '👩‍🍳' : '👨‍🍳'}</Text>
           <Text style={[cm.preparingTitle, { color: C.text.primary }]}>
             {isHe ? "השף מתכונן..." : "Chef is preparing..."}
           </Text>
 
-          {/* Gender toggle — only shown before cooking starts */}
+          {/* Gender toggle */}
           <View style={cm.genderToggle}>
             <TouchableOpacity
               style={[cm.genderBtn, chefGender === 'female' && { backgroundColor: '#2E9E8F' }]}
@@ -478,21 +504,44 @@ function CookingModeOverlay({
             </TouchableOpacity>
           </View>
 
-          <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>{loadingMsg}</Text>
-
-          <View style={[cm.preparingBar, { backgroundColor: C.border }]}>
-            <View style={[cm.preparingBarFill, {
-              backgroundColor: C.secondary,
-              width: `${Math.max(8, Math.round((audioReady / Math.max(total, 1)) * 100))}%` as any
-            }]} />
+          {/* Pulsing dots */}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 8, marginBottom: 4 }}>
+            {[dot1, dot2, dot3].map((anim, i) => (
+              <Animated.View
+                key={i}
+                style={{
+                  width: 12, height: 12, borderRadius: 6,
+                  backgroundColor: C.primary,
+                  opacity: anim,
+                  transform: [{ scale: anim }],
+                }}
+              />
+            ))}
           </View>
-          <Text style={{ color: C.text.tertiary, fontSize: 12, marginTop: 6 }}>
-            {audioReady}/{total} {isHe ? "שלבים מוכנים" : "steps ready"}
+
+          {/* Cycling status message */}
+          <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>
+            {preparingMessages[msgIdx]}
           </Text>
 
-          <Text style={[cm.preparingSkip, { color: C.text.tertiary }]}>
-            {isHe ? `"${recipeName}"` : `"${recipeName}"`}
-          </Text>
+          {/* Progress bar — appears once audio starts generating */}
+          {audioReady > 0 ? (
+            <>
+              <View style={[cm.preparingBar, { backgroundColor: C.border }]}>
+                <View style={[cm.preparingBarFill, {
+                  backgroundColor: C.secondary,
+                  width: `${Math.max(8, Math.round((audioReady / Math.max(total, 1)) * 100))}%` as any,
+                }]} />
+              </View>
+              <Text style={{ color: C.text.tertiary, fontSize: 13, marginTop: 6 }}>
+                {audioReady}/{total} {isHe ? "שלבים מוכנים" : "steps ready"}
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: C.text.tertiary, fontSize: 13, marginTop: 4 }}>
+              {isHe ? `"${recipeName}"` : `"${recipeName}"`}
+            </Text>
+          )}
 
           {/* Skip to basic mode */}
           <TouchableOpacity
