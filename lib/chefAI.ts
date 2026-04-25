@@ -120,22 +120,33 @@ Rules:
     const match    = stripped.match(/\{[\s\S]*\}/);
     if (!match) { console.warn('[chefAI] No JSON found'); return null; }
 
-    const parsed = JSON.parse(match[0]) as ChefScript;
+    // Multi-strategy JSON parsing — Claude sometimes adds stray ] or trailing commas
+    let parsed: ChefScript | null = null;
+    const candidates = [
+      match[0],
+      match[0].replace(/,\s*([}\]])/g, '$1'),   // remove trailing commas
+      match[0].replace(/}\s*\][\s\S]*$/, '}'),   // strip stray ] after closing }
+      match[0].replace(/]\s*}/g, ']}'),           // fix unclosed arrays
+    ];
+    for (const candidate of candidates) {
+      try { parsed = JSON.parse(candidate) as ChefScript; break; } catch { /* try next */ }
+    }
+    if (!parsed) { console.warn('[chefAI] JSON parse failed after all strategies'); return null; }
 
     if (
-      typeof parsed.ingredientIntro !== 'string' ||
-      typeof parsed.intro !== 'string' ||
-      !Array.isArray(parsed.steps) ||
-      typeof parsed.outro !== 'string'
+      typeof parsed!.ingredientIntro !== 'string' ||
+      typeof parsed!.intro !== 'string' ||
+      !Array.isArray(parsed!.steps) ||
+      typeof parsed!.outro !== 'string'
     ) {
       console.warn('[chefAI] Invalid structure');
       return null;
     }
 
-    while (parsed.steps.length < rawSteps.length) {
-      parsed.steps.push(rawSteps[parsed.steps.length] ?? '');
+    while (parsed!.steps.length < rawSteps.length) {
+      parsed!.steps.push(rawSteps[parsed!.steps.length] ?? '');
     }
-    parsed.steps = parsed.steps.slice(0, rawSteps.length);
+    parsed!.steps = parsed!.steps.slice(0, rawSteps.length);
 
     return parsed;
   } catch (err) {

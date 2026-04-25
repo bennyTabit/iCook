@@ -130,6 +130,8 @@ function CookingModeOverlay({
   const dot3 = useRef(new Animated.Value(0.3)).current;
   const stagePulse = useRef(new Animated.Value(1)).current;
   const [msgIdx, setMsgIdx] = useState(0);
+  // Explicit stage: 0=reading recipe, 1=generating voice, 2=ready
+  const [loadingStage, setLoadingStage] = useState(0);
 
   const preparingMessages = isHe
     ? ["השף קורא את המתכון...", "מכין הנחיות מותאמות אישית...", "מייצר קול לכל שלב...", "כמעט מוכן..."]
@@ -186,8 +188,6 @@ function CookingModeOverlay({
   const isFirstStepRef        = useRef(true);
 
   const total    = Math.max(steps.length, 1);
-  // 0 = reading recipe (Claude), 1 = generating audio, 2 = done
-  const prepStage = audioReady === total && total > 0 ? 2 : audioReady > 0 ? 1 : 0;
   const isLast   = current >= steps.length - 1;
   const stepText = steps[current] ?? "";
   const stepNarration = narrationsRef.current[current] ?? stepText;
@@ -332,6 +332,7 @@ function CookingModeOverlay({
 
     // ── Step 1: Generate chef narrations with Claude ──
     if (isClaudeConfigured()) {
+      setLoadingStage(0);
       setLoadingMsg(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
       const script = await generateChefScript(recipeName, steps, ingredients, isHe, signal);
       if (signal.aborted) return;
@@ -344,6 +345,7 @@ function CookingModeOverlay({
 
         // ── Step 2: Generate ingredient intro audio ──
         if (isElevenLabsConfigured()) {
+          setLoadingStage(1);
           setLoadingMsg(isHe ? "מכין את קול השף..." : "Preparing chef voice...");
           const ingIntroUri = await synthesizeAudio(script.ingredientIntro, chefGenderRef.current, isHe, signal);
           if (signal.aborted) return;
@@ -404,6 +406,7 @@ function CookingModeOverlay({
 
     // ── Show ingredient intro screen and play ingredient intro ──
     if (signal.aborted) return;
+    setLoadingStage(2);
     setPhase("intro");
     if (ingredientIntroUriRef.current) {
       void playFileAudio(ingredientIntroUriRef.current);
@@ -521,10 +524,10 @@ function CookingModeOverlay({
           </View>
 
           {/* Stage icons — inspired by cooking illustration style */}
-          <View style={{ flexDirection: "row", gap: 14, marginTop: 8, marginBottom: 4 }}>
+          <View style={{ flexDirection: isHe ? "row-reverse" : "row", gap: 14, marginTop: 8, marginBottom: 4 }}>
             {stageItems.map((item, i) => {
-              const isActive = i === prepStage;
-              const isDone   = i < prepStage;
+              const isActive = i === loadingStage;
+              const isDone   = i < loadingStage;
               return (
                 <Animated.View
                   key={i}
@@ -554,7 +557,7 @@ function CookingModeOverlay({
           </View>
 
           {/* Pulsing dots */}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 10, marginBottom: 2 }}>
+          <View style={{ flexDirection: isHe ? "row-reverse" : "row", gap: 10, marginTop: 10, marginBottom: 2 }}>
             {[dot1, dot2, dot3].map((anim, i) => (
               <Animated.View
                 key={i}
