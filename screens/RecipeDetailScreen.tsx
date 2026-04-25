@@ -128,25 +128,37 @@ function CookingModeOverlay({
   const dot1 = useRef(new Animated.Value(0.3)).current;
   const dot2 = useRef(new Animated.Value(0.3)).current;
   const dot3 = useRef(new Animated.Value(0.3)).current;
+  const stagePulse = useRef(new Animated.Value(1)).current;
   const [msgIdx, setMsgIdx] = useState(0);
 
   const preparingMessages = isHe
     ? ["השף קורא את המתכון...", "מכין הנחיות מותאמות אישית...", "מייצר קול לכל שלב...", "כמעט מוכן..."]
     : ["Chef is reading your recipe...", "Preparing personalized instructions...", "Generating voice for each step...", "Almost ready..."];
 
+  const stageItems = [
+    { emoji: "🥣", labelHe: "קריאת המתכון", labelEn: "Reading recipe" },
+    { emoji: "🎙️", labelHe: "יצירת קול",    labelEn: "Generating voice" },
+    { emoji: "✨",  labelHe: "מוכן!",         labelEn: "Ready!" },
+  ];
+
   useEffect(() => {
     if (phase !== "preparing") return;
     const makeDot = (anim: Animated.Value, delay: number) =>
       Animated.loop(Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(anim, { toValue: 1,   duration: 350, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 1,    duration: 350, useNativeDriver: true }),
         Animated.timing(anim, { toValue: 0.25, duration: 350, useNativeDriver: true }),
         Animated.delay(Math.max(0, 700 - delay)),
       ]));
+    const pulse = Animated.loop(Animated.sequence([
+      Animated.timing(stagePulse, { toValue: 1.08, duration: 700, useNativeDriver: true }),
+      Animated.timing(stagePulse, { toValue: 1.00, duration: 700, useNativeDriver: true }),
+    ]));
     const anims = [makeDot(dot1, 0), makeDot(dot2, 220), makeDot(dot3, 440)];
     anims.forEach(a => a.start());
+    pulse.start();
     const msgTimer = setInterval(() => setMsgIdx(i => (i + 1) % preparingMessages.length), 2800);
-    return () => { anims.forEach(a => a.stop()); clearInterval(msgTimer); };
+    return () => { anims.forEach(a => a.stop()); pulse.stop(); clearInterval(msgTimer); };
   }, [phase]);
   const [outroText, setOutroText]   = useState(isHe ? "כל הכבוד! בתיאבון!" : "Amazing! Enjoy your meal!");
   const [audioUris, setAudioUris]   = useState<(string | null)[]>(Array(steps.length).fill(null));
@@ -174,6 +186,8 @@ function CookingModeOverlay({
   const isFirstStepRef        = useRef(true);
 
   const total    = Math.max(steps.length, 1);
+  // 0 = reading recipe (Claude), 1 = generating audio, 2 = done
+  const prepStage = audioReady === total && total > 0 ? 2 : audioReady > 0 ? 1 : 0;
   const isLast   = current >= steps.length - 1;
   const stepText = steps[current] ?? "";
   const stepNarration = narrationsRef.current[current] ?? stepText;
@@ -506,13 +520,46 @@ function CookingModeOverlay({
             </TouchableOpacity>
           </View>
 
+          {/* Stage icons — inspired by cooking illustration style */}
+          <View style={{ flexDirection: "row", gap: 14, marginTop: 8, marginBottom: 4 }}>
+            {stageItems.map((item, i) => {
+              const isActive = i === prepStage;
+              const isDone   = i < prepStage;
+              return (
+                <Animated.View
+                  key={i}
+                  style={[
+                    cm.stageIcon,
+                    {
+                      backgroundColor: isDone
+                        ? C.secondary + "22"
+                        : isActive ? C.primary + "18" : C.surface,
+                      borderColor: isDone
+                        ? C.secondary
+                        : isActive ? C.primary : C.border,
+                      transform: isActive ? [{ scale: stagePulse }] : [],
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 30 }}>{isDone ? "✅" : item.emoji}</Text>
+                  <Text style={[cm.stageLabel, {
+                    color: isDone ? C.secondary : isActive ? C.primary : C.text.tertiary,
+                    fontWeight: isActive ? "700" : "400",
+                  }]}>
+                    {isHe ? item.labelHe : item.labelEn}
+                  </Text>
+                </Animated.View>
+              );
+            })}
+          </View>
+
           {/* Pulsing dots */}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 8, marginBottom: 4 }}>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 10, marginBottom: 2 }}>
             {[dot1, dot2, dot3].map((anim, i) => (
               <Animated.View
                 key={i}
                 style={{
-                  width: 12, height: 12, borderRadius: 6,
+                  width: 10, height: 10, borderRadius: 5,
                   backgroundColor: C.primary,
                   opacity: anim,
                   transform: [{ scale: anim }],
@@ -2616,8 +2663,27 @@ const cm = StyleSheet.create({
 
   // Preparing screen
   preparingEmoji: {
-    fontSize: 72,
-    marginBottom: 20,
+    fontSize: 64,
+    marginBottom: 12,
+  },
+  stageIcon: {
+    width: 90,
+    height: 90,
+    borderRadius: 22,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  stageLabel: {
+    fontSize: 10,
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
   preparingTitle: {
     fontSize: 22,
