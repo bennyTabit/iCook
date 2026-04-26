@@ -133,9 +133,20 @@ function CookingModeOverlay({
   // Explicit stage: 0=reading recipe, 1=generating voice, 2=ready
   const [loadingStage, setLoadingStage] = useState(0);
 
-  const preparingMessages = isHe
-    ? ["השף קורא את המתכון...", "מכין הנחיות מותאמות אישית...", "מייצר קול לכל שלב...", "כמעט מוכן..."]
-    : ["Chef is reading your recipe...", "Preparing personalized instructions...", "Generating voice for each step...", "Almost ready..."];
+  // Stage-aware messages — stage 0 is long so it gets 2 slow-cycling messages
+  const stageMessages = isHe
+    ? [
+        ["השף קורא את המתכון...", "מכין הנחיות בישול אישיות..."],  // stage 0
+        ["מייצר את קול השף..."],                                     // stage 1
+        ["מוכן! מתחילים לבשל..."],                                   // stage 2
+      ]
+    : [
+        ["Chef is reading your recipe...", "Crafting personalized instructions..."],
+        ["Generating chef voice..."],
+        ["Ready! Let's cook!"],
+      ];
+
+  const currentMsg = stageMessages[loadingStage]?.[msgIdx] ?? stageMessages[0][0];
 
   const stageItems = [
     { emoji: "🥣", labelHe: "קריאת המתכון", labelEn: "Reading recipe" },
@@ -143,6 +154,7 @@ function CookingModeOverlay({
     { emoji: "✨",  labelHe: "מוכן!",         labelEn: "Ready!" },
   ];
 
+  // Dot + pulse animations — start once when preparing begins
   useEffect(() => {
     if (phase !== "preparing") return;
     const makeDot = (anim: Animated.Value, delay: number) =>
@@ -159,9 +171,18 @@ function CookingModeOverlay({
     const anims = [makeDot(dot1, 0), makeDot(dot2, 220), makeDot(dot3, 440)];
     anims.forEach(a => a.start());
     pulse.start();
-    const msgTimer = setInterval(() => setMsgIdx(i => (i + 1) % preparingMessages.length), 2800);
-    return () => { anims.forEach(a => a.stop()); pulse.stop(); clearInterval(msgTimer); };
+    return () => { anims.forEach(a => a.stop()); pulse.stop(); };
   }, [phase]);
+
+  // Message cycling — resets when stage changes; only cycles in stage 0
+  useEffect(() => {
+    if (phase !== "preparing") return;
+    setMsgIdx(0); // reset on every stage change
+    const msgs = stageMessages[loadingStage] ?? [];
+    if (msgs.length <= 1) return; // nothing to cycle
+    const timer = setInterval(() => setMsgIdx(i => (i + 1) % msgs.length), 4500);
+    return () => clearInterval(timer);
+  }, [phase, loadingStage]);
   const [outroText, setOutroText]   = useState(isHe ? "כל הכבוד! בתיאבון!" : "Amazing! Enjoy your meal!");
   const [audioUris, setAudioUris]   = useState<(string | null)[]>(Array(steps.length).fill(null));
   const [audioReady, setAudioReady] = useState(0); // steps with audio ready
@@ -407,6 +428,9 @@ function CookingModeOverlay({
     // ── Show ingredient intro screen and play ingredient intro ──
     if (signal.aborted) return;
     setLoadingStage(2);
+    // Brief pause so user sees the ✨ "Ready!" stage before transitioning
+    await new Promise<void>(r => setTimeout(r, 700));
+    if (signal.aborted) return;
     setPhase("intro");
     if (ingredientIntroUriRef.current) {
       void playFileAudio(ingredientIntroUriRef.current);
@@ -571,9 +595,9 @@ function CookingModeOverlay({
             ))}
           </View>
 
-          {/* Cycling status message */}
+          {/* Stage-aware status message */}
           <Text style={[cm.preparingMsg, { color: C.text.secondary }]}>
-            {preparingMessages[msgIdx]}
+            {currentMsg}
           </Text>
 
           {/* Progress bar — appears once audio starts generating */}
