@@ -121,6 +121,16 @@ function CookingModeOverlay({
   const [phase, setPhase]           = useState<ChefPhase>("preparing");
   const [chefGender, setChefGender] = useState<ChefGender>('female');
   const chefGenderRef               = useRef<ChefGender>('female');
+
+  // Load chef gender saved during onboarding
+  useEffect(() => {
+    AsyncStorage.getItem('icook.prefs.chefGender').then(g => {
+      if (g === 'male' || g === 'female') {
+        setChefGender(g);
+        chefGenderRef.current = g;
+      }
+    }).catch(() => {});
+  }, []);
   const [loadingMsg, setLoadingMsg] = useState(isHe ? "השף קורא את המתכון..." : "Chef is reading your recipe...");
   const [narrations, setNarrations] = useState<string[]>(steps); // fallback = raw steps
 
