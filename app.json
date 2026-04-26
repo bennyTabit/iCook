@@ -53,7 +53,8 @@
           "color": "#FF6B6B",
           "sounds": []
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }
