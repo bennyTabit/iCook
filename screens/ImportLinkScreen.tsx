@@ -118,7 +118,13 @@ export default function ImportLinkScreen({ route, navigation }: any) {
 
     try {
       const imported = await importFromUrl(url.trim());
-      // Fast path succeeded — site doesn't block automated fetch
+      if (imported.ingredients.length === 0 && imported.steps.length === 0) {
+        // Site loaded but no recipe content found — open WebView so the
+        // user can extract from the fully-rendered live page
+        setLoading(false);
+        setShowWebView(true);
+        return;
+      }
       setResult(imported);
     } catch (e: any) {
       const msg: string = e?.message ?? "";
