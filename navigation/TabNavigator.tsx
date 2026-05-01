@@ -43,7 +43,7 @@ export type TabParamList = {
   RecipeDetail: { id: number };
   AddRecipe: undefined;
   OcrReview: { ocr: import("../lib/ocr").OcrResult };
-  ImportLink: { url?: string } | undefined;
+  ImportLink: { url?: string; browse?: boolean } | undefined;
   EditRecipe: { id: number | null };
 };
 
@@ -57,6 +57,7 @@ type MenuItem = {
   subHe: string;
   subEn: string;
   screen: keyof TabParamList;
+  params?: Record<string, unknown>;
 };
 
 const MENU_ITEMS: MenuItem[] = [
@@ -81,11 +82,21 @@ const MENU_ITEMS: MenuItem[] = [
   {
     icon: "link-outline",
     iconBg: "#7F77DD",
-    titleHe: "ייבוא מלינק",
-    titleEn: "Import from link",
-    subHe: "הכנס כתובת URL של מתכון",
-    subEn: "Paste a recipe website URL",
+    titleHe: "ייבוא מכתובת",
+    titleEn: "Import from URL",
+    subHe: "הדבק קישור למתכון",
+    subEn: "Paste a recipe link",
     screen: "ImportLink",
+  },
+  {
+    icon: "globe-outline",
+    iconBg: "#FF9B6B",
+    titleHe: "גלישה וייבוא",
+    titleEn: "Browse & Import",
+    subHe: "גלוש לאתר מתכונים וייבא ישירות",
+    subEn: "Browse any recipe site and import",
+    screen: "ImportLink",
+    params: { browse: true },
   },
   {
     icon: "albums-outline",
@@ -234,10 +245,10 @@ function MenuSheet({
     }
   }, [visible]);
 
-  function handleNavigate(screen: keyof TabParamList) {
+  function handleNavigate(screen: keyof TabParamList, params?: Record<string, unknown>) {
     onClose();
     // small delay lets the close animation start before screen push
-    setTimeout(() => navRef.current?.navigate(screen), 80);
+    setTimeout(() => navRef.current?.navigate(screen, params as any), 80);
   }
 
   if (!mounted) return null;
@@ -293,7 +304,7 @@ function MenuSheet({
             ]}
             onPress={() => {
               void Haptics.selectionAsync();
-              handleNavigate(item.screen);
+              handleNavigate(item.screen, item.params);
             }}
             activeOpacity={0.72}
             accessibilityRole="button"

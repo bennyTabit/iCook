@@ -56,7 +56,12 @@ export default function ImportLinkScreen({ route, navigation }: any) {
       setUrl(paramUrl);
       setClipboardUrl(null);
     }
-  }, [route.params?.url]);
+    // Browse mode: open the in-app browser immediately (no URL required)
+    if (route.params?.browse && !autoTriggered.current) {
+      autoTriggered.current = true;
+      setShowWebView(true);
+    }
+  }, [route.params?.url, route.params?.browse]);
 
   // Check clipboard on every focus — show banner if it has a URL not already loaded
   useFocusEffect(
@@ -180,20 +185,14 @@ export default function ImportLinkScreen({ route, navigation }: any) {
     }
   }
 
-  function handleWebViewResult(recipe: Omit<ImportedRecipe, "sourceUrl" | "sourceName">) {
-    console.log("[Import] classes:", (recipe as any)._debug_classes);
-    console.log("[Import] li items:", (recipe as any)._debug_li);
-    console.log("[Import] ingredients:", recipe.ingredients.length, "steps:", recipe.steps.length);
+  function handleWebViewResult(recipe: ImportedRecipe) {
     setShowWebView(false);
-    const full: ImportedRecipe = {
-      ...recipe,
-      sourceUrl: url.trim(),
-      sourceName: new URL(url.trim()).hostname.replace("www.", ""),
-    };
+    // Keep the address bar in sync with whatever page the user imported from
+    if (recipe.sourceUrl) setUrl(recipe.sourceUrl);
     if (recipe.ingredients.length === 0 && recipe.steps.length === 0) {
       setError("EMPTY");
     } else {
-      setResult(full);
+      setResult(recipe);
     }
   }
 
@@ -201,8 +200,7 @@ export default function ImportLinkScreen({ route, navigation }: any) {
     <>
     {showWebView && (
       <WebViewImporter
-        url={url.trim()}
-        sourceName={new URL(url.trim()).hostname.replace("www.", "")}
+        initialUrl={url.trim() || undefined}
         isHe={isHe}
         onResult={handleWebViewResult}
         onCancel={() => setShowWebView(false)}
@@ -289,6 +287,28 @@ export default function ImportLinkScreen({ route, navigation }: any) {
         ) : (
           <Text style={s.ctaText}>{isHe ? "ייבא מתכון" : "Import recipe"}</Text>
         )}
+      </TouchableOpacity>
+
+      {/* ── Browse & Import ── */}
+      <TouchableOpacity
+        style={[s.browseBtn, { borderColor: C.border, backgroundColor: C.surfaceElevated }]}
+        onPress={() => setShowWebView(true)}
+        activeOpacity={0.78}
+      >
+        <Text style={s.browseIcon}>🌐</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.browseBtnTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "גלישה וייבוא" : "Browse & Import"}
+          </Text>
+          <Text style={[s.browseBtnSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "גלוש לכל אתר מתכונים ולחץ ייבא" : "Navigate to any recipe site and tap Import"}
+          </Text>
+        </View>
+        <Ionicons
+          name={isHe ? "chevron-back" : "chevron-forward"}
+          size={16}
+          color={C.text.tertiary}
+        />
       </TouchableOpacity>
 
       {error && (
@@ -494,6 +514,18 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  browseBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  browseIcon: { fontSize: 22 },
+  browseBtnTitle: { fontSize: 14, fontWeight: "600" },
+  browseBtnSub: { fontSize: 12, marginTop: 1 },
   errorBox: {
     marginTop: Spacing.md,
     borderRadius: 14,
