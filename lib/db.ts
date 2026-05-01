@@ -1,5 +1,9 @@
 import * as SQLite from "expo-sqlite";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SEED_RECIPES } from "./seedRecipes";
+
+/** Bump this key whenever you want the seed to re-run on existing installs. */
+const SEED_DONE_KEY = "icook.seed.v2";
 
 const db = SQLite.openDatabaseSync("icook.db");
 
@@ -242,11 +246,10 @@ async function seedDefaults() {
   }
 
   // ── Recipe seed guard ──────────────────────────────────────────────────────
-  // Sentinel: שקשוקה קלאסית is present only after the v2 seed runs.
-  const alreadySeeded = await db.getFirstAsync<{ id: number }>(
-    "SELECT id FROM recipes WHERE title_he = 'שקשוקה קלאסית' LIMIT 1",
-  );
-  if (alreadySeeded) return;
+  // AsyncStorage flag is set after a successful seed run and never cleared,
+  // so deleting individual recipes never triggers a re-seed.
+  const seedDone = await AsyncStorage.getItem(SEED_DONE_KEY).catch(() => null);
+  if (seedDone) return;
 
   // Delete any old starter recipes (v1 seed had no source_name — match by title).
   const OLD_TITLES = [
@@ -287,6 +290,9 @@ async function seedDefaults() {
       ],
     );
   }
+
+  // Mark seed as done — checked on every subsequent boot, never cleared.
+  await AsyncStorage.setItem(SEED_DONE_KEY, "1").catch(() => {});
 }
 
 export type Recipe = {
