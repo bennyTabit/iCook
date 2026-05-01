@@ -3,6 +3,7 @@ import { I18nManager, View, Text, TouchableOpacity, StyleSheet, ActivityIndicato
 import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useShareIntent } from 'expo-share-intent';
 import './lib/i18n'; // initialize i18n before anything else
 import RootNavigator from './navigation/RootNavigator';
 import { initDB } from './lib/db';
@@ -14,6 +15,17 @@ import { useRecipeStore } from './store/recipeStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from './lib/i18n';
 import { applyNotificationPrefsOnBoot } from './lib/notifications';
+
+/** Extract a valid http/https URL from a share intent */
+function extractSharedUrl(intent: { webUrl?: string; text?: string } | null): string | null {
+  const candidate = (intent?.webUrl ?? intent?.text ?? '').trim();
+  if (!candidate) return null;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol === 'http:' || u.protocol === 'https:') return candidate;
+  } catch {}
+  return null;
+}
 
 // React Navigation deep-link configuration
 // icook://import?url=<encoded-url>  →  navigates to ImportLink screen
@@ -43,6 +55,40 @@ export default function App() {
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FCFAF5', card: '#FFFFFF' } };
   const [dbState, setDbState] = useState<DBState>('loading');
   const [dbError, setDbError] = useState<string | null>(null);
+
+  // ── Navigation ref (needed to navigate from outside the navigator) ──────────
+  const navRef = useRef<NavigationContainerRef<any>>(null);
+
+  // ── Share intent (iOS Share Sheet / Android intent) ────────────────────────
+  const { shareIntent, resetShareIntent } = useShareIntent();
+  // Queue a URL if it arrives before the DB is ready
+  const pendingShareUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!shareIntent) return;
+    const url = extractSharedUrl(shareIntent as any);
+    if (url) {
+      if (dbState === 'ready') {
+        navRef.current?.navigate('Tabs', { screen: 'ImportLink', params: { url } });
+      } else {
+        // DB still loading — store and navigate once ready
+        pendingShareUrl.current = url;
+      }
+    }
+    resetShareIntent();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareIntent]);
+
+  // Navigate to ImportLink once DB is ready if a URL was queued during boot
+  useEffect(() => {
+    if (dbState === 'ready' && pendingShareUrl.current) {
+      const url = pendingShareUrl.current;
+      pendingShareUrl.current = null;
+      setTimeout(() => {
+        navRef.current?.navigate('Tabs', { screen: 'ImportLink', params: { url } });
+      }, 400); // give NavigationContainer time to mount
+    }
+  }, [dbState]);
 
   const bootDB = () => {
     setDbState('loading');
@@ -112,7 +158,7 @@ export default function App() {
     <ErrorBoundary context="app-root">
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <NavigationContainer linking={linking} theme={navTheme}>
+          <NavigationContainer linking={linking} theme={navTheme} ref={navRef}>
             <RootNavigator />
           </NavigationContainer>
         </SafeAreaProvider>
