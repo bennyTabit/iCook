@@ -1,8 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Easing,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,7 +7,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -19,105 +15,48 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { getCookLog, type CookLogEntry } from '../lib/cookLog';
-import { Typography } from "../constants/typography";
 import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
 import { useAuthStore } from "../store/authStore";
 import {
   CATEGORY_EMOJI,
   CATEGORY_BG,
-  DIFFICULTY_LABEL,
   FALLBACK_EMOJI,
   FALLBACK_BG,
 } from "../constants/recipes";
 
-type QuickCategory = {
-  key: string;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+// ── Tile definition ───────────────────────────────────────────────────────────
+
+type Tile = {
+  emoji: string;
+  color: string;
+  labelHe: string;
+  labelEn: string;
   onPress: () => void;
 };
 
-export default function HomeFeedScreen({ navigation }: any) {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function HomeMainScreen({ navigation }: any) {
   const C = useThemeColors();
-  const { t } = useTranslation();
   const isHe = isHebrew();
-  const {
-    recipes,
-    loading,
-    loadRecipes,
-    toggleFav,
-    setFilter,
-    resetFilters,
-    filters,
-  } = useRecipeStore();
+  const { recipes, loadRecipes, setFilter } = useRecipeStore();
   const { user } = useAuthStore();
+
+  const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
+
   const resolvedName = user
-    ? (user.displayName ?? (user.email ? user.email.split("@")[0] : null) ?? (user.provider === "apple" ? (isHe ? "משתמש Apple" : "Apple User") : (isHe ? "משתמש Google" : "Google User")))
+    ? (user.displayName ??
+        (user.email ? user.email.split("@")[0] : null) ??
+        null)
     : null;
   const firstName = resolvedName?.split(" ")[0] ?? null;
-
-  const [selectedCat, setSelectedCat] = useState("all");
-  const [clipboardRecipeUrl, setClipboardRecipeUrl] = useState<string | null>(null);
-  const [cookLog, setCookLog] = useState<CookLogEntry[]>([]);
-
-  const heroAnim = useRef(new Animated.Value(0)).current;
-  const searchAnim = useRef(new Animated.Value(0)).current;
-  const contentAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     void loadRecipes();
   }, []);
 
-  useEffect(() => {
-    Animated.stagger(90, [
-      Animated.timing(heroAnim, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(searchAnim, {
-        toValue: 1,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(contentAnim, {
-        toValue: 1,
-        duration: 360,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [heroAnim, searchAnim, contentAnim]);
-
-  const favorites = recipes.filter((r) => r.is_favorite === 1);
-  const recent = recipes.slice(0, 6);
-  const continueRecipe = recent[0] ?? null;
-
-  const smartSuggestions = useMemo(() => {
-    if (!favorites.length) return recipes.slice(0, 4);
-    const favCategory = favorites[0]?.category_name_en;
-    return recipes
-      .filter((r) => r.category_name_en === favCategory && r.is_favorite !== 1)
-      .slice(0, 4);
-  }, [favorites, recipes]);
-
-  const quickDinners = useMemo(
-    () => recipes.filter((r) => (r.cook_time_min ?? 999) < 30 && (r.cook_time_min ?? 0) > 0).slice(0, 8),
-    [recipes],
-  );
-
-  const recipeOfDay = useMemo(() => {
-    if (!recipes.length) return null;
-    const now = new Date();
-    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
-    return recipes[dayOfYear % recipes.length] ?? null;
-  }, [recipes]);
-
-  // Check clipboard on every focus — show Quick Import chip if a URL is found
+  // Check clipboard on every focus
   useFocusEffect(
     useCallback(() => {
       void Clipboard.getStringAsync().then((text) => {
@@ -125,18 +64,12 @@ export default function HomeFeedScreen({ navigation }: any) {
         try {
           const u = new URL(trimmed);
           if (u.protocol === "http:" || u.protocol === "https:") {
-            setClipboardRecipeUrl(trimmed);
+            setClipboardUrl(trimmed);
             return;
           }
         } catch {}
-        setClipboardRecipeUrl(null);
+        setClipboardUrl(null);
       });
-    }, []),
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      void getCookLog().then(setCookLog);
     }, []),
   );
 
@@ -146,155 +79,171 @@ export default function HomeFeedScreen({ navigation }: any) {
 
   function getGreeting() {
     const h = new Date().getHours();
-    if (h < 12) return isHe ? 'בוקר טוב' : 'Good morning';
-    if (h < 17) return isHe ? 'צהריים טובים' : 'Good afternoon';
-    return isHe ? 'ערב טוב' : 'Good evening';
+    if (h < 12) return isHe ? "בוקר טוב" : "Good morning";
+    if (h < 17) return isHe ? "צהריים טובים" : "Good afternoon";
+    return isHe ? "ערב טוב" : "Good evening";
   }
 
-  function applyCategory(category: string) {
-    tap();
-    setSelectedCat(category);
-    resetFilters();
+  const favorites = recipes.filter((r) => r.is_favorite === 1);
 
-    if (category === "all") {
-      navigation.navigate("Search");
-      return;
-    }
-    if (category === "quick") {
-      setFilter("maxCookTime", 20);
-      navigation.navigate("Search");
-      return;
-    }
-    if (category === "healthy") {
-      setFilter("query", isHe ? "סלט" : "salad");
-      navigation.navigate("Search");
-      return;
-    }
-    if (category === "kids") {
-      setFilter("query", isHe ? "ילדים" : "kids");
-      navigation.navigate("Search");
-      return;
-    }
-    if (category === "dinner") {
-      setFilter("query", isHe ? "ערב" : "dinner");
-      navigation.navigate("Search");
-      return;
-    }
-  }
+  // Recipe of the day — deterministic pick by day of year
+  const recipeOfDay = (() => {
+    if (!recipes.length) return null;
+    const now = new Date();
+    const doy = Math.floor(
+      (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000,
+    );
+    return recipes[doy % recipes.length] ?? null;
+  })();
 
-  const quickCategories: QuickCategory[] = [
+  const TILES: Tile[] = [
     {
-      key: "all",
-      label: isHe ? "הכל" : "All",
-      icon: "apps-outline",
-      onPress: () => applyCategory("all"),
+      emoji: "🔍",
+      color: "#FF6B6B",
+      labelHe: "חיפוש מתכון",
+      labelEn: "Search recipes",
+      onPress: () => { tap(); navigation.navigate("Search"); },
     },
     {
-      key: "quick",
-      label: isHe ? "מהיר" : "Quick",
-      icon: "flash-outline",
-      onPress: () => applyCategory("quick"),
+      emoji: "➕",
+      color: "#4ECDC4",
+      labelHe: "הוסף מתכון",
+      labelEn: "Add recipe",
+      onPress: () => { tap(); navigation.navigate("AddRecipe"); },
     },
     {
-      key: "healthy",
-      label: isHe ? "בריא" : "Healthy",
-      icon: "leaf-outline",
-      onPress: () => applyCategory("healthy"),
+      emoji: "❤️",
+      color: "#FF4B6E",
+      labelHe: "מועדפים",
+      labelEn: "Favorites",
+      onPress: () => {
+        tap();
+        setFilter("favoritesOnly", true);
+        navigation.navigate("Search");
+      },
     },
     {
-      key: "kids",
-      label: isHe ? "לילדים" : "For kids",
-      icon: "happy-outline",
-      onPress: () => applyCategory("kids"),
+      emoji: "🛒",
+      color: "#FF9B6B",
+      labelHe: "רשימת קניות",
+      labelEn: "Shopping list",
+      onPress: () => { tap(); navigation.navigate("Shopping"); },
     },
     {
-      key: "dinner",
-      label: isHe ? "ארוחות ערב" : "Dinner",
-      icon: "moon-outline",
-      onPress: () => applyCategory("dinner"),
+      emoji: "📅",
+      color: "#5B8EFF",
+      labelHe: "תכנון ארוחות",
+      labelEn: "Meal planner",
+      onPress: () => { tap(); navigation.navigate("MealPlanner"); },
+    },
+    {
+      emoji: "🗂",
+      color: "#6BCB77",
+      labelHe: "אוספים",
+      labelEn: "Collections",
+      onPress: () => { tap(); navigation.navigate("Collections"); },
     },
   ];
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
-        <Animated.View
-          style={{
-            opacity: heroAnim,
-            transform: [
-              {
-                translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }),
-              },
-            ],
-          }}
-        >
-          <LinearGradient
-            colors={C.heroGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={s.hero}
-          >
-            <Text style={s.heroDecor}>🍳</Text>
-            <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-              {`${getGreeting()}${firstName ? `, ${firstName}` : ''}! ${isHe ? 'מה נבשל היום? 🍽️' : 'What shall we cook? 🍽️'}`}
-            </Text>
-            <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-              {isHe
-                ? "מצא מתכון לפי מצרכים או קטגוריות"
-                : "Find a recipe by ingredients or categories"}
-            </Text>
+    <SafeAreaView style={[s.root, { backgroundColor: C.background }]} edges={["left", "right"]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-            <View style={[s.heroActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <TouchableOpacity
-                style={s.primaryBtn}
-                onPress={() => {
-                  tap();
-                  navigation.navigate("AddRecipe");
-                }}
-                activeOpacity={0.9}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "צור מתכון" : "Create recipe"}
-              >
-                <Ionicons name="add-circle-outline" size={16} color={Colors.text.inverse} />
-                <Text style={s.primaryBtnText}>{isHe ? "צור מתכון" : "Create recipe"}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.secondaryBtn}
-                onPress={() => {
-                  tap();
-                  setFilter("query", "");
-                  navigation.navigate("Search");
-                }}
-                activeOpacity={0.9}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "חפש לפי מצרכים" : "Search by ingredients"}
-              >
-                <Ionicons name="search-outline" size={16} color={Colors.text.primary} />
-                <Text style={s.secondaryBtnText}>{isHe ? "חפש לפי מצרכים" : "Search by ingredients"}</Text>
-              </TouchableOpacity>
+        {/* ── Greeting ── */}
+        <View style={s.greetWrap}>
+          <Text style={[s.greet, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+            {getGreeting()}{firstName ? `، ${firstName}` : ""}! 👨‍🍳
+          </Text>
+          <Text style={[s.greetSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "מה נבשל היום?" : "What shall we cook today?"}
+          </Text>
+
+          {/* Stats pill */}
+          {recipes.length > 0 && (
+            <View style={[s.statsPill, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surface, borderColor: C.border }]}>
+              <Text style={[s.statsText, { color: C.text.secondary }]}>
+                📖 {recipes.length} {isHe ? "מתכונים" : "recipes"}
+              </Text>
+              <View style={[s.statsDot, { backgroundColor: C.border }]} />
+              <Text style={[s.statsText, { color: C.text.secondary }]}>
+                ❤️ {favorites.length} {isHe ? "מועדפים" : "favorites"}
+              </Text>
             </View>
-          </LinearGradient>
-        </Animated.View>
+          )}
+        </View>
+
+        {/* ── Clipboard import chip ── */}
+        {clipboardUrl ? (
+          <TouchableOpacity
+            style={[s.clipChip, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: Colors.primary + "12", borderColor: Colors.primary + "30" }]}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setClipboardUrl(null);
+              navigation.navigate("ImportLink", { url: clipboardUrl });
+            }}
+            activeOpacity={0.82}
+          >
+            <View style={s.clipIcon}>
+              <Ionicons name="link" size={16} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.clipTitle, { textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? "זיהינו קישור — ייבא מתכון?" : "Recipe link detected — import it?"}
+              </Text>
+              <Text style={[s.clipUrl, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]} numberOfLines={1}>
+                {clipboardUrl}
+              </Text>
+            </View>
+            <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        ) : null}
+
+        {/* ── Action grid ── */}
+        <View style={s.grid}>
+          {TILES.map((tile, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[s.tile, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+              onPress={tile.onPress}
+              activeOpacity={0.78}
+            >
+              {/* Colored circle background for emoji */}
+              <View style={[s.tileIconWrap, { backgroundColor: tile.color + "18" }]}>
+                <Text style={s.tileEmoji}>{tile.emoji}</Text>
+              </View>
+              <Text style={[s.tileLabel, { color: C.text.primary, textAlign: "center" }]}>
+                {isHe ? tile.labelHe : tile.labelEn}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* ── Recipe of the day ── */}
         {recipeOfDay && (
           <TouchableOpacity
-            style={[s.rotdCard, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+            style={[s.rotd, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
             onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: recipeOfDay.id }); }}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel={isHe ? recipeOfDay.title_he : (recipeOfDay.title_en ?? recipeOfDay.title_he)}
-            accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
+            activeOpacity={0.88}
           >
-            <View style={[s.rotdThumb, { backgroundColor: CATEGORY_BG[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
-              <Text style={{ fontSize: 28 }}>{CATEGORY_EMOJI[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-            </View>
+            <LinearGradient
+              colors={["#FF6B6B", "#FF9B6B"]}
+              style={s.rotdThumb}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={{ fontSize: 26 }}>
+                {CATEGORY_EMOJI[recipeOfDay.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}
+              </Text>
+            </LinearGradient>
             <View style={{ flex: 1 }}>
-              <Text style={[s.rotdLabel, { textAlign: isHe ? "right" : "left" }]}>{isHe ? "🌟 מתכון היום" : "🌟 Recipe of the day"}</Text>
+              <Text style={[s.rotdBadge, { textAlign: isHe ? "right" : "left" }]}>
+                🌟 {isHe ? "מתכון היום" : "Recipe of the day"}
+              </Text>
               <Text style={[s.rotdTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={1}>
                 {isHe ? recipeOfDay.title_he : recipeOfDay.title_en}
               </Text>
-              <Text style={[s.rotdMeta, { textAlign: isHe ? "right" : "left" }]}>
+              <Text style={[s.rotdMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
                 ⏱ {recipeOfDay.cook_time_min ?? 0} {isHe ? "דקות" : "min"}
               </Text>
             </View>
@@ -302,523 +251,46 @@ export default function HomeFeedScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
-        {/* ── Quick Import chip (shows when clipboard has a URL) ── */}
-        {clipboardRecipeUrl ? (
-          <TouchableOpacity
-            style={[s.quickImportChip, { flexDirection: isHe ? "row-reverse" : "row" }]}
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setClipboardRecipeUrl(null);
-              navigation.navigate("ImportLink", { url: clipboardRecipeUrl });
-            }}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel={isHe ? "ייבא מתכון מהקישור שבלוח" : "Import recipe from clipboard link"}
-            accessibilityHint={isHe ? "הקש לייבוא המתכון" : "Tap to import the recipe"}
-          >
-            <View style={s.quickImportIcon}>
-              <Ionicons name="link" size={16} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.quickImportTitle, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? "ייבא מתכון מהקישור שבלוח" : "Import recipe from clipboard link"}
-              </Text>
-              <Text
-                style={[s.quickImportUrl, { textAlign: isHe ? "right" : "left" }]}
-                numberOfLines={1}
-              >
-                {clipboardRecipeUrl}
-              </Text>
-            </View>
-            <Ionicons
-              name={isHe ? "chevron-back" : "chevron-forward"}
-              size={16}
-              color={Colors.primary}
-            />
-          </TouchableOpacity>
-        ) : null}
-
-        <Animated.View
-          style={{
-            opacity: searchAnim,
-            transform: [
-              {
-                translateY: searchAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }),
-              },
-            ],
-          }}
-        >
-          <TouchableOpacity
-            style={[s.searchBar, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
-            onPress={() => {
-              tap();
-              navigation.navigate("Search");
-            }}
-            activeOpacity={0.9}
-            accessibilityRole="search"
-            accessibilityLabel={isHe ? "חיפוש מתכונים" : "Search recipes"}
-          >
-            <TouchableOpacity
-              onPress={() => {
-                tap();
-                navigation.navigate("Search");
-              }}
-              style={s.searchSideIcon}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "סינון חיפוש" : "Filter search"}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="options-outline" size={18} color={Colors.text.secondary} />
-            </TouchableOpacity>
-
-            <Text
-              style={[s.searchText, { textAlign: isHe ? "right" : "left" }]}
-              numberOfLines={1}
-            >
-              {isHe ? "חפש מתכון, מצרכים או רעיון..." : "Search recipe, ingredient or idea..."}
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => {
-                tap();
-                navigation.navigate("Search");
-              }}
-              style={s.searchSideIcon}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "חיפוש קולי" : "Voice search"}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="mic-outline" size={18} color={Colors.text.secondary} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Animated.View>
-
-        <Animated.View
-          style={{
-            opacity: contentAnim,
-            transform: [
-              {
-                translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }),
-              },
-            ],
-          }}
-        >
-          {loading && recipes.length === 0 ? (
-            <View style={s.loadingWrap}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={s.loadingText}>{isHe ? "טוען מתכונים..." : "Loading recipes..."}</Text>
-            </View>
-          ) : recipes.length === 0 ? (
-            <View style={s.emptyWrap}>
-              <Text style={s.emptyEmoji}>👨‍🍳</Text>
-              <Text style={[s.emptyTitle, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? "עדיין אין מתכונים" : "No recipes yet"}
-              </Text>
-              <Text style={[s.emptySubtitle, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? "התחל בהוספת המתכון הראשון שלך" : "Start by adding your first recipe"}
-              </Text>
-
-              {/* Action cards */}
-              <TouchableOpacity
-                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                onPress={() => { tap(); navigation.navigate("AddRecipe"); }}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "סרוק מתכון" : "Scan a recipe"}
-                accessibilityHint={isHe ? "צלם עם המצלמה" : "Use your camera"}
-              >
-                <View style={[s.emptyActionIcon, { backgroundColor: "#4ECDC420" }]}>
-                  <Text style={s.emptyActionEmoji}>📷</Text>
-                </View>
-                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
-                  <Text style={s.emptyActionTitle}>{isHe ? "סרוק מתכון" : "Scan a recipe"}</Text>
-                  <Text style={s.emptyActionSub}>{isHe ? "צלם עם המצלמה" : "Use your camera"}</Text>
-                </View>
-                <Ionicons
-                  name={isHe ? "chevron-back" : "chevron-forward"}
-                  size={16}
-                  color={Colors.text.tertiary}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                onPress={() => { tap(); navigation.navigate("ImportLink"); }}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "ייבוא מקישור" : "Import from a link"}
-                accessibilityHint={isHe ? "הדבק כתובת URL" : "Paste any recipe URL"}
-              >
-                <View style={[s.emptyActionIcon, { backgroundColor: "#7F77DD20" }]}>
-                  <Text style={s.emptyActionEmoji}>🔗</Text>
-                </View>
-                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
-                  <Text style={s.emptyActionTitle}>{isHe ? "ייבוא מקישור" : "Import from a link"}</Text>
-                  <Text style={s.emptyActionSub}>{isHe ? "הדבק כתובת URL" : "Paste any recipe URL"}</Text>
-                </View>
-                <Ionicons
-                  name={isHe ? "chevron-back" : "chevron-forward"}
-                  size={16}
-                  color={Colors.text.tertiary}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[s.emptyActionCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                onPress={() => { tap(); navigation.navigate("EditRecipe", { id: null }); }}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "כתוב ידנית" : "Write it manually"}
-                accessibilityHint={isHe ? "הקלד מתכון שלב אחר שלב" : "Type your recipe step by step"}
-              >
-                <View style={[s.emptyActionIcon, { backgroundColor: "#FF6B6B20" }]}>
-                  <Text style={s.emptyActionEmoji}>✏️</Text>
-                </View>
-                <View style={[s.emptyActionText, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
-                  <Text style={s.emptyActionTitle}>{isHe ? "כתוב ידנית" : "Write it manually"}</Text>
-                  <Text style={s.emptyActionSub}>{isHe ? "הקלד מתכון שלב אחר שלב" : "Type your recipe step by step"}</Text>
-                </View>
-                <Ionicons
-                  name={isHe ? "chevron-back" : "chevron-forward"}
-                  size={16}
-                  color={Colors.text.tertiary}
-                />
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          {continueRecipe && (
-            <>
-              <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left" }]}>
-                {isHe ? "המשך מאיפה שהפסקת" : "Continue where you left off"}
-              </Text>
-              <TouchableOpacity
-                style={[s.continueCard, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                onPress={() => {
-                  tap();
-                  navigation.navigate("RecipeDetail", { id: continueRecipe.id });
-                }}
-                activeOpacity={0.92}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? continueRecipe.title_he : (continueRecipe.title_en ?? continueRecipe.title_he)}
-                accessibilityHint={isHe ? "הקש להמשך בישול" : "Tap to continue cooking"}
-              >
-                <View style={[s.continueThumb, { backgroundColor: CATEGORY_BG[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
-                  <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[continueRecipe.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.continueName, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
-                    {isHe ? continueRecipe.title_he : continueRecipe.title_en}
-                  </Text>
-                  <Text style={[s.continueMeta, { textAlign: isHe ? "right" : "left" }]}>
-                    {isHe ? "הקש כדי להמשיך" : "Tap to continue"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </>
-          )}
-
-          <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left" }]}>
-            {t("categories")}
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.chipsWrap}
-            style={isHe ? { transform: [{ scaleX: -1 }] } : undefined}
-          >
-            {quickCategories.map((cat) => {
-              const selected = selectedCat === cat.key;
-              return (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    s.chip,
-                    { backgroundColor: C.surfaceElevated, borderColor: C.border },
-                    selected && s.chipSelected,
-                    isHe ? { transform: [{ scaleX: -1 }] } : undefined,
-                  ]}
-                  onPress={cat.onPress}
-                  activeOpacity={0.9}
-                  accessibilityRole="button"
-                  accessibilityLabel={cat.label}
-                  accessibilityState={{ selected }}
-                >
-                  <Ionicons
-                    name={cat.icon}
-                    size={14}
-                    color={selected ? C.text.inverse : C.text.secondary}
-                  />
-                  <Text style={[s.chipText, { color: C.text.secondary }, selected && s.chipTextSelected]}>{cat.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-            <Text style={s.sectionTitle}>{isHe ? "המתכונים שלך ❤️" : "Your recipes ❤️"}</Text>
-            <TouchableOpacity
-              onPress={() => {
-                tap();
-                setFilter("favoritesOnly", true);
-                navigation.navigate("Search");
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "ראה את כל המועדפים" : "See all favorites"}
-            >
-              <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {favorites.length === 0 ? (
-            <View style={s.favEmptyBox}>
-              <Text style={s.favEmptyEmoji}>🍲</Text>
-              <Text style={s.favEmptyTitle}>{isHe ? "עדיין אין לך מתכונים מועדפים" : "You do not have favorite recipes yet"}</Text>
-              <TouchableOpacity
-                style={s.favEmptyBtn}
-                onPress={() => {
-                  tap();
-                  navigation.navigate("Search");
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "גלה מתכונים" : "Discover recipes"}
-              >
-                <Text style={s.favEmptyBtnText}>{isHe ? "גלה מתכונים" : "Discover recipes"}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.favoritesWrap}>
-              {favorites.map((r) => (
-                <TouchableOpacity
-                  key={r.id}
-                  style={[s.favoriteCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
-                  onPress={() => {
-                    tap();
-                    navigation.navigate("RecipeDetail", { id: r.id });
-                  }}
-                  activeOpacity={0.9}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
-                  accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
-                >
-                  <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
-                    <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-                  </View>
-                  <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={2}>
-                    {isHe ? r.title_he : r.title_en}
-                  </Text>
-                  <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-                    ⏱ {r.cook_time_min ?? 0} {isHe ? "דק׳" : "min"}  |  🍽 {r.servings ?? 2}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          <Text style={[s.sectionTitle, { textAlign: isHe ? "right" : "left", marginTop: 20 }]}>
-            {isHe ? "מבוסס על מה שאהבת" : "Based on what you liked"}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.suggestionWrap}>
-            {smartSuggestions.map((r) => (
-              <TouchableOpacity
-                key={`s-${r.id}`}
-                style={s.suggestionCard}
-                onPress={() => {
-                  tap();
-                  navigation.navigate("RecipeDetail", { id: r.id });
-                }}
-                activeOpacity={0.9}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
-                accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
-              >
-                <Text style={s.suggestionIcon}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-                <Text style={[s.suggestionText, { textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
-                  {isHe ? r.title_he : r.title_en}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {quickDinners.length > 0 && (
-            <>
-              <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row", marginTop: 16 }]}>
-                <Text style={s.sectionTitle}>{isHe ? "מהיר וטעים ⚡" : "Quick & easy ⚡"}</Text>
-                <TouchableOpacity
-                  onPress={() => { tap(); setFilter("maxCookTime", 30); navigation.navigate("Search"); }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? "ראה את כל המהירים" : "See all quick recipes"}
-                >
-                  <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.favoritesWrap}>
-                {quickDinners.map((r) => (
-                  <TouchableOpacity
-                    key={`qd-${r.id}`}
-                    style={[s.favoriteCard, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
-                    onPress={() => { tap(); navigation.navigate("RecipeDetail", { id: r.id }); }}
-                    activeOpacity={0.9}
-                    accessibilityRole="button"
-                    accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
-                    accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
-                  >
-                    <View style={[s.favoriteImage, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
-                      <Text style={s.favoriteEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-                    </View>
-                    <Text style={[s.favoriteName, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={2}>
-                      {isHe ? r.title_he : r.title_en}
-                    </Text>
-                    <Text style={[s.favoriteMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-                      ⚡ {r.cook_time_min} {isHe ? "דק׳" : "min"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </>
-          )}
-
-          <View style={[s.sectionRow, { flexDirection: isHe ? "row-reverse" : "row", marginTop: 16 }]}>
-            <Text style={s.sectionTitle}>{cookLog.length > 0 ? (isHe ? "בישלת לאחרונה 👨‍🍳" : "Recently cooked 👨‍🍳") : (isHe ? "מתכונים אחרונים" : "Recent recipes")}</Text>
-            <TouchableOpacity
-              onPress={() => {
-                tap();
-                navigation.navigate("Search");
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "ראה את כל המתכונים" : "See all recipes"}
-            >
-              <Text style={s.seeAll}>{isHe ? "ראה הכל" : "See all"}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {(cookLog.length > 0 ? cookLog.slice(0, 6).map(log => recipes.find(r => r.id === log.id)).filter(Boolean) as typeof recipes : recent).map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={[s.recentCard, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderColor: C.border }]}
-              onPress={() => {
-                tap();
-                navigation.navigate("RecipeDetail", { id: r.id });
-              }}
-              activeOpacity={0.92}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? r.title_he : (r.title_en ?? r.title_he)}
-              accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
-            >
-              <View style={[s.recentThumb, { backgroundColor: CATEGORY_BG[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_BG }]}>
-                <Text style={s.recentThumbEmoji}>{CATEGORY_EMOJI[r.category_name_en?.toLowerCase() ?? ""] ?? FALLBACK_EMOJI}</Text>
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={[s.recentTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]} numberOfLines={1}>
-                  {isHe ? r.title_he : r.title_en}
-                </Text>
-                <Text style={[s.recentMeta, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-                  ⏱ {r.cook_time_min ?? 0} {isHe ? "דקות" : "min"}  |  🍽 {r.servings ?? 2} {isHe ? "מנות" : "servings"}{r.difficulty ? `  |  ${DIFFICULTY_LABEL[r.difficulty]?.[isHe ? "he" : "en"] ?? ""}` : ""}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => {
-                  tap();
-                  toggleFav(r.id, r.is_favorite);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? (r.is_favorite ? "הסר ממועדפים" : "הוסף למועדפים") : (r.is_favorite ? "Remove from favorites" : "Add to favorites")}
-                accessibilityState={{ checked: r.is_favorite === 1 }}
-              >
-                <Text style={s.recentFav}>{r.is_favorite ? "❤️" : "🤍"}</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: 24 },
+// ── Styles ────────────────────────────────────────────────────────────────────
 
-  hero: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    overflow: "hidden",
-  },
-  heroDecor: {
-    position: "absolute",
-    right: 14,
-    bottom: -6,
-    fontSize: 84,
-    opacity: 0.18,
-    transform: [{ rotate: "15deg" }],
-  },
-  heroTitle: {
-    ...Typography.h2,
-    color: Colors.text.primary,
-    fontSize: 26,
-  },
-  heroSub: {
-    ...Typography.bodySmall,
-    color: Colors.text.secondary,
-    marginTop: 4,
-  },
-  heroActions: {
-    marginTop: 16,
+const TILE_GAP = 12;
+
+const s = StyleSheet.create({
+  root: { flex: 1 },
+  scroll: { padding: 20, paddingBottom: 32, gap: 16 },
+
+  // Greeting
+  greetWrap: { gap: 6 },
+  greet: { fontSize: 26, fontWeight: "800", lineHeight: 32 },
+  greetSub: { fontSize: 15, lineHeight: 20 },
+  statsPill: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: "center",
     gap: 8,
   },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  primaryBtnText: {
-    ...Typography.button,
-    color: Colors.text.inverse,
-    fontSize: 14,
-  },
-  secondaryBtn: {
-    flex: 1,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  secondaryBtnText: {
-    ...Typography.label,
-    color: Colors.text.primary,
-  },
+  statsText: { fontSize: 13, fontWeight: "500" },
+  statsDot: { width: 4, height: 4, borderRadius: 2 },
 
-  // Quick Import clipboard chip
-  quickImportChip: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    backgroundColor: Colors.primary + "12",
+  // Clipboard chip
+  clipChip: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primary + "28",
     paddingHorizontal: 12,
     paddingVertical: 10,
     alignItems: "center",
     gap: 10,
   },
-  quickImportIcon: {
+  clipIcon: {
     width: 30,
     height: 30,
     borderRadius: 9,
@@ -826,317 +298,44 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  quickImportTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
-  quickImportUrl: {
-    fontSize: 11,
-    color: Colors.text.secondary,
-    marginTop: 1,
-  },
+  clipTitle: { fontSize: 13, fontWeight: "600", color: Colors.primary },
+  clipUrl: { fontSize: 11, marginTop: 1 },
 
-  searchBar: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    minHeight: 54,
-    paddingHorizontal: 10,
+  // Grid
+  grid: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: TILE_GAP,
   },
-  searchSideIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.surface,
-  },
-  searchText: {
-    ...Typography.body,
-    color: Colors.text.tertiary,
-    flex: 1,
-    marginHorizontal: 10,
-    fontSize: 15,
-  },
-
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.text.primary,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  sectionRow: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
-  seeAll: {
-    ...Typography.label,
-    color: Colors.primary,
-  },
-
-  continueCard: {
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 12,
-    backgroundColor: Colors.surfaceElevated,
+  tile: {
+    // 2 columns with gap
+    width: `${(100 - TILE_GAP / 4) / 2}%` as unknown as number,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
     alignItems: "center",
     gap: 10,
-  },
-  continueThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  continueName: {
-    ...Typography.body,
-    color: Colors.text.primary,
-    fontWeight: "600",
-  },
-  continueMeta: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-    marginTop: 2,
-  },
-
-  chipsWrap: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  chip: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  chipSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  chipText: {
-    ...Typography.label,
-    color: Colors.text.secondary,
-    fontSize: 12,
-  },
-  chipTextSelected: {
-    color: Colors.text.inverse,
-  },
-
-  favoritesWrap: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  favoriteCard: {
-    width: 172,
-    borderRadius: 18,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
-    paddingBottom: 10,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07,
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 3,
   },
-  favoriteImage: {
-    height: 98,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  favoriteEmoji: { fontSize: 38 },
-  favoriteName: {
-    ...Typography.bodySmall,
-    color: Colors.text.primary,
-    fontWeight: "600",
-    paddingHorizontal: 10,
-    marginTop: 8,
-  },
-  favoriteMeta: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-    paddingHorizontal: 10,
-    marginTop: 4,
-  },
-
-  favEmptyBox: {
-    marginHorizontal: 16,
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: "center",
-  },
-  favEmptyEmoji: { fontSize: 34 },
-  favEmptyTitle: {
-    ...Typography.bodySmall,
-    color: Colors.text.secondary,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  favEmptyBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  favEmptyBtnText: {
-    ...Typography.label,
-    color: Colors.text.inverse,
-  },
-
-  suggestionWrap: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  suggestionCard: {
-    minWidth: 146,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  suggestionIcon: { fontSize: 18, marginBottom: 4 },
-  suggestionText: {
-    ...Typography.caption,
-    color: Colors.text.primary,
-    fontWeight: "600",
-  },
-
-  recentCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 16,
-    padding: 10,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    gap: 10,
-  },
-  recentThumb: {
+  tileIconWrap: {
     width: 58,
     height: 58,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  recentThumbEmoji: { fontSize: 28 },
-  recentTitle: {
-    ...Typography.body,
-    color: Colors.text.primary,
-    fontWeight: "600",
-  },
-  recentMeta: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-    marginTop: 3,
-  },
-  recentFav: { fontSize: 20 },
+  tileEmoji: { fontSize: 26 },
+  tileLabel: { fontSize: 14, fontWeight: "700", lineHeight: 18 },
 
-  // Loading & empty states
-  loadingWrap: {
-    marginTop: 60,
-    alignItems: "center",
-    gap: 14,
-  },
-  loadingText: {
-    ...Typography.body,
-    color: Colors.text.secondary,
-  },
-  emptyWrap: {
-    marginTop: 40,
-    marginHorizontal: 32,
-    alignItems: "center",
-    gap: 10,
-  },
-  emptyEmoji: { fontSize: 52, marginBottom: 4 },
-  emptyTitle: {
-    ...Typography.h3,
-    color: Colors.text.primary,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    ...Typography.body,
-    color: Colors.text.secondary,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  emptyBtn: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  emptyBtnText: {
-    ...Typography.button,
-    color: Colors.text.inverse,
-    fontSize: 15,
-  },
-
-  emptyActionCard: {
-    alignSelf: "stretch",
-    marginTop: 10,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 16,
+  // Recipe of the day
+  rotd: {
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 14,
-    alignItems: "center",
-    gap: 12,
-  },
-  emptyActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyActionEmoji: {
-    fontSize: 22,
-  },
-  emptyActionText: {
-    flex: 1,
-    gap: 2,
-  },
-  rotdCard: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
     padding: 12,
     alignItems: "center",
     gap: 12,
@@ -1149,37 +348,17 @@ const s = StyleSheet.create({
   rotdThumb: {
     width: 56,
     height: 56,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  rotdLabel: {
+  rotdBadge: {
     fontSize: 11,
-    fontWeight: "600",
-    color: Colors.primary,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-  },
-  rotdTitle: {
-    fontSize: 16,
     fontWeight: "700",
-    color: Colors.text.primary,
-    marginTop: 2,
+    color: Colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  rotdMeta: {
-    fontSize: 12,
-    color: Colors.text.secondary,
-    marginTop: 2,
-  },
-
-  emptyActionTitle: {
-    ...Typography.body,
-    color: Colors.text.primary,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  emptyActionSub: {
-    ...Typography.caption,
-    color: Colors.text.secondary,
-  },
+  rotdTitle: { fontSize: 16, fontWeight: "700", marginTop: 2 },
+  rotdMeta: { fontSize: 12, marginTop: 2 },
 });
