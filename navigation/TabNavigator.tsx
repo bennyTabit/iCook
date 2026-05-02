@@ -467,21 +467,21 @@ export default function TabNavigator() {
         <Tab.Screen
           name="Shopping"
           component={ShoppingScreen}
-          options={{ title: t("shopping"), headerShown: false, tabBarAccessibilityLabel: isHe ? "קניות" : "Shopping" }}
-          listeners={{
-            tabPress: () => {
-              void Haptics.selectionAsync();
-            },
+          options={{
+            title: t("shopping"),
+            headerShown: false,
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
           }}
         />
         <Tab.Screen
           name="MealPlanner"
           component={MealPlannerScreen}
-          options={{ title: t("mealPlanner"), headerShown: true, tabBarAccessibilityLabel: isHe ? "תכנון ארוחות" : "Meal Planner" }}
-          listeners={{
-            tabPress: () => {
-              void Haptics.selectionAsync();
-            },
+          options={{
+            title: t("mealPlanner"),
+            headerShown: true,
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
           }}
         />
 
