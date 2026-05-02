@@ -224,30 +224,29 @@ export default function ProfileScreen() {
   async function toggleLanguage() {
     void Haptics.selectionAsync();
     const next = isHe ? "en" : "he";
-    // Apply language + RTL direction immediately
     await i18n.changeLanguage(next);
     await AsyncStorage.setItem("icook.lang", next);
+    // forceRTL persists to native layer but only takes effect after a full
+    // native restart (not a JS-only reload via DevSettings).
     I18nManager.forceRTL(next === "he");
-    // A JS reload is always needed to re-apply RTL/LTR layout
+
+    const isNextHe = next === "he";
     Alert.alert(
-      next === "he" ? "נדרשת הפעלה מחדש" : "Restart required",
-      next === "he"
-        ? "כדי להפעיל את הפריסה מימין לשמאל, האפליקציה תיפתח מחדש."
-        : "To apply the left-to-right layout, the app will restart.",
+      isNextHe ? "נדרשת הפעלה מחדש" : "Restart required",
+      isNextHe
+        ? "כדי להפעיל פריסה מימין לשמאל, סגור את האפליקציה לחלוטין ופתח אותה מחדש."
+        : "To apply the left-to-right layout, please close the app completely and reopen it.",
       [
         {
-          text: next === "he" ? "אחר כך" : "Later",
-          style: "cancel",
-        },
-        {
-          text: next === "he" ? "הפעל מחדש עכשיו" : "Restart now",
+          text: isNextHe ? "אישור" : "OK",
           onPress: async () => {
             try {
-              // Works in standalone/production builds
+              // In production / EAS builds this triggers a full JS reload which
+              // is enough because the native Activity is already running RTL.
               await Updates.reloadAsync();
             } catch {
-              // Fallback for Expo Go (development)
-              DevSettings.reload();
+              // Expo Go: Updates.reloadAsync() throws — nothing else works here
+              // except a manual close+reopen, so just dismiss.
             }
           },
         },
