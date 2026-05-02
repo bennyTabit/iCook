@@ -145,7 +145,7 @@ function PhotoStrip({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-type OptionKey = "import" | "scan" | "manual";
+type OptionKey = "import" | "browse" | "voice" | "scan" | "manual";
 
 type AddOption = {
   key: OptionKey;
@@ -168,6 +168,24 @@ const OPTIONS: AddOption[] = [
     icon: "link-outline",
     gradientColors: ["#FF6B6B", "#FF9B6B"],
     recommended: true,
+  },
+  {
+    key: "browse",
+    titleHe: "גלישה וייבוא",
+    titleEn: "Browse & Import",
+    subtitleHe: "גלוש לכל אתר מתכונים ולחץ ייבא",
+    subtitleEn: "Navigate to any recipe site and tap Import",
+    icon: "globe-outline",
+    gradientColors: ["#FF9B6B", "#FFB347"],
+  },
+  {
+    key: "voice",
+    titleHe: "הקלטת מתכון",
+    titleEn: "Voice Recipe",
+    subtitleHe: "ספר את המתכון שלך בקול — אנחנו נבנה את זה",
+    subtitleEn: "Speak your recipe aloud — we'll structure it for you",
+    icon: "mic-outline",
+    gradientColors: ["#7F77DD", "#A89EFF"],
   },
   {
     key: "scan",
@@ -281,6 +299,8 @@ export default function AddRecipeScreen({ navigation }: any) {
   function handleOptionPress(key: OptionKey) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (key === "import") navigation.navigate("ImportLink");
+    else if (key === "browse") navigation.navigate("ImportLink", { browse: true });
+    else if (key === "voice") navigation.navigate("VoiceRecipe");
     else if (key === "scan") openSourcePicker();
     else navigation.navigate("EditRecipe", { id: null });
   }
