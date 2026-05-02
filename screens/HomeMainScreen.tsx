@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -259,6 +260,9 @@ export default function HomeMainScreen({ navigation }: any) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const TILE_GAP = 12;
+const SCREEN_W = Dimensions.get("window").width;
+const GRID_H_PAD = 20; // matches scroll padding
+const TILE_W = Math.floor((SCREEN_W - GRID_H_PAD * 2 - TILE_GAP) / 2);
 
 const s = StyleSheet.create({
   root: { flex: 1 },
@@ -305,11 +309,11 @@ const s = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: TILE_GAP,
+    justifyContent: "space-between",
+    rowGap: TILE_GAP,
   },
   tile: {
-    // 2 columns with gap
-    width: `${(100 - TILE_GAP / 4) / 2}%` as unknown as number,
+    width: TILE_W,
     borderRadius: 20,
     borderWidth: 1,
     paddingVertical: 20,
