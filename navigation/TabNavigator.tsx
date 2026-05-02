@@ -30,6 +30,7 @@ import ImportLinkScreen from "../screens/ImportLinkScreen";
 import EditRecipeScreen from "../screens/EditRecipeScreen";
 import CollectionsScreen from "../screens/CollectionsScreen";
 import CollectionDetailScreen from "../screens/CollectionDetailScreen";
+import VoiceRecipeScreen from "../screens/VoiceRecipeScreen";
 
 export type TabParamList = {
   Home: undefined;
@@ -40,6 +41,7 @@ export type TabParamList = {
   Profile: undefined;
   Collections: undefined;
   CollectionDetail: { id: number; name: string };
+  VoiceRecipe: undefined;
   RecipeDetail: { id: number };
   AddRecipe: undefined;
   OcrReview: { ocr: import("../lib/ocr").OcrResult };
@@ -97,6 +99,15 @@ const MENU_ITEMS: MenuItem[] = [
     subEn: "Browse any recipe site and import",
     screen: "ImportLink",
     params: { browse: true },
+  },
+  {
+    icon: "mic-outline",
+    iconBg: "#7F77DD",
+    titleHe: "הקלטת מתכון",
+    titleEn: "Voice Recipe",
+    subHe: "ספר את המתכון שלך בקול",
+    subEn: "Speak your recipe aloud",
+    screen: "VoiceRecipe",
   },
   {
     icon: "albums-outline",
@@ -584,6 +595,15 @@ export default function TabNavigator() {
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           })}
+        />
+        <Tab.Screen
+          name="VoiceRecipe"
+          component={VoiceRecipeScreen}
+          options={{
+            title: isHe ? "הקלטת מתכון" : "Voice Recipe",
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: "none" },
+          }}
         />
       </Tab.Navigator>
 
