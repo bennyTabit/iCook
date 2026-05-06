@@ -206,8 +206,8 @@ export default function ImportLinkScreen({ route, navigation }: any) {
   return (
     <View style={[s.wrapper, { backgroundColor: C.background }]}>
       <ScreenHeader
-        title={isHe ? "ייבוא מהאינטרנט" : "Import from Web"}
-        subtitle={isHe ? "הדבק קישור ואנחנו נמלא הכל עבורך" : "Paste a link and we'll auto-fill it for you"}
+        title={isHe ? "ייבוא מהרשת" : "Import from Web"}
+        subtitle={isHe ? "גלוש לאתר מתכונים או הדבק קישור" : "Browse a recipe site or paste a link"}
         leftAction={
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -230,6 +230,41 @@ export default function ImportLinkScreen({ route, navigation }: any) {
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
+      {/* ── Option 1: Browse websites ── */}
+      <TouchableOpacity
+        style={[s.browseBtn, { borderColor: C.border, backgroundColor: C.surfaceElevated }]}
+        onPress={() => setShowWebView(true)}
+        activeOpacity={0.78}
+      >
+        <View style={s.browseBtnIconWrap}>
+          <Ionicons name="globe-outline" size={26} color={Colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.browseBtnTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "גלישה וייבוא" : "Browse & Import"}
+          </Text>
+          <Text style={[s.browseBtnSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "גלוש לכל אתר מתכונים ולחץ ייבא" : "Navigate to any recipe site and tap Import"}
+          </Text>
+        </View>
+        <Ionicons
+          name={isHe ? "chevron-back" : "chevron-forward"}
+          size={18}
+          color={C.text.tertiary}
+        />
+      </TouchableOpacity>
+
+      {/* ── Divider ── */}
+      <View style={s.orDivider}>
+        <View style={[s.orLine, { backgroundColor: C.border }]} />
+        <Text style={[s.orText, { color: C.text.tertiary }]}>{isHe ? "או" : "or"}</Text>
+        <View style={[s.orLine, { backgroundColor: C.border }]} />
+      </View>
+
+      {/* ── Option 2: Paste URL ── */}
+      <Text style={[s.sectionLabel, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
+        {isHe ? "הדבק קישור ישירות" : "Paste a link directly"}
+      </Text>
 
       {/* ── Clipboard URL banner ── */}
       {clipboardUrl ? (
@@ -267,8 +302,8 @@ export default function ImportLinkScreen({ route, navigation }: any) {
           onChangeText={setUrl}
           placeholder={
             isHe
-              ? "הדבק כאן קישור למתכון (למשל: מאקו, וואלה, בלוגים...)"
-              : "Paste recipe URL here (blog, food site, etc...)"
+              ? "הדבק כאן קישור למתכון..."
+              : "Paste recipe URL here..."
           }
           placeholderTextColor={C.text.tertiary}
           autoCapitalize="none"
@@ -298,28 +333,6 @@ export default function ImportLinkScreen({ route, navigation }: any) {
         ) : (
           <Text style={s.ctaText}>{isHe ? "ייבא מתכון" : "Import recipe"}</Text>
         )}
-      </TouchableOpacity>
-
-      {/* ── Browse & Import ── */}
-      <TouchableOpacity
-        style={[s.browseBtn, { borderColor: C.border, backgroundColor: C.surfaceElevated }]}
-        onPress={() => setShowWebView(true)}
-        activeOpacity={0.78}
-      >
-        <Text style={s.browseIcon}>🌐</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.browseBtnTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "גלישה וייבוא" : "Browse & Import"}
-          </Text>
-          <Text style={[s.browseBtnSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "גלוש לכל אתר מתכונים ולחץ ייבא" : "Navigate to any recipe site and tap Import"}
-          </Text>
-        </View>
-        <Ionicons
-          name={isHe ? "chevron-back" : "chevron-forward"}
-          size={16}
-          color={C.text.tertiary}
-        />
       </TouchableOpacity>
 
       {error && (
@@ -525,6 +538,29 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  orDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 16,
+    gap: 10,
+  },
+  orLine: { flex: 1, height: 1 },
+  orText: { fontSize: 13, fontWeight: "500" },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  browseBtnIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + "18",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
   browseBtn: {
     flexDirection: "row",

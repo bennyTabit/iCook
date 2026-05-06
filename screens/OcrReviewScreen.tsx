@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { insertRecipe } from "../lib/db";
+import { insertRecipe, insertRecipeImage } from "../lib/db";
 import { isHebrew } from "../lib/i18n";
 import { useRecipeStore } from "../store/recipeStore";
 import type { OcrResult } from "../lib/ocr";
@@ -21,7 +21,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 import ScreenHeader from "../components/ScreenHeader";
 
 type Props = {
-  route: { params?: { ocr?: OcrResult } };
+  route: { params?: { ocr?: OcrResult; scannedImages?: string[] } };
   navigation: any;
 };
 
@@ -31,6 +31,7 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
   const isHe = isHebrew();
   const { loadRecipes } = useRecipeStore();
   const ocr = route.params?.ocr;
+  const scannedImages = route.params?.scannedImages ?? [];
 
   if (!ocr) {
     Alert.alert(
@@ -132,7 +133,13 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         source_type: "ocr",
         notes_he: notesHe,
         notes_en: notesEn,
+        // Use first scanned image as the primary image_uri
+        image_uri: scannedImages[0] ?? undefined,
       });
+      // Save all scanned images to recipe_images table so they appear in the gallery
+      for (let i = 0; i < scannedImages.length; i++) {
+        await insertRecipeImage(id, scannedImages[i], i);
+      }
       await loadRecipes();
       navigation.navigate("RecipeDetail", { id });
     } finally {

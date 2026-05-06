@@ -33,7 +33,7 @@ import { synthesizeAudio, isElevenLabsConfigured, clearChefAudioCache, type Chef
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
-import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, saveRecipeNutrition, type RecipeUserData } from "../lib/db";
+import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, saveRecipeNutrition, getImagesForRecipe, type RecipeUserData, type RecipeImage } from "../lib/db";
 import { generateNutrition, parseNutrition, perServing, isNutritionConfigured, type NutritionData, type MacrosPerServing } from "../lib/nutrition";
 import { logCook } from '../lib/cookLog';
 import { UNICODE_FRACTIONS, formatScaled, parseNumericToken, scaleIngredientText, parseLeadingQty } from '../lib/scaling';
@@ -43,6 +43,7 @@ import { useCollectionStore } from "../store/collectionStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { shareRecipe } from "../lib/sharing";
 import Toast from "../components/Toast";
+import ImageViewer from "../components/ImageViewer";
 import type { Recipe } from "../lib/db";
 
 type DraftRecipe = {
@@ -978,11 +979,27 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const favScale = useRef(new Animated.Value(1)).current;
   const timerWasRunningRef = useRef(false);
   const [heroCollapsed, setHeroCollapsed] = useState(false);
-  const hasPhoto = !!recipe?.image_uri;
+  const [extraImages, setExtraImages] = useState<RecipeImage[]>([]);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [heroImageIndex, setHeroImageIndex] = useState(0);
+
+  // Build the full list of images: primary (image_uri) + recipe_images table
+  const allImages: string[] = [
+    ...(recipe?.image_uri ? [recipe.image_uri] : []),
+    ...extraImages.map((img) => img.image_uri),
+  ];
+  const hasPhoto = allImages.length > 0;
   const noPhotoHeroHeight = insets.top + 115;
   const fullHeroHeight = hasPhoto ? Math.max(240, Math.round(height * 0.36)) : noPhotoHeroHeight;
   const collapsedHeroHeight = insets.top + 52;
   const heroHeight = (hasPhoto && heroCollapsed) ? collapsedHeroHeight : fullHeroHeight;
+
+  function openViewer(index: number) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setViewerIndex(index);
+    setViewerVisible(true);
+  }
 
   function toggleHero() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -994,6 +1011,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     if (!id) return;
     const fresh = await getRecipeById(id);
     setRecipe(fresh);
+    const imgs = await getImagesForRecipe(id);
+    setExtraImages(imgs);
     if (id) {
       const ud = await getRecipeUserData(id);
       setUserData(ud);
@@ -1313,10 +1332,15 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     <View style={[s.container, { backgroundColor: C.background }]}>
 
       {/* ── Hero — fixed, does not scroll ── */}
-      {recipe?.image_uri ? (
-        <View style={[s.hero, { height: heroHeight, overflow: 'hidden' }]}>
+      {hasPhoto ? (
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onPress={() => openViewer(heroImageIndex)}
+          style={[s.hero, { height: heroHeight, overflow: 'hidden' }]}
+        >
+          {/* Background image — always the currently-showing hero slide */}
           <Image
-            source={{ uri: recipe.image_uri }}
+            source={{ uri: allImages[heroImageIndex] ?? allImages[0] }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -1326,7 +1350,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             locations={[0, 0.35, 1]}
           />
           {!heroCollapsed && (
-            <View style={[s.heroBottom, { paddingBottom: 20 }]}>
+            <View style={[s.heroBottom, { paddingBottom: allImages.length > 1 ? 36 : 20 }]}>
               {recipe?.source_type && recipe.source_type !== "manual" ? (
                 <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
               ) : null}
@@ -1338,7 +1362,38 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               ) : null}
             </View>
           )}
-        </View>
+
+          {/* Multi-image dot indicators + prev/next swipe area */}
+          {!heroCollapsed && allImages.length > 1 && (
+            <>
+              {/* Invisible left/right tap zones to browse images in-hero */}
+              <TouchableOpacity
+                style={s.heroSwipeLeft}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  void Haptics.selectionAsync();
+                  setHeroImageIndex((i) => Math.max(0, i - 1));
+                }}
+                activeOpacity={1}
+              />
+              <TouchableOpacity
+                style={s.heroSwipeRight}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  void Haptics.selectionAsync();
+                  setHeroImageIndex((i) => Math.min(allImages.length - 1, i + 1));
+                }}
+                activeOpacity={1}
+              />
+              {/* Dot strip */}
+              <View style={s.heroDots} pointerEvents="none">
+                {allImages.map((_, i) => (
+                  <View key={i} style={[s.heroDot, i === heroImageIndex && s.heroDotActive]} />
+                ))}
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
       ) : (
         <View style={{ height: heroHeight, backgroundColor: C.background, justifyContent: "flex-end" }}>
           <View style={[s.compactHeroTitle, {
@@ -2172,6 +2227,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       </Modal>
 
       <Toast message={toast} />
+
+      {/* ── Full-screen image lightbox ── */}
+      <ImageViewer
+        images={allImages}
+        initialIndex={viewerIndex}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
+      />
     </View>
   );
 }
@@ -2249,6 +2312,42 @@ const s = StyleSheet.create({
 
   // Hero
   hero: { width: "100%", overflow: "hidden" },
+
+  // Multi-image hero controls
+  heroSwipeLeft: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '35%',
+  },
+  heroSwipeRight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '35%',
+  },
+  heroDots: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+  },
+  heroDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  heroDotActive: {
+    width: 18,
+    backgroundColor: '#fff',
+  },
   compactHero: {
     width: "100%",
     paddingHorizontal: 12,

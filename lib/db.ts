@@ -440,6 +440,40 @@ export async function getRecipeById(id: number): Promise<Recipe | null> {
   return db.getFirstAsync<Recipe>("SELECT * FROM recipes WHERE id = ?", [id]);
 }
 
+// ── Recipe images ─────────────────────────────────────────────────────────────
+
+export interface RecipeImage {
+  id: number;
+  recipe_id: number;
+  image_uri: string;
+  caption_he: string | null;
+  caption_en: string | null;
+  sort_order: number;
+}
+
+export async function getImagesForRecipe(recipeId: number): Promise<RecipeImage[]> {
+  return db.getAllAsync<RecipeImage>(
+    'SELECT * FROM recipe_images WHERE recipe_id = ? ORDER BY sort_order ASC, id ASC',
+    [recipeId],
+  );
+}
+
+export async function insertRecipeImage(
+  recipeId: number,
+  imageUri: string,
+  sortOrder: number = 0,
+): Promise<number> {
+  const result = await db.runAsync(
+    'INSERT INTO recipe_images (recipe_id, image_uri, sort_order) VALUES (?, ?, ?)',
+    [recipeId, imageUri, sortOrder],
+  );
+  return result.lastInsertRowId;
+}
+
+export async function deleteRecipeImage(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM recipe_images WHERE id = ?', [id]);
+}
+
 export interface RecipeIngredientRow {
   free_text_he: string | null;
   free_text_en: string | null;

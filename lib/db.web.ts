@@ -92,6 +92,39 @@ export async function getIngredientsForRecipe(_recipeId: number): Promise<Recipe
   return [];
 }
 
+// ── Recipe images (web in-memory) ─────────────────────────────────────────────
+export interface RecipeImage {
+  id: number;
+  recipe_id: number;
+  image_uri: string;
+  caption_he: string | null;
+  caption_en: string | null;
+  sort_order: number;
+}
+
+let recipeImagesStore: RecipeImage[] = [];
+let recipeImageNextId = 1;
+
+export async function getImagesForRecipe(recipeId: number): Promise<RecipeImage[]> {
+  return recipeImagesStore
+    .filter((img) => img.recipe_id === recipeId)
+    .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+}
+
+export async function insertRecipeImage(
+  recipeId: number,
+  imageUri: string,
+  sortOrder: number = 0,
+): Promise<number> {
+  const id = recipeImageNextId++;
+  recipeImagesStore.push({ id, recipe_id: recipeId, image_uri: imageUri, caption_he: null, caption_en: null, sort_order: sortOrder });
+  return id;
+}
+
+export async function deleteRecipeImage(id: number): Promise<void> {
+  recipeImagesStore = recipeImagesStore.filter((img) => img.id !== id);
+}
+
 export async function insertRecipe(recipe: Recipe): Promise<number> {
   if (!recipe.title_he?.trim()) {
     throw new Error("כותרת המתכון לא יכולה להיות ריקה / Recipe title cannot be empty");

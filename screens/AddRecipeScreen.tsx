@@ -145,7 +145,7 @@ function PhotoStrip({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-type OptionKey = "import" | "browse" | "voice" | "scan" | "manual";
+type OptionKey = "web" | "voice" | "scan" | "manual";
 
 type AddOption = {
   key: OptionKey;
@@ -160,23 +160,14 @@ type AddOption = {
 
 const OPTIONS: AddOption[] = [
   {
-    key: "import",
-    titleHe: "ייבוא מלינק",
-    titleEn: "Import from link",
-    subtitleHe: "הדבק כתובת URL ונמלא את המתכון אוטומטית",
-    subtitleEn: "Paste a URL and we'll fill the recipe automatically",
-    icon: "link-outline",
+    key: "web",
+    titleHe: "ייבוא מהרשת",
+    titleEn: "Import from Web",
+    subtitleHe: "גלוש לאתר מתכונים או הדבק קישור — נמלא הכל אוטומטית",
+    subtitleEn: "Browse a recipe site or paste a link — we'll fill it all automatically",
+    icon: "globe-outline",
     gradientColors: ["#FF6B6B", "#FF9B6B"],
     recommended: true,
-  },
-  {
-    key: "browse",
-    titleHe: "גלישה וייבוא",
-    titleEn: "Browse & Import",
-    subtitleHe: "גלוש לכל אתר מתכונים ולחץ ייבא",
-    subtitleEn: "Navigate to any recipe site and tap Import",
-    icon: "globe-outline",
-    gradientColors: ["#FF9B6B", "#FFB347"],
   },
   {
     key: "voice",
@@ -285,7 +276,8 @@ export default function AddRecipeScreen({ navigation }: any) {
       }
       const combined = rawTexts.join("\n\n");
       const ocr = parseOcrText(combined);
-      navigation.navigate("OcrReview", { ocr });
+      // Pass the original scanned images so OcrReviewScreen can save them with the recipe
+      navigation.navigate("OcrReview", { ocr, scannedImages: pendingImages });
     } catch (e: any) {
       Alert.alert(
         isHe ? "שגיאת סריקה" : "Scan failed",
@@ -298,8 +290,7 @@ export default function AddRecipeScreen({ navigation }: any) {
 
   function handleOptionPress(key: OptionKey) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (key === "import") navigation.navigate("ImportLink");
-    else if (key === "browse") navigation.navigate("ImportLink", { browse: true });
+    if (key === "web") navigation.navigate("ImportLink");
     else if (key === "voice") navigation.navigate("VoiceRecipe");
     else if (key === "scan") openSourcePicker();
     else navigation.navigate("EditRecipe", { id: null });
