@@ -24,6 +24,7 @@ import { Spacing } from "../constants/spacing";
 import { useThemeColors } from "../hooks/useThemeColors";
 import type { ImportedRecipe } from "../lib/importer";
 import WebViewImporter from "../components/WebViewImporter";
+import ScreenHeader from "../components/ScreenHeader";
 
 function isValidHttpUrl(text: string) {
   try {
@@ -203,7 +204,19 @@ export default function ImportLinkScreen({ route, navigation }: any) {
   }
 
   return (
-    <>
+    <View style={[s.wrapper, { backgroundColor: C.background }]}>
+      <ScreenHeader
+        title={isHe ? "ייבוא מהאינטרנט" : "Import from Web"}
+        subtitle={isHe ? "הדבק קישור ואנחנו נמלא הכל עבורך" : "Paste a link and we'll auto-fill it for you"}
+        leftAction={
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
+          </TouchableOpacity>
+        }
+      />
     {showWebView && (
       <WebViewImporter
         initialUrl={url.trim() || undefined}
@@ -213,18 +226,10 @@ export default function ImportLinkScreen({ route, navigation }: any) {
       />
     )}
     <ScrollView
-      style={[s.container, { backgroundColor: C.background }]}
+      style={s.container}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[s.title, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-        {isHe ? "ייבוא מתכון מהאינטרנט" : "Import recipe from the web"}
-      </Text>
-      <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-        {isHe
-          ? "הדבק קישור ואנחנו נמלא הכל עבורך"
-          : "Paste a link and we will auto-fill it for you"}
-      </Text>
 
       {/* ── Clipboard URL banner ── */}
       {clipboardUrl ? (
@@ -416,12 +421,13 @@ export default function ImportLinkScreen({ route, navigation }: any) {
         </View>
       )}
     </ScrollView>
-    </>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  wrapper: { flex: 1 },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 24 },
   title: {
     ...Typography.h2,

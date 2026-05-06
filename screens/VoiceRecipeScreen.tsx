@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
+import ScreenHeader from "../components/ScreenHeader";
 import { transcribeAudio, structureRecipe, isVoiceConfigured, type VoiceRecipeResult } from "../lib/voiceRecipe";
 import { insertRecipe } from "../lib/db";
 import { useRecipeStore } from "../store/recipeStore";
@@ -275,20 +276,24 @@ export default function VoiceRecipeScreen({ navigation }: any) {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
+    <View style={[s.container, { backgroundColor: C.background }]}>
+      <ScreenHeader
+        title={isHe ? "הקלטת מתכון" : "Voice Recipe"}
+        subtitle={isHe ? "ספר את המתכון בקול — אנחנו נבנה אותו בשבילך" : "Speak your recipe aloud — we'll structure it for you"}
+        leftAction={
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
+          </TouchableOpacity>
+        }
+      />
     <ScrollView
-      style={[s.container, { backgroundColor: C.background }]}
+      style={{ flex: 1 }}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
     >
-      {/* ── Title & subtitle ── */}
-      <Text style={[s.title, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-        {isHe ? "הקלטת מתכון קולית" : "Voice Recipe"}
-      </Text>
-      <Text style={[s.subtitle, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-        {isHe
-          ? "פשוט ספר את המתכון שלך בקול — אנחנו נבנה את זה בשבילך"
-          : "Just speak your recipe aloud — we'll structure it for you"}
-      </Text>
 
       {/* ── Mic area ── */}
       <View style={s.micArea}>
@@ -505,6 +510,7 @@ export default function VoiceRecipeScreen({ navigation }: any) {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 }
 

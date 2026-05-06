@@ -73,7 +73,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-Ska4Rl7CptY?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1637949385162-e416fb15b2ce?w=800&q=80',
     title_he: 'חומוס ביתי',
     title_en: 'Homemade Hummus',
     description_he: 'חומוס קרמי ואוורירי עם טחינה גולמית ולימון — כמו שסבתא עשתה',
@@ -107,7 +107,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-pQnsKWk5ljQ?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1593001872095-7d5b3868fb1d?w=800&q=80',
     title_he: 'פלאפל ביתי',
     title_en: 'Homemade Falafel',
     description_he: 'כדורי חומוס פריכים מבחוץ ורכים מבפנים — הפלאפל האמיתי',
@@ -146,7 +146,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-yolGeOl3e9U?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1630409349416-24884761a307?w=800&q=80',
     title_he: "מג'דרה",
     title_en: 'Mujaddara',
     description_he: 'אורז ועדשים עם בצל מקורמל — מנה ישראלית עתיקה ומנחמת',
@@ -182,7 +182,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1yPbO61xjzw?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1627308595127-d9acf19107ce?w=800&q=80',
     title_he: 'סלט חצילים ברשת',
     title_en: 'Charred Eggplant Salad',
     description_he: 'חציל צלוי ישירות על הגז עם לימון ושום — טעם עשן מפתה',
@@ -331,7 +331,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Soups ──────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1547592180-85f173990554?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1549203438-a7696aed4dac?w=800&q=80',
     title_he: 'מרק בצל צרפתי',
     title_en: 'French Onion Soup',
     description_he: 'מרק בצל מקורמל עם גבינה מבעבעת — קלאסיקה צרפתית מחממת',
@@ -403,7 +403,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1616501268982-c05d87b1c4f7?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1672667509942-4cbe8979ccc9?w=800&q=80',
     title_he: 'מרק עוף ביתי',
     title_en: 'Homemade Chicken Soup',
     description_he: 'מרק עוף סבתאי עם ירקות שורש — הריפוי האמיתי לכל מצב',
@@ -441,7 +441,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1642497394078-4794e837019c?w=800&q=80',
     title_he: 'מרק עדשים כתומות',
     title_en: 'Red Lentil Soup',
     description_he: 'מרק עדשים כתומות בתיבול מזרחי — מהיר, מזין ומחמם',
@@ -482,7 +482,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Salads ─────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-8OwrR5xTgm0?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1606735584785-1848fdcaea57?w=800&q=80',
     title_he: 'סלט ישראלי קלאסי',
     title_en: 'Classic Israeli Salad',
     description_he: 'קוביות עגבנייה ומלפפון עם פטרוזיליה ולימון — הסלט שמלווה כל ארוחה',
@@ -516,7 +516,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-e3b_UF_cE7M?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1702650657375-934239d8b472?w=800&q=80',
     title_he: 'טאבולה',
     title_en: 'Tabbouleh',
     description_he: 'פטרוזיליה קצוצה דק עם בורגול ועגבניות — סלט לבנוני קלאסי',
@@ -551,7 +551,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-hO8Zw-1ZcWM?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1623428187969-5da2dcea5ebf?w=800&q=80',
     title_he: 'סלט קינואה ים תיכוני',
     title_en: 'Mediterranean Quinoa Salad',
     description_he: 'קינואה עם ירקות טריים, פטה וזיתים — מנה מזינה וצבעונית',
@@ -704,7 +704,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Meat ───────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-MyfbM2QYF4o?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1670398564097-0762e1b30b3a?w=800&q=80',
     title_he: 'שניצל ביתי פריך',
     title_en: 'Crispy Homemade Schnitzel',
     description_he: 'שניצל עוף פריך ומוזהב כמו שצריך — פשוט ומנצח',
@@ -814,7 +814,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Fish ───────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-T3HTEPSqhE4?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=800&q=80',
     title_he: 'סלמון בתנור עם לימון ושמיר',
     title_en: 'Baked Salmon with Lemon & Dill',
     description_he: 'פילה סלמון אפוי עם רוטב לימון ושמיר — ארוחת דג מהירה ומרשימה',
@@ -847,7 +847,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-xJ9C4PA282s?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1673436977947-0787164a9abc?w=800&q=80',
     title_he: 'דג מרוקאי ברוטב עגבניות',
     title_en: 'Moroccan Fish in Tomato Sauce',
     description_he: 'דג לבן מבושל ברוטב עגבניות מתובל עם שום וכמון — מתכון שישי קלאסי',
@@ -885,7 +885,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Veggie ─────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-7TStr3RJdjc?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1655427221151-870cc71a63c2?w=800&q=80',
     title_he: 'נודלס טופו אסייתי',
     title_en: 'Asian Tofu Noodles',
     description_he: 'נודלס אורז עם טופו מוזהב ורוטב אסייתי — מהיר, מזין וטעים',
@@ -921,7 +921,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-ojposW2CPno?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1618449840665-9ed506d73a34?w=800&q=80',
     title_he: "קארי ירקות עם חלב קוקוס",
     title_en: 'Vegetable Coconut Curry',
     description_he: 'קארי ירקות עשיר עם חלב קוקוס — מרענן, מנחם ומלא צבע',
@@ -998,7 +998,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Desserts ───────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-Bn4vWSX0d1Y?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1475856033578-76b4a228f5c5?w=800&q=80',
     title_he: 'עוגיות טחינה',
     title_en: 'Tahini Cookies',
     description_he: 'עוגיות טחינה פריכות ועשירות בטעם — פשוט להכנה ומוצלח תמיד',
@@ -1031,7 +1031,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-vKyOQ1rwM6Y?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1555670546-909815d14af6?w=800&q=80',
     title_he: 'סהרונים',
     title_en: 'Rugelach',
     description_he: 'סהרונים מתפוררים במילוי ריבה ואגוזים — קלאסיקה ישראלית אהובה',

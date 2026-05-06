@@ -19,6 +19,12 @@ interface ScreenHeaderProps {
   /** Smaller description line below the title */
   subtitle?: string;
   /**
+   * Optional element pinned to the leading edge of the title row.
+   * Use for back / close buttons.
+   * In RTL this will appear on the physical right (correct for Hebrew nav).
+   */
+  leftAction?: React.ReactNode;
+  /**
    * Optional element pinned to the trailing edge of the title row.
    * Use for icon buttons (add, share, avatar…).
    */
@@ -33,6 +39,7 @@ interface ScreenHeaderProps {
 export default function ScreenHeader({
   title,
   subtitle,
+  leftAction,
   rightAction,
   children,
 }: ScreenHeaderProps) {
@@ -53,6 +60,9 @@ export default function ScreenHeader({
     >
       {/* ── Title row ── */}
       <View style={[styles.titleRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+        {leftAction ? (
+          <View style={styles.leftAction}>{leftAction}</View>
+        ) : null}
         <View style={{ flex: 1 }}>
           <Text
             style={[styles.title, { color: C.text.primary, textAlign: isHe ? 'right' : 'left' }]}
@@ -104,6 +114,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
     lineHeight: 18,
+  },
+
+  leftAction: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginEnd: 8,
   },
 
   rightAction: {

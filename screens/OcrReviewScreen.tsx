@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { insertRecipe } from "../lib/db";
 import { isHebrew } from "../lib/i18n";
@@ -17,6 +18,7 @@ import type { OcrResult } from "../lib/ocr";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import { useThemeColors } from "../hooks/useThemeColors";
+import ScreenHeader from "../components/ScreenHeader";
 
 type Props = {
   route: { params?: { ocr?: OcrResult } };
@@ -139,7 +141,20 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
   }
 
   return (
-    <ScrollView style={[s.container, { backgroundColor: C.background }]}>
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <ScreenHeader
+        title={isHe ? "סקירת סריקה" : "Review Scan"}
+        subtitle={isHe ? "בדוק את הטקסט לפני השמירה" : "Check the text before saving"}
+        leftAction={
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
+          </TouchableOpacity>
+        }
+      />
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
       <View style={s.tipCard}>
         <Text style={[s.tipTitle, { textAlign: isHe ? "right" : "left" }]}>
           {isHe
@@ -272,11 +287,13 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: Colors.background },
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 32 },
   tipCard: {
     borderRadius: 14,
     borderWidth: 1,

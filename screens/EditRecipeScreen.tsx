@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import { useThemeColors } from "../hooks/useThemeColors";
+import ScreenHeader from "../components/ScreenHeader";
 import { isHebrew } from "../lib/i18n";
 import { getRecipeById, insertRecipe, updateRecipe, getCategories, getRecipeCategoryIds, type Category } from "../lib/db";
 import * as Haptics from "expo-haptics";
@@ -390,21 +391,20 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["top", "left", "right"]}>
-      {/* ── Header ── */}
-      <View style={[s.header, { flexDirection: isHe ? "row-reverse" : "row", borderBottomColor: C.border }]}>
-        <TouchableOpacity
-          onPress={handleBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? "חזור" : "Back"}
-        >
-          <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
-        </TouchableOpacity>
-        <Text style={[s.screenTitle, { color: C.text.primary, flex: 1, textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
-          {id ? (isHe ? "עריכת מתכון" : "Edit recipe") : (isHe ? "מתכון חדש" : "New recipe")}
-        </Text>
-      </View>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
+      <ScreenHeader
+        title={id ? (isHe ? "עריכת מתכון" : "Edit Recipe") : (isHe ? "מתכון חדש" : "New Recipe")}
+        leftAction={
+          <TouchableOpacity
+            onPress={handleBack}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "חזור" : "Back"}
+          >
+            <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
+          </TouchableOpacity>
+        }
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
