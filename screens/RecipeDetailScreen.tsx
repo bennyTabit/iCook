@@ -1383,7 +1383,15 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                     accessibilityRole="button"
                     accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
                   >
-                    <Ionicons name="share-outline" size={20} color={iconColor} />
+                    <Ionicons name="share-social-outline" size={20} color={iconColor} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={btnStyle}
+                    onPress={() => void handleOpenCollectionModal()}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? "הוסף לאוסף" : "Add to collection"}
+                  >
+                    <Ionicons name="albums-outline" size={20} color={iconColor} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={btnStyle}
@@ -1404,6 +1412,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                       <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : iconColor} />
                     </TouchableOpacity>
                   </Animated.View>
+                  <TouchableOpacity
+                    style={btnStyle}
+                    onPress={handleDelete}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? "מחק מתכון" : "Delete recipe"}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF4757" />
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -1442,7 +1458,7 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: noteEditMode ? keyboardHeight + 24 : 10 + 58 + Math.max(insets.bottom - 2, 0) + 10 + 130 }}
+        contentContainerStyle={{ paddingBottom: noteEditMode ? keyboardHeight + 24 : 10 + 58 + Math.max(insets.bottom - 2, 0) + 10 + 70 }}
         style={[s.scrollCard, { backgroundColor: C.background, borderTopColor: C.text.primary + "18", borderTopWidth: hasPhoto ? 0 : 2 }]}
       >
 
@@ -1964,8 +1980,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
         ) : (
-          <>
-            {/* Start Cooking — hero button */}
+          /* Single row: Start Cooking (wider) + Add to Shopping */
+          <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             {rawSteps.length > 0 && (
               <TouchableOpacity
                 style={s.startCookingBtn}
@@ -1980,7 +1996,6 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 <Text style={s.startCookingText}>{isHe ? "התחל לבשל" : "Start Cooking"}</Text>
               </TouchableOpacity>
             )}
-          <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             <TouchableOpacity
               style={s.actionBtnPrimary}
               onPress={handleAddToShopping}
@@ -1988,34 +2003,9 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
               accessibilityLabel={isHe ? "הוסף לרשימת קניות" : "Add to shopping list"}
             >
               <Ionicons name="cart-outline" size={18} color="#fff" />
-              <Text style={s.actionBtnPrimaryText}>{isHe ? "הוסף לקניות" : "Add to cart"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
-              onPress={() => void handleOpenCollectionModal()}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "הוסף לאוסף" : "Add to collection"}
-            >
-              <Ionicons name="albums-outline" size={20} color={C.text.secondary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
-              onPress={() => recipe && void shareRecipe(recipe)}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
-            >
-              <Ionicons name="share-social-outline" size={20} color={C.text.secondary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.actionBtnIcon, { backgroundColor: C.surface, borderColor: C.border }]}
-              onPress={handleDelete}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "מחק מתכון" : "Delete recipe"}
-            >
-              <Ionicons name="trash-outline" size={20} color="#FF4757" />
+              <Text style={s.actionBtnPrimaryText}>{isHe ? "לקניות" : "Shopping"}</Text>
             </TouchableOpacity>
           </View>
-          </>
         )}
       </View>
         );
@@ -2280,14 +2270,14 @@ const s = StyleSheet.create({
   heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   heroEmoji: { fontSize: 72 },
   heroIconBtn: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
-  heroRightBtns: { gap: 8 },
+  heroRightBtns: { gap: 6 },
   heroBottom: {
     position: "absolute",
     bottom: 0,
@@ -2661,7 +2651,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   actionBtnPrimary: {
-    flex: 1,
+    flex: 2,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2888,14 +2878,14 @@ const s = StyleSheet.create({
 
   // Start Cooking hero button
   startCookingBtn: {
+    flex: 3,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    paddingVertical: 16,
-    marginBottom: 10,
+    height: 50,
     backgroundColor: "#2E9E8F",
-    borderRadius: 18,
+    borderRadius: 15,
     shadowColor: "#2E9E8F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
