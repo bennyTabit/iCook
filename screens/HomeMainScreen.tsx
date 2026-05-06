@@ -7,13 +7,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import ScreenHeader from "../components/ScreenHeader";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
@@ -40,7 +42,9 @@ type Tile = {
 
 export default function HomeMainScreen({ navigation }: any) {
   const C = useThemeColors();
+  const { i18n } = useTranslation();
   const isHe = isHebrew();
+  const insets = useSafeAreaInsets();
   const { recipes, loadRecipes, setFilter } = useRecipeStore();
   const { user } = useAuthStore();
 
@@ -148,33 +152,25 @@ export default function HomeMainScreen({ navigation }: any) {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: C.background }]} edges={["left", "right"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+    <View style={[s.root, { backgroundColor: C.background }]}>
+      <ScreenHeader
+        title={`${getGreeting()}${firstName ? `، ${firstName}` : ""}! 👨‍🍳`}
+        subtitle={isHe ? "מה נבשל היום?" : "What shall we cook today?"}
+      >
+        {/* Stats pill */}
+        {recipes.length > 0 && (
+          <View style={[s.statsPill, { flexDirection: isHe ? "row-reverse" : "row", alignSelf: isHe ? "flex-end" : "flex-start", backgroundColor: C.surface, borderColor: C.border }]}>
+            <Text style={[s.statsText, { color: C.text.secondary }]}>
+              📖 {recipes.length} {isHe ? "מתכונים" : "recipes"}
+            </Text>
+            <View style={[s.statsDot, { backgroundColor: C.border }]} />
+            <Text style={[s.statsText, { color: C.text.secondary }]}>
+              ❤️ {favorites.length} {isHe ? "מועדפים" : "favorites"}
+            </Text>
+          </View>
+        )}
 
-        {/* ── Greeting ── */}
-        <View style={s.greetWrap}>
-          <Text style={[s.greet, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-            {getGreeting()}{firstName ? `، ${firstName}` : ""}! 👨‍🍳
-          </Text>
-          <Text style={[s.greetSub, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "מה נבשל היום?" : "What shall we cook today?"}
-          </Text>
-
-          {/* Stats pill */}
-          {recipes.length > 0 && (
-            <View style={[s.statsPill, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surface, borderColor: C.border }]}>
-              <Text style={[s.statsText, { color: C.text.secondary }]}>
-                📖 {recipes.length} {isHe ? "מתכונים" : "recipes"}
-              </Text>
-              <View style={[s.statsDot, { backgroundColor: C.border }]} />
-              <Text style={[s.statsText, { color: C.text.secondary }]}>
-                ❤️ {favorites.length} {isHe ? "מועדפים" : "favorites"}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ── Clipboard import chip ── */}
+        {/* Clipboard import chip */}
         {clipboardUrl ? (
           <TouchableOpacity
             style={[s.clipChip, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: Colors.primary + "12", borderColor: Colors.primary + "30" }]}
@@ -199,6 +195,9 @@ export default function HomeMainScreen({ navigation }: any) {
             <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={16} color={Colors.primary} />
           </TouchableOpacity>
         ) : null}
+      </ScreenHeader>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: 32 + insets.bottom }]}>
 
         {/* ── Action grid ── */}
         <View style={s.grid}>
@@ -253,7 +252,7 @@ export default function HomeMainScreen({ navigation }: any) {
         )}
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -266,12 +265,7 @@ const TILE_W = Math.floor((SCREEN_W - GRID_H_PAD * 2 - TILE_GAP) / 2);
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { padding: 20, paddingBottom: 32, gap: 16 },
-
-  // Greeting
-  greetWrap: { gap: 6 },
-  greet: { fontSize: 26, fontWeight: "800", lineHeight: 32 },
-  greetSub: { fontSize: 15, lineHeight: 20 },
+  scroll: { padding: 20, gap: 16 },
   statsPill: {
     alignSelf: "flex-start",
     marginTop: 6,
@@ -316,10 +310,7 @@ const s = StyleSheet.create({
     width: TILE_W,
     borderRadius: 20,
     borderWidth: 1,
-    paddingVertical: 20,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    gap: 10,
+    overflow: "hidden",
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07,
@@ -327,14 +318,13 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   tileIconWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
+    alignSelf: "stretch",
+    height: 96,
     alignItems: "center",
     justifyContent: "center",
   },
-  tileEmoji: { fontSize: 26 },
-  tileLabel: { fontSize: 14, fontWeight: "700", lineHeight: 18 },
+  tileEmoji: { fontSize: 44 },
+  tileLabel: { fontSize: 15, fontWeight: "700", textAlign: "center", paddingVertical: 12, paddingHorizontal: 10 },
 
   // Recipe of the day
   rotd: {

@@ -24,6 +24,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
 import { useShoppingStore } from "../store/shoppingStore";
 import type { ShopItem } from "../store/shoppingStore";
+import ScreenHeader from "../components/ScreenHeader";
 import ShoppingItem from "../components/ShoppingItem";
 import AddItemSheet from "../components/AddItemSheet";
 import {
@@ -267,14 +268,20 @@ export default function ShoppingScreen({ navigation }: any) {
   // ── Empty state ─────────────────────────────────────────────────────────────
   if (items.length === 0) {
     return (
-      <View style={[s.container, { paddingTop: insets.top, backgroundColor: C.background }]}>
+      <View style={[s.container, { backgroundColor: C.background }]}>
         <ScreenHeader
-          isHe={isHe}
-          checkedCount={0}
-          onClearChecked={handleClearChecked}
-          onBrowse={() => navigation.navigate("Search")}
-          onShare={() => void handleShare()}
-          hasItems={false}
+          title={isHe ? "רשימת קניות" : "Shopping List"}
+          subtitle={isHe ? "גרור שמאלה למחיקת פריט" : "Swipe left to delete items"}
+          rightAction={
+            <TouchableOpacity
+              style={[s.browseBtn, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+              onPress={() => navigation.navigate("Search")}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="search-outline" size={15} color={Colors.primary} />
+              <Text style={s.browseBtnText}>{isHe ? "בחר מתכון" : "Browse"}</Text>
+            </TouchableOpacity>
+          }
         />
         {recurring.length > 0 && <RecurringStrip />}
         <View style={s.emptyOuter}>
@@ -314,14 +321,30 @@ export default function ShoppingScreen({ navigation }: any) {
 
   // ── Main list ───────────────────────────────────────────────────────────────
   return (
-    <View style={[s.container, { paddingTop: insets.top, backgroundColor: C.background }]}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
         <ScreenHeader
-          isHe={isHe}
-          checkedCount={checkedCount}
-          onClearChecked={handleClearChecked}
-          onBrowse={() => navigation.navigate("Search")}
-          onShare={() => void handleShare()}
-          hasItems={items.length > 0}
+          title={isHe ? "רשימת קניות" : "Shopping List"}
+          subtitle={isHe ? "גרור שמאלה למחיקת פריט" : "Swipe left to delete items"}
+          rightAction={
+            <View style={[s.headerBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <TouchableOpacity
+                style={[s.shareIconBtn, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+                onPress={() => void handleShare()}
+                activeOpacity={0.85}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="share-social-outline" size={18} color={C.text.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.browseBtn, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+                onPress={() => navigation.navigate("Search")}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="search-outline" size={15} color={Colors.primary} />
+                <Text style={s.browseBtnText}>{isHe ? "בחר מתכון" : "Browse"}</Text>
+              </TouchableOpacity>
+            </View>
+          }
         />
 
         {/* ── Progress strip ── */}
@@ -399,119 +422,32 @@ export default function ShoppingScreen({ navigation }: any) {
   );
 }
 
-// ─── Header ──────────────────────────────────────────────────────────────────
-
-function ScreenHeader({
-  isHe,
-  checkedCount,
-  onClearChecked,
-  onBrowse,
-  onShare,
-  hasItems,
-}: {
-  isHe: boolean;
-  checkedCount: number;
-  onClearChecked: () => void;
-  onBrowse: () => void;
-  onShare: () => void;
-  hasItems: boolean;
-}) {
-  return (
-    <LinearGradient
-      colors={Colors.heroGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={s.hero}
-    >
-      <View style={[s.heroRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "רשימת קניות" : "Shopping List"}
-          </Text>
-          <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "גרור שמאלה למחיקת פריט" : "Swipe to delete items"}
-          </Text>
-        </View>
-
-        <View style={[s.headerActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-          {hasItems && (
-            <TouchableOpacity
-              style={s.shareBtn}
-              onPress={onShare}
-              activeOpacity={0.85}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="share-social-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={s.browseBtn}
-            onPress={onBrowse}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="search-outline" size={15} color={Colors.primary} />
-            <Text style={s.browseBtnText}>
-              {isHe ? "בחר מתכון" : "Browse recipes"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </LinearGradient>
-  );
-}
-
-
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: { flex: 1 },
 
-  // Hero header
-  hero: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 18,
-  },
-  heroRow: {
-    alignItems: "center",
-    gap: 12,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: -0.3,
-  },
-  heroSub: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
-  },
-  headerActions: {
+  // Header right-action buttons
+  headerBtns: {
     alignItems: "center",
     gap: 8,
   },
-  shareBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  shareIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
   },
   browseBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#fff",
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
   },
   browseBtnText: {
     fontSize: 13,

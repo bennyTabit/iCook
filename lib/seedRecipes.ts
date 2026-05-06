@@ -9,13 +9,14 @@ export interface SeedRecipe {
   title_en: string;
   description_he: string;
   description_en: string;
-  category_en: string; // must match name_en in categories table
+  categories_en: string[]; // must match name_en in categories table
   difficulty: 'easy' | 'medium' | 'hard';
   prep_time_min: number;
   cook_time_min: number;
   servings: number;
   notes_he: string;
   is_favorite: number;
+  image_uri?: string;
 }
 
 function r(ingredients: string[], steps: string[]): string {
@@ -33,11 +34,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Israeli ────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1590412200988-a436970781fa?w=800&q=80',
     title_he: 'שקשוקה קלאסית',
     title_en: 'Classic Shakshuka',
     description_he: 'ביצים בשלות ברוטב עגבניות עשיר ומתובל — ארוחת בוקר ישראלית אייקונית',
     description_en: 'Eggs poached in rich spiced tomato sauce — the iconic Israeli breakfast',
-    category_en: 'Israeli',
+    categories_en: ['Breakfast'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 20,
@@ -71,11 +73,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1637939176290-3be2c3e93e7f?w=800&q=80',
     title_he: 'חומוס ביתי',
     title_en: 'Homemade Hummus',
     description_he: 'חומוס קרמי ואוורירי עם טחינה גולמית ולימון — כמו שסבתא עשתה',
     description_en: 'Creamy airy hummus with raw tahini and lemon — just like grandma made it',
-    category_en: 'Israeli',
+    categories_en: ['Starters', 'Sauces & Spreads'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 0,
@@ -104,11 +107,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1593001874117-c99c800e3eb8?w=800&q=80',
     title_he: 'פלאפל ביתי',
     title_en: 'Homemade Falafel',
     description_he: 'כדורי חומוס פריכים מבחוץ ורכים מבפנים — הפלאפל האמיתי',
     description_en: 'Crunchy outside, soft inside chickpea balls — the real deal falafel',
-    category_en: 'Israeli',
+    categories_en: ['Starters', 'Main dishes'],
     difficulty: 'medium',
     prep_time_min: 30,
     cook_time_min: 20,
@@ -142,11 +146,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80',
     title_he: "מג'דרה",
     title_en: 'Mujaddara',
     description_he: 'אורז ועדשים עם בצל מקורמל — מנה ישראלית עתיקה ומנחמת',
     description_en: 'Rice and lentils crowned with caramelized onions — ancient comforting Israeli dish',
-    category_en: 'Israeli',
+    categories_en: ['Main dishes', 'Sides'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 50,
@@ -177,11 +182,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1564671165093-20688ff1fffa?w=800&q=80',
     title_he: 'סלט חצילים ברשת',
     title_en: 'Charred Eggplant Salad',
     description_he: 'חציל צלוי ישירות על הגז עם לימון ושום — טעם עשן מפתה',
     description_en: 'Eggplant charred directly on the flame with lemon and garlic — irresistibly smoky',
-    category_en: 'Israeli',
+    categories_en: ['Starters'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 20,
@@ -212,11 +218,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Breakfast ──────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
     title_he: 'פנקייקים אמריקאים',
     title_en: 'American Pancakes',
     description_he: 'פנקייקים תפוחים ורכים עם סירופ מייפל — ארוחת בוקר חלומית',
     description_en: 'Fluffy, pillowy pancakes with maple syrup — the dream breakfast',
-    category_en: 'Breakfast',
+    categories_en: ['Breakfast'],
     difficulty: 'easy',
     prep_time_min: 5,
     cook_time_min: 20,
@@ -249,11 +256,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1517093157541-536905899179?w=800&q=80',
     title_he: 'גרנולה ביתית',
     title_en: 'Homemade Granola',
     description_he: 'גרנולה פריכה עם שיבולת שועל, אגוזים ודבש — הרבה יותר טובה מהמוכן',
     description_en: 'Crunchy granola with oats, nuts and honey — so much better than store-bought',
-    category_en: 'Breakfast',
+    categories_en: ['Breakfast'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 30,
@@ -286,11 +294,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1541519227354-08fa5d50c820?w=800&q=80',
     title_he: 'אבוקדו טוסט עם ביצה',
     title_en: 'Avocado Toast with Egg',
     description_he: 'לחם קלוי עם אבוקדו קרמי וביצה עלומה — ארוחת בוקר שמזינה ומרוממת',
     description_en: 'Toasted bread with creamy avocado and poached egg — nourishing and uplifting',
-    category_en: 'Breakfast',
+    categories_en: ['Breakfast'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 10,
@@ -322,11 +331,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Soups ──────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1547592180-85f173990554?w=800&q=80',
     title_he: 'מרק בצל צרפתי',
     title_en: 'French Onion Soup',
     description_he: 'מרק בצל מקורמל עם גבינה מבעבעת — קלאסיקה צרפתית מחממת',
     description_en: 'Caramelized onion soup with bubbling cheese — a warming French classic',
-    category_en: 'Soups',
+    categories_en: ['Starters'],
     difficulty: 'medium',
     prep_time_min: 15,
     cook_time_min: 70,
@@ -357,11 +367,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1476718406336-bb5a9690ee2a?w=800&q=80',
     title_he: 'מרק דלעת קטיפתי',
     title_en: 'Silky Pumpkin Soup',
     description_he: 'מרק דלעת קטיפתי ומנחם עם קרם קוקוס וגרעיני דלעת',
     description_en: 'Silky comforting pumpkin soup with coconut cream and pumpkin seeds',
-    category_en: 'Soups',
+    categories_en: ['Starters'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 40,
@@ -392,11 +403,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1616501268982-c05d87b1c4f7?w=800&q=80',
     title_he: 'מרק עוף ביתי',
     title_en: 'Homemade Chicken Soup',
     description_he: 'מרק עוף סבתאי עם ירקות שורש — הריפוי האמיתי לכל מצב',
     description_en: 'Grandmother\'s chicken soup with root vegetables — the true cure for everything',
-    category_en: 'Soups',
+    categories_en: ['Starters'],
     difficulty: 'medium',
     prep_time_min: 20,
     cook_time_min: 120,
@@ -429,11 +441,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=800&q=80',
     title_he: 'מרק עדשים כתומות',
     title_en: 'Red Lentil Soup',
     description_he: 'מרק עדשים כתומות בתיבול מזרחי — מהיר, מזין ומחמם',
     description_en: 'Red lentil soup with Eastern spices — quick, nourishing and warming',
-    category_en: 'Soups',
+    categories_en: ['Starters'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 30,
@@ -469,11 +482,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Salads ─────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80',
     title_he: 'סלט ישראלי קלאסי',
     title_en: 'Classic Israeli Salad',
     description_he: 'קוביות עגבנייה ומלפפון עם פטרוזיליה ולימון — הסלט שמלווה כל ארוחה',
     description_en: 'Diced tomatoes and cucumber with parsley and lemon — the salad that accompanies every meal',
-    category_en: 'Salads',
+    categories_en: ['Starters'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 0,
@@ -502,11 +516,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?w=800&q=80',
     title_he: 'טאבולה',
     title_en: 'Tabbouleh',
     description_he: 'פטרוזיליה קצוצה דק עם בורגול ועגבניות — סלט לבנוני קלאסי',
     description_en: 'Finely chopped parsley with bulgur and tomatoes — a Lebanese classic',
-    category_en: 'Salads',
+    categories_en: ['Starters'],
     difficulty: 'easy',
     prep_time_min: 20,
     cook_time_min: 10,
@@ -536,11 +551,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1529059997568-3d847b1154f0?w=800&q=80',
     title_he: 'סלט קינואה ים תיכוני',
     title_en: 'Mediterranean Quinoa Salad',
     description_he: 'קינואה עם ירקות טריים, פטה וזיתים — מנה מזינה וצבעונית',
     description_en: 'Quinoa with fresh vegetables, feta and olives — nourishing and colorful',
-    category_en: 'Salads',
+    categories_en: ['Starters', 'Main dishes'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 15,
@@ -576,11 +592,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Pasta ──────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=800&q=80',
     title_he: 'פסטה קרבונארה',
     title_en: 'Pasta Carbonara',
     description_he: 'ספגטי קרמי עם חלמונים, גבינה ובייקון — הקרבונארה האמיתית בלי שמנת',
     description_en: 'Creamy spaghetti with egg yolks, cheese and bacon — authentic carbonara without cream',
-    category_en: 'Pasta',
+    categories_en: ['Main dishes'],
     difficulty: 'medium',
     prep_time_min: 10,
     cook_time_min: 20,
@@ -610,11 +627,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=800&q=80',
     title_he: 'פסטה בולונז',
     title_en: 'Pasta Bolognese',
     description_he: 'רוטב בשר איטלקי עשיר ועמוק טעם שהתבשל לאט — פסטה כמו בבולוניה',
     description_en: 'Rich slow-cooked Italian meat sauce — pasta just like in Bologna',
-    category_en: 'Pasta',
+    categories_en: ['Main dishes'],
     difficulty: 'medium',
     prep_time_min: 15,
     cook_time_min: 75,
@@ -649,11 +667,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1473093226705-a8bbc5a3f7e8?w=800&q=80',
     title_he: 'פסטה פסטו ביתי',
     title_en: 'Homemade Pesto Pasta',
     description_he: 'פסטה ירוקה עם פסטו בזיליקום טרי — מהיר, פשוט ומרשים',
     description_en: 'Green pasta with fresh basil pesto — quick, simple and impressive',
-    category_en: 'Pasta',
+    categories_en: ['Main dishes'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 10,
@@ -685,11 +704,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Meat ───────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1585325701165-b40c51a97d0e?w=800&q=80',
     title_he: 'שניצל ביתי פריך',
     title_en: 'Crispy Homemade Schnitzel',
     description_he: 'שניצל עוף פריך ומוזהב כמו שצריך — פשוט ומנצח',
     description_en: 'Crispy golden chicken schnitzel just right — simple and winning',
-    category_en: 'Meat',
+    categories_en: ['Main dishes'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 20,
@@ -721,11 +741,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=800&q=80',
     title_he: 'קציצות בשר ברוטב עגבניות',
     title_en: 'Meatballs in Tomato Sauce',
     description_he: 'קציצות בשר עסיסיות ברוטב עגבניות עשיר — ארוחת שישי מנצחת',
     description_en: 'Juicy beef meatballs in rich tomato sauce — the winning Friday dinner',
-    category_en: 'Meat',
+    categories_en: ['Main dishes'],
     difficulty: 'medium',
     prep_time_min: 20,
     cook_time_min: 45,
@@ -755,11 +776,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1598103442097-8b74394b95c3?w=800&q=80',
     title_he: 'עוף בתנור עם לימון ושום',
     title_en: 'Lemon Garlic Roast Chicken',
     description_he: 'ירכיים עוף צלויות עם מרינדת לימון ושום — פריך מבחוץ, עסיסי מבפנים',
     description_en: 'Roasted chicken thighs with lemon garlic marinade — crispy outside, juicy inside',
-    category_en: 'Meat',
+    categories_en: ['Main dishes'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 50,
@@ -792,11 +814,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Fish ───────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1519708227468-a1c4cf5a2e2a?w=800&q=80',
     title_he: 'סלמון בתנור עם לימון ושמיר',
     title_en: 'Baked Salmon with Lemon & Dill',
     description_he: 'פילה סלמון אפוי עם רוטב לימון ושמיר — ארוחת דג מהירה ומרשימה',
     description_en: 'Baked salmon fillet with lemon dill sauce — quick and impressive fish dinner',
-    category_en: 'Fish',
+    categories_en: ['Main dishes'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 20,
@@ -824,11 +847,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=800&q=80',
     title_he: 'דג מרוקאי ברוטב עגבניות',
     title_en: 'Moroccan Fish in Tomato Sauce',
     description_he: 'דג לבן מבושל ברוטב עגבניות מתובל עם שום וכמון — מתכון שישי קלאסי',
     description_en: 'White fish cooked in spiced tomato sauce with garlic and cumin — classic Friday recipe',
-    category_en: 'Fish',
+    categories_en: ['Main dishes'],
     difficulty: 'medium',
     prep_time_min: 15,
     cook_time_min: 35,
@@ -861,11 +885,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Veggie ─────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&q=80',
     title_he: 'נודלס טופו אסייתי',
     title_en: 'Asian Tofu Noodles',
     description_he: 'נודלס אורז עם טופו מוזהב ורוטב אסייתי — מהיר, מזין וטעים',
     description_en: 'Rice noodles with golden tofu and Asian sauce — quick, nourishing and delicious',
-    category_en: 'Veggie',
+    categories_en: ['Main dishes', 'Veggie / Vegan'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 20,
@@ -896,11 +921,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1455619452474-d2be8b1de6d3?w=800&q=80',
     title_he: "קארי ירקות עם חלב קוקוס",
     title_en: 'Vegetable Coconut Curry',
     description_he: 'קארי ירקות עשיר עם חלב קוקוס — מרענן, מנחם ומלא צבע',
     description_en: 'Rich vegetable curry with coconut milk — refreshing, comforting and colorful',
-    category_en: 'Veggie',
+    categories_en: ['Main dishes', 'Veggie / Vegan'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 25,
@@ -933,11 +959,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1476124369491-e7debb5eaf5d?w=800&q=80',
     title_he: 'ריזוטו פטריות',
     title_en: 'Mushroom Risotto',
     description_he: 'ריזוטו קרמי עם פטריות שמפיניון ופרמז\'ן — מנת מסעדה במטבח הביתי',
     description_en: 'Creamy risotto with champignon mushrooms and parmesan — restaurant dish at home',
-    category_en: 'Veggie',
+    categories_en: ['Main dishes', 'Veggie / Vegan'],
     difficulty: 'hard',
     prep_time_min: 15,
     cook_time_min: 40,
@@ -971,11 +998,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Desserts ───────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800&q=80',
     title_he: 'עוגיות טחינה',
     title_en: 'Tahini Cookies',
     description_he: 'עוגיות טחינה פריכות ועשירות בטעם — פשוט להכנה ומוצלח תמיד',
     description_en: 'Rich and crispy tahini cookies — simple to make and always a success',
-    category_en: 'Desserts',
+    categories_en: ['Desserts & Cakes'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 15,
@@ -1003,11 +1031,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1611293388250-580b08c4a145?w=800&q=80',
     title_he: 'סהרונים',
     title_en: 'Rugelach',
     description_he: 'סהרונים מתפוררים במילוי ריבה ואגוזים — קלאסיקה ישראלית אהובה',
     description_en: 'Crumbly rugelach with jam and walnut filling — a beloved Israeli classic',
-    category_en: 'Desserts',
+    categories_en: ['Desserts & Cakes', 'Breads & Pastries'],
     difficulty: 'medium',
     prep_time_min: 30,
     cook_time_min: 22,
@@ -1038,11 +1067,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=800&q=80',
     title_he: 'עוגת גבינה אפויה',
     title_en: 'Baked Cheesecake',
     description_he: 'עוגת גבינה אפויה קלאסית עם קרסט ביסקוויטים — מלכת הקינוחים',
     description_en: 'Classic baked cheesecake with biscuit crust — the queen of desserts',
-    category_en: 'Desserts',
+    categories_en: ['Desserts & Cakes'],
     difficulty: 'hard',
     prep_time_min: 20,
     cook_time_min: 60,
@@ -1075,11 +1105,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1511357840105-5958d1e7bf18?w=800&q=80',
     title_he: 'מוס שוקולד מהיר',
     title_en: 'Quick Chocolate Mousse',
     description_he: 'מוס שוקולד קל וקטיפתי בכמה מרכיבים — קינוח שמרשים תמיד',
     description_en: 'Light silky chocolate mousse with few ingredients — always impressive dessert',
-    category_en: 'Desserts',
+    categories_en: ['Desserts & Cakes'],
     difficulty: 'easy',
     prep_time_min: 20,
     cook_time_min: 5,
@@ -1110,11 +1141,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Baking ─────────────────────────────────────────────────────────────────
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1587668178277-295251f900ce?w=800&q=80',
     title_he: 'עוגת בננות לחה',
     title_en: 'Moist Banana Cake',
     description_he: 'עוגת בננות לחה ועשירה מבננות בשלות — מה לעשות עם בננות שחורות',
     description_en: 'Moist rich banana cake from ripe bananas — what to do with black bananas',
-    category_en: 'Baking',
+    categories_en: ['Breads & Pastries', 'Desserts & Cakes'],
     difficulty: 'easy',
     prep_time_min: 10,
     cook_time_min: 55,
@@ -1146,11 +1178,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1499636268110-7e0de20f5fe5?w=800&q=80',
     title_he: 'עוגיות שוקולד צ\'יפס',
     title_en: 'Chocolate Chip Cookies',
     description_he: 'עוגיות שוקולד צ\'יפס קלאסיות — פריכות בשוליים ורכות במרכז',
     description_en: 'Classic chocolate chip cookies — crispy edges, soft center',
-    category_en: 'Baking',
+    categories_en: ['Desserts & Cakes'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 12,
@@ -1182,11 +1215,12 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
+    image_uri: 'https://images.unsplash.com/photo-1606101273945-e9eba14e5c4f?w=800&q=80',
     title_he: 'לחם בננה שוקולד',
     title_en: 'Chocolate Banana Bread',
     description_he: 'לחם בננה עשיר עם שוקולד מריר — ארוחת בוקר שהיא גם קינוח',
     description_en: 'Rich banana bread with dark chocolate — breakfast that is also dessert',
-    category_en: 'Baking',
+    categories_en: ['Breads & Pastries', 'Desserts & Cakes'],
     difficulty: 'easy',
     prep_time_min: 15,
     cook_time_min: 60,

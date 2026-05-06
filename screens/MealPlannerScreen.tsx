@@ -1,19 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
-  Animated,
+  Dimensions,
   FlatList,
   Image,
-  Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
@@ -22,16 +25,21 @@ import { Colors } from '../constants/colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { isHebrew } from '../lib/i18n';
 import { MealType } from '../lib/db';
+import { parseNutrition, perServing } from '../lib/nutrition';
 import type { RecipeSummary } from '../lib/search';
 import {
   useMealPlanStore,
   getWeekDays,
   getWeekStart,
-  shiftWeek,
 } from '../store/mealPlanStore';
-import { useRecipeStore } from '../store/recipeStore';
+import RecipePickerModal from '../components/RecipePickerModal';
+import ScreenHeader from '../components/ScreenHeader';
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function toDateStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
 
@@ -41,223 +49,239 @@ const MEAL_EMOJI: Record<MealType, string> = {
   dinner: '🌙',
 };
 
-const DAY_NAMES_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Short names indexed by getDay() (0=Sun)
+const DAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const DAY_SHORT_EN = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+const DAY_FULL_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const DAY_FULL_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function formatWeekRange(weekStart: string, isHe: boolean): string {
-  const days = getWeekDays(weekStart);
-  const start = new Date(days[0] + 'T00:00:00');
-  const end = new Date(days[6] + 'T00:00:00');
-  const monthNames = isHe
-    ? ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
-    : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const startStr = `${start.getDate()} ${monthNames[start.getMonth()]}`;
-  const endStr = `${end.getDate()} ${monthNames[end.getMonth()]}`;
-  return `${startStr} – ${endStr}`;
+const MONTH_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const MONTH_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── Scrollable day strip constants ────────────────────────────────────────────
+
+const SCREEN_W = Dimensions.get('window').width;
+const DAY_W = SCREEN_W / 7; // exactly 7 columns wide
+
+// 181 days centred on today (90 past + today + 90 future)
+const STRIP_ORIGIN = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 90);
+  return new Date(d.toISOString().slice(0, 10) + 'T00:00:00');
+})();
+
+const ALL_DAYS: string[] = Array.from({ length: 181 }, (_, i) => {
+  const d = new Date(STRIP_ORIGIN);
+  d.setDate(STRIP_ORIGIN.getDate() + i);
+  return d.toISOString().slice(0, 10);
+});
+
+/** Scroll offset that centres the given index in the viewport */
+function centredOffset(idx: number): number {
+  return Math.max(0, idx * DAY_W - (SCREEN_W - DAY_W) / 2);
 }
 
-function getDayLabel(dateStr: string, isHe: boolean): { dayName: string; dayNum: number; isToday: boolean } {
-  const d = new Date(dateStr + 'T00:00:00');
-  const today = new Date();
-  const isToday =
-    d.getDate() === today.getDate() &&
-    d.getMonth() === today.getMonth() &&
-    d.getFullYear() === today.getFullYear();
-  const dayOfWeek = d.getDay(); // 0=Sun
-  return {
-    dayName: isHe ? DAY_NAMES_HE[dayOfWeek] : DAY_NAMES_EN[dayOfWeek],
-    dayNum: d.getDate(),
-    isToday,
-  };
-}
+// ── DayStrip ──────────────────────────────────────────────────────────────────
 
-// ── Recipe Picker Modal ──────────────────────────────────────────────────────
-
-function RecipePicker({
-  visible,
-  onClose,
-  onSelect,
+function DayStrip({
+  selectedDate,
+  hasEntryOnDate,
   isHe,
+  onSelectDate,
 }: {
-  visible: boolean;
-  onClose: () => void;
-  onSelect: (recipe: RecipeSummary) => void;
+  selectedDate: string;
+  hasEntryOnDate: (date: string) => boolean;
   isHe: boolean;
+  onSelectDate: (date: string) => void;
 }) {
-  const { t } = useTranslation();
-  const { recipes } = useRecipeStore();
-  const [query, setQuery] = useState('');
-  const insets = useSafeAreaInsets();
-  const slide = useRef(new Animated.Value(600)).current;
-  const fade = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(false);
+  const C = useThemeColors();
+  const today = toDateStr(new Date());
+  const listRef = useRef<FlatList<string>>(null);
+  const mounted = useRef(false);
 
+  // Scroll to centre a day in the viewport
+  const scrollTo = useCallback((idx: number, animated: boolean) => {
+    listRef.current?.scrollToOffset({ offset: centredOffset(idx), animated });
+  }, []);
+
+  // Scroll whenever selectedDate changes (initial mount = no animation)
   useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      setQuery('');
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(slide, { toValue: 0, tension: 60, friction: 12, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }),
-        Animated.timing(slide, { toValue: 600, duration: 180, useNativeDriver: true }),
-      ]).start(() => setMounted(false));
+    const idx = ALL_DAYS.indexOf(selectedDate);
+    if (idx < 0) return;
+    if (!mounted.current) {
+      mounted.current = true;
+      // Delay so FlatList has fully laid out
+      const t = setTimeout(() => scrollTo(idx, false), 80);
+      return () => clearTimeout(t);
     }
-  }, [visible]);
+    scrollTo(idx, true);
+  }, [selectedDate, scrollTo]);
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return recipes;
-    const q = query.toLowerCase();
-    return recipes.filter(
-      (r) =>
-        r.title_he?.toLowerCase().includes(q) ||
-        r.title_en?.toLowerCase().includes(q),
-    );
-  }, [recipes, query]);
+  const handleDayPress = useCallback(
+    (date: string) => {
+      void Haptics.selectionAsync();
+      onSelectDate(date);
+    },
+    [onSelectDate],
+  );
 
-  if (!mounted) return null;
+  const renderItem = useCallback(
+    ({ item: date }: { item: string }) => {
+      const d = new Date(date + 'T00:00:00');
+      const dow = d.getDay();
+      const dayNum = d.getDate();
+      const isSelected = date === selectedDate;
+      const isToday = date === today;
+      const hasMeals = hasEntryOnDate(date);
+      const shortName = isHe ? DAY_SHORT_HE[dow] : DAY_SHORT_EN[dow];
+
+      // Show month name above the 1st of each month (invisible placeholder otherwise
+      // so every row has the same height → getItemLayout stays accurate)
+      const isFirstOfMonth = dayNum === 1;
+      const monthName = isFirstOfMonth
+        ? (isHe ? MONTH_HE[d.getMonth()] : MONTH_EN[d.getMonth()])
+        : null;
+
+      return (
+        <TouchableOpacity
+          style={[ds.dayCol, { width: DAY_W }]}
+          onPress={() => handleDayPress(date)}
+          activeOpacity={0.75}
+        >
+          {/* Month label — only visible on 1st; occupies space always */}
+          <Text
+            style={[ds.monthLabel, { color: Colors.primary, opacity: isFirstOfMonth ? 1 : 0 }]}
+          >
+            {monthName ?? ' '}
+          </Text>
+
+          <Text style={[ds.dayName, { color: isSelected ? Colors.primary : C.text.tertiary }]}>
+            {shortName}
+          </Text>
+
+          <View
+            style={[
+              ds.dayCircle,
+              isSelected && { backgroundColor: Colors.primary },
+              isToday && !isSelected && { borderWidth: 2, borderColor: Colors.primary },
+            ]}
+          >
+            <Text
+              style={[
+                ds.dayNum,
+                {
+                  color: isSelected
+                    ? '#fff'
+                    : isToday
+                    ? Colors.primary
+                    : C.text.primary,
+                },
+              ]}
+            >
+              {dayNum}
+            </Text>
+          </View>
+
+          {/* Meal dot */}
+          <View style={ds.dotSlot}>
+            {hasMeals && (
+              <View
+                style={[
+                  ds.dot,
+                  { backgroundColor: isSelected ? Colors.primary : C.text.tertiary },
+                ]}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [selectedDate, hasEntryOnDate, isHe, today, handleDayPress, C],
+  );
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>
-        <Pressable
-          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.46)' }]}
-          onPress={onClose}
-        />
-      </Animated.View>
-      <Animated.View
-        style={[
-          ps.sheet,
-          { transform: [{ translateY: slide }], paddingBottom: Math.max(insets.bottom, 20) },
-        ]}
-      >
-        <View style={ps.handle} />
-        <Text style={[ps.title, { textAlign: isHe ? 'right' : 'left' }]}>
-          {t('pickRecipe')}
-        </Text>
-        <TextInput
-          style={[ps.search, { textAlign: isHe ? 'right' : 'left' }]}
-          placeholder={t('searchPlaceholder')}
-          placeholderTextColor={Colors.text.tertiary}
-          value={query}
-          onChangeText={setQuery}
-        />
-        <FlatList
-          data={filtered}
-          keyExtractor={(r) => String(r.id)}
-          style={{ maxHeight: 380 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[ps.recipeRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}
-              onPress={() => {
-                void Haptics.selectionAsync();
-                onSelect(item);
-              }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? item.title_he : (item.title_en ?? item.title_he)}
-              accessibilityHint={isHe ? "הקש לבחירת המתכון" : "Tap to select recipe"}
-            >
-              {item.image_uri ? (
-                <Image source={{ uri: item.image_uri }} style={ps.thumb} />
-              ) : (
-                <View style={[ps.thumb, ps.thumbPlaceholder]}>
-                  <Text style={{ fontSize: 20 }}>🍳</Text>
-                </View>
-              )}
-              <Text
-                style={[ps.recipeTitle, { textAlign: isHe ? 'right' : 'left', flex: 1 }]}
-                numberOfLines={1}
-              >
-                {isHe ? item.title_he : (item.title_en ?? item.title_he)}
-              </Text>
-              <Ionicons
-                name={isHe ? 'chevron-back' : 'chevron-forward'}
-                size={16}
-                color={Colors.text.tertiary}
-              />
-            </TouchableOpacity>
-          )}
-          ItemSeparatorComponent={() => <View style={ps.sep} />}
-        />
-      </Animated.View>
-    </Modal>
+    <View
+      style={[
+        ds.container,
+        { backgroundColor: C.surfaceElevated, borderBottomColor: C.border },
+      ]}
+    >
+      <FlatList
+        ref={listRef}
+        horizontal
+        data={ALL_DAYS}
+        keyExtractor={(item) => item}
+        renderItem={renderItem}
+        showsHorizontalScrollIndicator={false}
+        getItemLayout={(_, index) => ({
+          length: DAY_W,
+          offset: DAY_W * index,
+          index,
+        })}
+        snapToInterval={DAY_W}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        initialNumToRender={14}
+        maxToRenderPerBatch={14}
+        windowSize={5}
+        removeClippedSubviews
+        // Required when using scrollToOffset before layout is complete
+        onScrollToIndexFailed={() => {}}
+      />
+    </View>
   );
 }
 
-const ps = StyleSheet.create({
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.surfaceElevated,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 10,
-    paddingHorizontal: 20,
-    maxHeight: '80%',
+const ds = StyleSheet.create({
+  container: {
+    borderBottomWidth: 1,
+    paddingBottom: 6,
   },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text.primary,
-    marginBottom: 12,
-  },
-  search: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: Colors.text.primary,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  recipeRow: {
+  dayCol: {
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
+    gap: 4,
+    paddingVertical: 6,
   },
-  thumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+  monthLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    height: 14,
+    lineHeight: 14,
   },
-  thumbPlaceholder: {
-    backgroundColor: Colors.surface,
+  dayName: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  dayCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recipeTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text.primary,
+  dayNum: {
+    fontSize: 14,
+    fontWeight: '700',
   },
-  sep: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginLeft: 56,
+  dotSlot: {
+    height: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
   },
 });
 
-// ── Meal Row ─────────────────────────────────────────────────────────────────
+// ── MealSection ───────────────────────────────────────────────────────────────
 
-function MealRow({
+function MealSection({
   date,
   mealType,
   isHe,
@@ -271,252 +295,173 @@ function MealRow({
   navigation: any;
 }) {
   const { t } = useTranslation();
+  const C = useThemeColors();
   const { entries, removeEntry } = useMealPlanStore();
-
-  const meals = entries.filter(
-    (e) => e.date === date && e.meal_type === mealType,
-  );
-
+  const meals = entries.filter((e) => e.date === date && e.meal_type === mealType);
   const mealLabel = t(mealType as Parameters<typeof t>[0]);
 
   return (
-    <View style={ms.mealRow}>
-      {/* Label row */}
-      <View style={[ms.mealHeader, { flexDirection: 'row' }]}>
-        {/* Hebrew: 🌅 ארוחת בוקר ➕  |  English: 🌅 Breakfast ➕ */}
-        <Text style={ms.mealEmoji}>{MEAL_EMOJI[mealType]}</Text>
-        <Text style={[ms.mealLabel, { textAlign: isHe ? 'right' : 'left' }]}>{mealLabel}</Text>
+    <View style={[ms.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+      {/* Header row */}
+      <View
+        style={[
+          ms.header,
+          { flexDirection: isHe ? 'row-reverse' : 'row', borderBottomColor: C.border },
+        ]}
+      >
+        <Text style={ms.emoji}>{MEAL_EMOJI[mealType]}</Text>
+        <Text
+          style={[
+            ms.label,
+            { color: C.text.primary, textAlign: isHe ? 'right' : 'left' },
+          ]}
+        >
+          {mealLabel}
+        </Text>
         <TouchableOpacity
-          style={ms.addBtn}
-          onPress={() => { void Haptics.selectionAsync(); onAdd(date, mealType); }}
+          style={[ms.addBtn, { backgroundColor: Colors.primary + '18' }]}
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onAdd(date, mealType);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel={isHe ? `הוסף ל${mealLabel}` : `Add to ${mealLabel}`}
         >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+          <Ionicons name="add" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Planned recipes */}
-      {meals.map((entry) => (
+      {/* Empty slot */}
+      {meals.length === 0 ? (
         <TouchableOpacity
-          key={entry.id}
-          style={[ms.recipeChip, { flexDirection: isHe ? 'row-reverse' : 'row' }]}
-          onPress={() => navigation.navigate('RecipeDetail', { id: entry.recipe_id })}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}
-          accessibilityHint={isHe ? "הקש לצפייה במתכון" : "Tap to view recipe"}
+          style={[ms.emptySlot, { borderColor: C.border }]}
+          onPress={() => {
+            void Haptics.selectionAsync();
+            onAdd(date, mealType);
+          }}
+          activeOpacity={0.7}
         >
-          {entry.image_uri ? (
-            <Image source={{ uri: entry.image_uri }} style={ms.chipThumb} />
-          ) : (
-            <View style={[ms.chipThumb, ms.chipThumbEmpty]}>
-              <Text style={{ fontSize: 14 }}>🍳</Text>
-            </View>
-          )}
-          <Text
-            style={[ms.chipTitle, { textAlign: isHe ? 'right' : 'left', flex: 1 }]}
-            numberOfLines={1}
-          >
-            {isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}
+          <Ionicons name="add-circle-outline" size={22} color={C.text.tertiary} />
+          <Text style={[ms.emptyText, { color: C.text.tertiary }]}>
+            {isHe ? 'הוסף מתכון' : 'Add a recipe'}
           </Text>
-          <TouchableOpacity
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              void removeEntry(entry.id);
-            }}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            accessibilityRole="button"
-            accessibilityLabel={isHe ? `הסר ${isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}` : `Remove ${entry.title_en ?? entry.title_he}`}
-          >
-            <Ionicons name="close-circle" size={18} color={Colors.text.tertiary} />
-          </TouchableOpacity>
         </TouchableOpacity>
-      ))}
+      ) : (
+        <View>
+          {meals.map((entry, idx) => {
+            const nut = parseNutrition(entry.ai_nutrition);
+            const cals = nut ? perServing(nut).calories : null;
+            return (
+              <TouchableOpacity
+                key={entry.id}
+                style={[
+                  ms.recipeRow,
+                  { flexDirection: isHe ? 'row-reverse' : 'row', borderTopColor: C.border },
+                  idx > 0 && ms.recipeRowBorder,
+                ]}
+                onPress={() => navigation.navigate('RecipeDetail', { id: entry.recipe_id })}
+                activeOpacity={0.75}
+              >
+                {entry.image_uri ? (
+                  <Image source={{ uri: entry.image_uri }} style={ms.thumb} />
+                ) : (
+                  <View style={[ms.thumb, ms.thumbEmpty, { backgroundColor: C.surface }]}>
+                    <Text style={{ fontSize: 22 }}>🍳</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      ms.recipeTitle,
+                      { color: C.text.primary, textAlign: isHe ? 'right' : 'left' },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {isHe ? entry.title_he : (entry.title_en ?? entry.title_he)}
+                  </Text>
+                  {cals ? (
+                    <Text
+                      style={[
+                        ms.recipeCals,
+                        { color: C.text.tertiary, textAlign: isHe ? 'right' : 'left' },
+                      ]}
+                    >
+                      🔥 {cals} {isHe ? "קל׳" : 'kcal'}
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    void removeEntry(entry.id);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="close-circle" size={22} color={C.text.tertiary} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
 const ms = StyleSheet.create({
-  mealRow: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  mealHeader: {
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  mealEmoji: {
-    fontSize: 14,
-  },
-  mealLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-    flex: 1,
-  },
-  addBtn: {
-    padding: 2,
-  },
-  recipeChip: {
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    marginBottom: 6,
+  section: {
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chipThumb: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-  },
-  chipThumbEmpty: {
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text.primary,
-  },
-});
-
-// ── Day Card ─────────────────────────────────────────────────────────────────
-
-function DayCard({
-  date,
-  isHe,
-  onAdd,
-  navigation,
-}: {
-  date: string;
-  isHe: boolean;
-  onAdd: (date: string, mealType: MealType) => void;
-  navigation: any;
-}) {
-  const C = useThemeColors();
-  const { dayName, dayNum, isToday } = getDayLabel(date, isHe);
-  const d = new Date(date + 'T00:00:00');
-  const monthNum = d.getMonth() + 1;
-
-  return (
-    <View style={[ds.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }, isToday && ds.cardToday]}>
-      {/* Day header */}
-      <View style={[ds.dayHeader, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
-        <View style={[ds.dayNumWrap, { backgroundColor: C.surface }, isToday && ds.dayNumWrapToday]}>
-          <Text style={[ds.dayNum, { color: C.text.primary }, isToday && ds.dayNumToday]}>{dayNum}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[ds.dayName, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]}>
-            {dayName}
-          </Text>
-          <Text style={[ds.dayDate, { textAlign: isHe ? 'right' : 'left', color: C.text.tertiary }]}>
-            {isHe ? `${dayNum}/${monthNum}` : `${monthNum}/${dayNum}`}
-          </Text>
-        </View>
-        {isToday && (
-          <View style={ds.todayBadge}>
-            <Text style={ds.todayBadgeText}>{isHe ? 'היום' : 'Today'}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Divider */}
-      <View style={ds.divider} />
-
-      {/* Meal rows */}
-      {MEAL_TYPES.map((mt) => (
-        <MealRow
-          key={mt}
-          date={date}
-          mealType={mt}
-          isHe={isHe}
-          onAdd={onAdd}
-          navigation={navigation}
-        />
-      ))}
-    </View>
-  );
-}
-
-const ds = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 18,
     marginHorizontal: 16,
-    marginBottom: 12,
-    paddingTop: 14,
-    paddingBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: 14,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-  cardToday: {
-    borderColor: Colors.primary,
-    borderWidth: 1.5,
-  },
-  dayHeader: {
+  header: {
     alignItems: 'center',
+    gap: 10,
     paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 10,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  dayNumWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  emoji: { fontSize: 20 },
+  label: { flex: 1, fontSize: 17, fontWeight: '700' },
+  addBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
   },
-  dayNumWrapToday: {
-    backgroundColor: Colors.primary,
+  emptySlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    margin: 14,
+    paddingVertical: 22,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
   },
-  dayNum: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text.primary,
+  emptyText: { fontSize: 14, fontWeight: '600' },
+  recipeRow: {
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  dayNumToday: {
-    color: '#fff',
-  },
-  dayName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text.primary,
-  },
-  dayDate: {
-    fontSize: 12,
-    color: Colors.text.tertiary,
-  },
-  todayBadge: {
-    backgroundColor: Colors.primary + '18',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  todayBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
+  recipeRowBorder: { borderTopWidth: StyleSheet.hairlineWidth },
+  thumb: { width: 56, height: 56, borderRadius: 14 },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  recipeTitle: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  recipeCals: { fontSize: 12, marginTop: 3 },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -526,29 +471,63 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
   const { t } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
-  const { entries, weekStart, loading, setWeek, loadWeek } = useMealPlanStore();
+  const { entries, weekStart, loading, setWeek, loadWeek, addEntry } = useMealPlanStore();
 
-  // Picker state
+  const todayStr = toDateStr(new Date());
+  const [selectedDate, setSelectedDate] = useState(todayStr);
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<{ date: string; mealType: MealType } | null>(null);
-  const { addEntry } = useMealPlanStore();
+  const [pickerTarget, setPickerTarget] = useState<{ date: string; mealType: MealType } | null>(
+    null,
+  );
 
-  // Load current week on mount
+  // Initial load for current week
   useEffect(() => {
-    void loadWeek(weekStart);
+    loadWeek(getWeekStart(new Date(), isHe));
   }, []);
 
-  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
-  const weekLabel = useMemo(() => formatWeekRange(weekStart, isHe), [weekStart, isHe]);
+  // Whenever the selected day crosses into a different week, load that week's entries
+  useEffect(() => {
+    const newWeekStart = getWeekStart(new Date(selectedDate + 'T00:00:00'), isHe);
+    if (newWeekStart !== weekStart) {
+      setWeek(newWeekStart);
+    }
+  }, [selectedDate]);
 
-  function handlePrevWeek() {
-    void Haptics.selectionAsync();
-    setWeek(shiftWeek(weekStart, -1));
+  // ── Derived labels ──────────────────────────────────────────────────────────
+
+  const weekLabel = useMemo(() => {
+    const weekDays = getWeekDays(weekStart);
+    const s = new Date(weekDays[0] + 'T00:00:00');
+    const e = new Date(weekDays[6] + 'T00:00:00');
+    const months = isHe ? MONTH_HE : MONTH_EN;
+    return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]}`;
+  }, [weekStart, isHe]);
+
+  const selectedDayLabel = useMemo(() => {
+    const d = new Date(selectedDate + 'T00:00:00');
+    const dow = d.getDay();
+    const months = isHe ? MONTH_HE : MONTH_EN;
+    const dayFull = isHe ? `יום ${DAY_FULL_HE[dow]}` : DAY_FULL_EN[dow];
+    const dateStr = isHe
+      ? `${d.getDate()} ${months[d.getMonth()]}`
+      : `${months[d.getMonth()]} ${d.getDate()}`;
+    return `${dayFull}, ${dateStr}`;
+  }, [selectedDate, isHe]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
+  const hasEntryOnDate = useCallback(
+    (date: string) => entries.some((e) => e.date === date),
+    [entries],
+  );
+
+  function handleSelectDate(date: string) {
+    setSelectedDate(date);
   }
 
-  function handleNextWeek() {
+  function handleGoToToday() {
     void Haptics.selectionAsync();
-    setWeek(shiftWeek(weekStart, 1));
+    setSelectedDate(todayStr);
   }
 
   function handleAddMeal(date: string, mealType: MealType) {
@@ -566,51 +545,80 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
   function handleAddToShopping() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     useMealPlanStore.getState().addWeekToShopping(isHe);
-    // Navigate to shopping tab
     navigation.navigate('Shopping');
   }
 
   const hasEntries = entries.length > 0;
+  const isSelectedToday = selectedDate === todayStr;
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
-      {/* Week navigator header */}
-      <View style={[s.weekNav, { flexDirection: isHe ? 'row-reverse' : 'row', backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
-        <TouchableOpacity
-          onPress={handlePrevWeek}
-          style={s.weekArrow}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? "שבוע הקודם" : "Previous week"}
+    <View style={[s.container, { backgroundColor: C.background }]}>
+      {/* Shared header — subtitle shows the week range */}
+      <ScreenHeader
+        title={isHe ? 'תכנון ארוחות' : 'Meal Planner'}
+        subtitle={weekLabel}
+      />
+
+      {/* Smooth scrollable day strip */}
+      <DayStrip
+        selectedDate={selectedDate}
+        hasEntryOnDate={hasEntryOnDate}
+        isHe={isHe}
+        onSelectDate={handleSelectDate}
+      />
+
+      {/* Selected day label + "Today" jump pill */}
+      <View
+        style={[
+          s.dayBanner,
+          {
+            borderBottomColor: C.border,
+            flexDirection: isHe ? 'row-reverse' : 'row',
+          },
+        ]}
+      >
+        <Text
+          style={[
+            s.dayBannerText,
+            { color: C.text.primary, textAlign: isHe ? 'right' : 'left', flex: 1 },
+          ]}
         >
-          <Ionicons name={isHe ? 'chevron-forward' : 'chevron-back'} size={22} color={C.text.primary} />
-        </TouchableOpacity>
-        <Text style={[s.weekLabel, { color: C.text.primary }]}>{weekLabel}</Text>
-        <TouchableOpacity
-          onPress={handleNextWeek}
-          style={s.weekArrow}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? "שבוע הבא" : "Next week"}
-        >
-          <Ionicons name={isHe ? 'chevron-back' : 'chevron-forward'} size={22} color={C.text.primary} />
-        </TouchableOpacity>
+          {isSelectedToday
+            ? (isHe ? `היום — ${selectedDayLabel}` : `Today — ${selectedDayLabel}`)
+            : selectedDayLabel}
+        </Text>
+
+        {!isSelectedToday && (
+          <TouchableOpacity
+            style={[s.todayPill, { backgroundColor: Colors.primary + '15' }]}
+            onPress={handleGoToToday}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[s.todayPillText, { color: Colors.primary }]}>
+              {isHe ? 'היום' : 'Today'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Day cards */}
+      {/* Meal sections */}
       {loading ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
+          contentContainerStyle={[
+            s.scroll,
+            { paddingBottom: Math.max(insets.bottom, 16) + (hasEntries ? 80 : 16) },
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          {weekDays.map((date) => (
-            <DayCard
-              key={date}
-              date={date}
+          {MEAL_TYPES.map((mt) => (
+            <MealSection
+              key={mt}
+              date={selectedDate}
+              mealType={mt}
               isHe={isHe}
               onAdd={handleAddMeal}
               navigation={navigation}
@@ -619,15 +627,24 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
         </ScrollView>
       )}
 
-      {/* Add week to shopping sticky button */}
+      {/* Add week to shopping — sticky at bottom */}
       {hasEntries && (
-        <View style={[s.stickyBottom, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: C.background, borderTopColor: C.border }]}>
+        <View
+          style={[
+            s.stickyBottom,
+            {
+              paddingBottom: Math.max(insets.bottom, 16),
+              backgroundColor: C.background,
+              borderTopColor: C.border,
+            },
+          ]}
+        >
           <TouchableOpacity
             style={s.shoppingBtn}
             onPress={handleAddToShopping}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={isHe ? "הוסף שבוע לקניות" : "Add week to shopping list"}
+            accessibilityLabel={isHe ? 'הוסף שבוע לקניות' : 'Add week to shopping list'}
           >
             <Ionicons name="basket-outline" size={18} color="#fff" />
             <Text style={s.shoppingBtnText}>{t('addToWeekShopping')}</Text>
@@ -635,50 +652,40 @@ export default function MealPlannerScreen({ navigation }: { navigation: any }) {
         </View>
       )}
 
-      {/* Recipe picker modal */}
-      <RecipePicker
+      <RecipePickerModal
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
         onSelect={(recipe) => void handlePickRecipe(recipe)}
-        isHe={isHe}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  weekNav: {
+  container: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  dayBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: Colors.surfaceElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    gap: 8,
   },
-  weekArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  weekLabel: {
-    fontSize: 16,
+  dayBannerText: {
+    fontSize: 15,
     fontWeight: '700',
-    color: Colors.text.primary,
   },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  todayPill: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  todayPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  scroll: {
+    paddingTop: 16,
   },
   stickyBottom: {
     position: 'absolute',
@@ -687,9 +694,7 @@ const s = StyleSheet.create({
     right: 0,
     paddingHorizontal: 20,
     paddingTop: 12,
-    backgroundColor: Colors.background,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   shoppingBtn: {
     backgroundColor: Colors.primary,

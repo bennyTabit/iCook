@@ -1,29 +1,31 @@
 import { Colors } from "./colors";
 
-/** Emoji per category key (English lowercase category name). */
+/** Emoji per category (matches name_en.toLowerCase() from DB). */
 export const CATEGORY_EMOJI: Record<string, string> = {
-  pasta: "🍝",
-  salads: "🥗",
-  desserts: "🍰",
-  soups: "🍲",
-  meat: "🥩",
-  fish: "🐟",
-  veggie: "🥦",
-  breakfast: "🍳",
-  all: "🍽️",
+  "breakfast":        "🍳",
+  "starters":         "🥗",
+  "main dishes":      "🍲",
+  "sides":            "🥣",
+  "desserts & cakes": "🍰",
+  "breads & pastries":"🥐",
+  "sauces & spreads": "🫙",
+  "veggie / vegan":   "🥦",
+  "quick (20 min)":   "⚡",
+  "hosting & events": "🎉",
 };
 
-/** Background color per category key. */
+/** Background color per category (matches name_en.toLowerCase()). */
 export const CATEGORY_BG: Record<string, string> = {
-  pasta: "#FFF3D6",
-  salads: "#E6F7EF",
-  desserts: "#FDE8F0",
-  soups: "#FFF0E0",
-  meat: "#FDEAEA",
-  fish: "#E0F4FF",
-  veggie: "#E8F8E8",
-  breakfast: "#FFF8E1",
-  all: "#F5F3EE",
+  "breakfast":        "#FFF8E1",
+  "starters":         "#E6F7EF",
+  "main dishes":      "#FFF0E0",
+  "sides":            "#FFF3D6",
+  "desserts & cakes": "#FDE8F0",
+  "breads & pastries":"#FFF3D6",
+  "sauces & spreads": "#F0F4FF",
+  "veggie / vegan":   "#E8F8E8",
+  "quick (20 min)":   "#FFFBE6",
+  "hosting & events": "#FDE8F8",
 };
 
 /** Difficulty color per level key. */

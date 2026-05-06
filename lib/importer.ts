@@ -1,3 +1,5 @@
+import { structureRecipe } from "./voiceRecipe";
+
 export type ImportedRecipe = {
   title: string;
   description?: string;
@@ -23,6 +25,20 @@ export async function importFromUrl(url: string): Promise<ImportedRecipe> {
     return { ...jsonLd, sourceUrl: url, sourceName, parseMethod: "json-ld" };
 
   const scraped = tryScrape(html);
+  if (scraped.ingredients.length >= 3)
+    return { ...scraped, sourceUrl: url, sourceName, parseMethod: "scrape" };
+
+  const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+  if (claudeKey) {
+    try {
+      const claudeResult = await claudeFallback(html, scraped);
+      if (claudeResult.ingredients.length > 0)
+        return { ...claudeResult, sourceUrl: url, sourceName, parseMethod: "scrape" };
+    } catch {
+      // fall through
+    }
+  }
+
   if (scraped.ingredients.length > 0)
     return { ...scraped, sourceUrl: url, sourceName, parseMethod: "scrape" };
 
@@ -304,4 +320,38 @@ function extractParagraphLinesNearHeading(
 
 function dedupe(items: string[]): string[] {
   return [...new Set(items.map((s) => s.trim()).filter(Boolean))];
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#?\w+;/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 8000);
+}
+
+async function claudeFallback(
+  html: string,
+  scraped: Omit<ImportedRecipe, "sourceUrl" | "sourceName" | "parseMethod">,
+): Promise<Omit<ImportedRecipe, "sourceUrl" | "sourceName" | "parseMethod">> {
+  const text = htmlToText(html);
+  const isHe = /[֐-׿]/.test(text.slice(0, 500));
+  const result = await structureRecipe(text, isHe);
+  return {
+    title: result.title || scraped.title || "",
+    description: result.description || scraped.description,
+    ingredients: result.ingredients.length ? result.ingredients : scraped.ingredients,
+    steps: result.steps.length ? result.steps : scraped.steps,
+    imageUrl: scraped.imageUrl,
+    prepTime: result.prep_time_min ?? scraped.prepTime,
+    cookTime: result.cook_time_min ?? scraped.cookTime,
+    servings: result.servings ?? scraped.servings,
+  };
 }

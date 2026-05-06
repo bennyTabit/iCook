@@ -5,6 +5,12 @@ import { SEED_RECIPES } from "./seedRecipes";
 /** Bump this key whenever you want the seed to re-run on existing installs. */
 const SEED_DONE_KEY = "icook.seed.v2";
 
+/** Patches image_uri onto seed recipes for installs that ran before images were added. */
+const SEED_IMAGES_KEY = "icook.seed.images.v1";
+
+/** One-time repair: assigns categories to seed recipes that have none. */
+const CAT_REPAIR_KEY = "icook.categories.v1";
+
 const db = SQLite.openDatabaseSync("icook.db");
 
 export async function initDB() {
@@ -121,10 +127,17 @@ export async function initDB() {
       created_at   TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS recipe_categories (
+      recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (recipe_id, category_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_recipes_category ON recipes(category_id);
     CREATE INDEX IF NOT EXISTS idx_recipes_favorite ON recipes(is_favorite);
     CREATE INDEX IF NOT EXISTS idx_recipe_steps ON recipe_steps(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_recipe_ingredients ON recipe_ingredients(recipe_id);
+    CREATE INDEX IF NOT EXISTS idx_recipe_categories ON recipe_categories(recipe_id);
   `);
 
   await runMigrations();
@@ -135,7 +148,7 @@ export async function initDB() {
  * Schema migrations using PRAGMA user_version.
  * Bump TARGET_VERSION and add a case whenever the schema changes.
  */
-const TARGET_VERSION = 3;
+const TARGET_VERSION = 5;
 
 async function runMigrations() {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -190,26 +203,60 @@ async function runMigrations() {
       PRAGMA user_version = 3;
     `);
   }
+
+  if (current < 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS recipe_categories (
+        recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        PRIMARY KEY (recipe_id, category_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_recipe_categories ON recipe_categories(recipe_id);
+    `);
+    // Null out old FK so we can safely replace categories
+    await db.execAsync(`UPDATE recipes SET category_id = NULL`);
+    await db.execAsync(`DELETE FROM categories`);
+    await db.execAsync(`
+      INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES
+        ('ארוחות בוקר',   'Breakfast',       '🍳',  1),
+        ('ראשונות',        'Starters',        '🥗',  2),
+        ('עיקריות',        'Main dishes',     '🍲',  3),
+        ('תוספות',         'Sides',           '🥣',  4),
+        ('קינוחים ועוגות', 'Desserts & Cakes','🍰',  5),
+        ('לחמים ומאפים',   'Breads & Pastries','🥐', 6),
+        ('רטבים וממרחים',  'Sauces & Spreads','🫙',  7),
+        ('צמחוני/טבעוני',  'Veggie / Vegan',  '🥦',  8),
+        ('מהיר ב-20 דקות', 'Quick (20 min)',  '⚡',   9),
+        ('אירוח ואירועים', 'Hosting & Events','🎉', 10);
+      PRAGMA user_version = 4;
+    `);
+  }
+
+  if (current < 5) {
+    await db.execAsync(`
+      ALTER TABLE recipes ADD COLUMN ai_nutrition TEXT;
+      PRAGMA user_version = 5;
+    `);
+  }
 }
 
 async function seedDefaults() {
   // ── Categories ─────────────────────────────────────────────────────────────
   const cats = await db.getAllAsync("SELECT id FROM categories LIMIT 1");
   if (cats.length === 0) {
-    // Fresh install — insert all categories and tags
+    // Fresh install — insert new categories and tags
     await db.execAsync(`
       INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES
-        ('הכל',        'All',       '🍽',  0),
-        ('ישראלי',     'Israeli',   '🇮🇱',  1),
-        ('ארוחות בוקר','Breakfast', '🍳',  2),
-        ('מרקים',      'Soups',     '🍜',  3),
-        ('סלטים',      'Salads',    '🥗',  4),
-        ('פסטה',       'Pasta',     '🍝',  5),
-        ('בשר',        'Meat',      '🥩',  6),
-        ('דגים',       'Fish',      '🐟',  7),
-        ('צמחוני',     'Veggie',    '🥦',  8),
-        ('קינוחים',    'Desserts',  '🍰',  9),
-        ('אפייה',      'Baking',    '🥐', 10);
+        ('ארוחות בוקר',   'Breakfast',        '🍳',  1),
+        ('ראשונות',        'Starters',         '🥗',  2),
+        ('עיקריות',        'Main dishes',      '🍲',  3),
+        ('תוספות',         'Sides',            '🥣',  4),
+        ('קינוחים ועוגות', 'Desserts & Cakes', '🍰',  5),
+        ('לחמים ומאפים',   'Breads & Pastries','🥐',  6),
+        ('רטבים וממרחים',  'Sauces & Spreads', '🫙',  7),
+        ('צמחוני/טבעוני',  'Veggie / Vegan',   '🥦',  8),
+        ('מהיר ב-20 דקות', 'Quick (20 min)',   '⚡',   9),
+        ('אירוח ואירועים', 'Hosting & Events', '🎉', 10);
 
       INSERT INTO tags (name_he, name_en) VALUES
         ('טבעוני',      'Vegan'),
@@ -224,30 +271,53 @@ async function seedDefaults() {
         ('מהיר',        'Quick');
     `);
   } else {
-    // Existing install — add new categories if missing
-    const isrCat = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM categories WHERE name_en = 'Israeli' LIMIT 1",
-    );
-    if (!isrCat) {
-      await db.runAsync(
-        "INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES (?,?,?,?)",
-        ['ישראלי', 'Israeli', '🇮🇱', 1],
-      );
-    }
-    const bakingCat = await db.getFirstAsync<{ id: number }>(
+    // Existing install — migrations handle category changes; nothing to do here.
+    const _bakingCat = await db.getFirstAsync<{ id: number }>(
       "SELECT id FROM categories WHERE name_en = 'Baking' LIMIT 1",
     );
-    if (!bakingCat) {
-      await db.runAsync(
-        "INSERT INTO categories (name_he, name_en, icon, sort_order) VALUES (?,?,?,?)",
-        ['אפייה', 'Baking', '🥐', 10],
+    void _bakingCat; // migrations handle this now
+  }
+
+  // ── Category repair — runs once regardless of seed guard ─────────────────
+  // Needed for installs where recipe_categories was empty (migration v4 created
+  // the table but didn't backfill existing seed recipes).
+  const catRepairDone = await AsyncStorage.getItem(CAT_REPAIR_KEY).catch(() => null);
+  if (!catRepairDone) {
+    for (const seedRecipe of SEED_RECIPES) {
+      const row = await db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM recipes WHERE title_he = ? AND source_name = 'iCook Starter'",
+        [seedRecipe.title_he],
       );
+      if (row) {
+        for (const catEn of seedRecipe.categories_en) {
+          await db.runAsync(
+            `INSERT OR IGNORE INTO recipe_categories (recipe_id, category_id)
+             SELECT ?, id FROM categories WHERE name_en = ?`,
+            [row.id, catEn],
+          );
+        }
+      }
     }
+    await AsyncStorage.setItem(CAT_REPAIR_KEY, "1").catch(() => {});
+  }
+
+  // ── Image migration — backfill image_uri for existing seed recipes ─────────
+  const seedImagesDone = await AsyncStorage.getItem(SEED_IMAGES_KEY).catch(() => null);
+  if (!seedImagesDone) {
+    for (const seedRecipe of SEED_RECIPES) {
+      if (seedRecipe.image_uri) {
+        await db.runAsync(
+          `UPDATE recipes SET image_uri = ?
+           WHERE title_he = ? AND source_name = 'iCook Starter'
+             AND (image_uri IS NULL OR image_uri = '')`,
+          [seedRecipe.image_uri, seedRecipe.title_he],
+        );
+      }
+    }
+    await AsyncStorage.setItem(SEED_IMAGES_KEY, "1").catch(() => {});
   }
 
   // ── Recipe seed guard ──────────────────────────────────────────────────────
-  // AsyncStorage flag is set after a successful seed run and never cleared,
-  // so deleting individual recipes never triggers a re-seed.
   const seedDone = await AsyncStorage.getItem(SEED_DONE_KEY).catch(() => null);
   if (seedDone) return;
 
@@ -255,7 +325,7 @@ async function seedDefaults() {
   const OLD_TITLES = [
     'מרק בצל', 'מרק דלעת', 'נודלס טופו',
     'עוגיות טחינה', 'סהרונים', 'עוגת גבינה אפויה',
-    'פסטה רוזה מהירה', // even older placeholder
+    'פסטה רוזה מהירה',
   ];
   for (const title of OLD_TITLES) {
     await db.runAsync(
@@ -266,33 +336,68 @@ async function seedDefaults() {
 
   // ── Insert all seed recipes ────────────────────────────────────────────────
   for (const recipe of SEED_RECIPES) {
-    await db.runAsync(
+    const res = await db.runAsync(
       `INSERT INTO recipes
-        (title_he, title_en, description_he, description_en, category_id,
+        (title_he, title_en, description_he, description_en,
          difficulty, prep_time_min, cook_time_min, servings,
-         source_type, source_name, notes_he, is_favorite)
-       VALUES (?,?,?,?,
-         (SELECT id FROM categories WHERE name_en = ?),
-         ?,?,?,?,
-         'manual','iCook Starter',?,?)`,
+         source_type, source_name, image_uri, notes_he, is_favorite)
+       VALUES (?,?,?,?,?,?,?,?,'manual','iCook Starter',?,?,?)`,
       [
         recipe.title_he,
         recipe.title_en,
         recipe.description_he,
         recipe.description_en,
-        recipe.category_en,
         recipe.difficulty,
         recipe.prep_time_min,
         recipe.cook_time_min,
         recipe.servings,
+        recipe.image_uri ?? null,
         recipe.notes_he,
         recipe.is_favorite,
       ],
     );
+    const recipeId = res.lastInsertRowId;
+    for (const catEn of recipe.categories_en) {
+      await db.runAsync(
+        `INSERT OR IGNORE INTO recipe_categories (recipe_id, category_id)
+         SELECT ?, id FROM categories WHERE name_en = ?`,
+        [recipeId, catEn],
+      );
+    }
   }
 
-  // Mark seed as done — checked on every subsequent boot, never cleared.
+  // Mark seed as done.
   await AsyncStorage.setItem(SEED_DONE_KEY, "1").catch(() => {});
+}
+
+export type Category = {
+  id: number;
+  name_he: string;
+  name_en: string;
+  icon: string;
+  sort_order: number;
+};
+
+export async function getCategories(): Promise<Category[]> {
+  return db.getAllAsync<Category>('SELECT * FROM categories ORDER BY sort_order');
+}
+
+export async function setRecipeCategories(recipeId: number, categoryIds: number[]): Promise<void> {
+  await db.runAsync('DELETE FROM recipe_categories WHERE recipe_id = ?', [recipeId]);
+  for (const catId of categoryIds) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO recipe_categories (recipe_id, category_id) VALUES (?, ?)',
+      [recipeId, catId],
+    );
+  }
+}
+
+export async function getRecipeCategoryIds(recipeId: number): Promise<number[]> {
+  const rows = await db.getAllAsync<{ category_id: number }>(
+    'SELECT category_id FROM recipe_categories WHERE recipe_id = ?',
+    [recipeId],
+  );
+  return rows.map(r => r.category_id);
 }
 
 export type Recipe = {
@@ -313,9 +418,14 @@ export type Recipe = {
   notes_he?: string;
   notes_en?: string;
   is_favorite?: number;
+  ai_nutrition?: string | null;
   created_at?: string;
   updated_at?: string;
 };
+
+export async function saveRecipeNutrition(id: number, json: string): Promise<void> {
+  await db.runAsync('UPDATE recipes SET ai_nutrition = ? WHERE id = ?', [json, id]);
+}
 
 export async function getAllRecipes(): Promise<Recipe[]> {
   return db.getAllAsync<Recipe>(`
@@ -330,7 +440,26 @@ export async function getRecipeById(id: number): Promise<Recipe | null> {
   return db.getFirstAsync<Recipe>("SELECT * FROM recipes WHERE id = ?", [id]);
 }
 
-export async function insertRecipe(recipe: Recipe): Promise<number> {
+export interface RecipeIngredientRow {
+  free_text_he: string | null;
+  free_text_en: string | null;
+  quantity: number | null;
+  unit_he: string | null;
+  unit_en: string | null;
+}
+
+/** Returns all ingredient rows for a recipe, ordered by sort_order */
+export async function getIngredientsForRecipe(recipeId: number): Promise<RecipeIngredientRow[]> {
+  return db.getAllAsync<RecipeIngredientRow>(
+    `SELECT free_text_he, free_text_en, quantity, unit_he, unit_en
+     FROM recipe_ingredients
+     WHERE recipe_id = ?
+     ORDER BY sort_order`,
+    [recipeId],
+  );
+}
+
+export async function insertRecipe(recipe: Recipe, categoryIds?: number[]): Promise<number> {
   if (!recipe.title_he?.trim()) {
     throw new Error("כותרת המתכון לא יכולה להיות ריקה / Recipe title cannot be empty");
   }
@@ -358,12 +487,17 @@ export async function insertRecipe(recipe: Recipe): Promise<number> {
       recipe.notes_en ?? null,
     ],
   );
-  return res.lastInsertRowId;
+  const recipeId = res.lastInsertRowId;
+  if (categoryIds?.length) {
+    await setRecipeCategories(recipeId, categoryIds);
+  }
+  return recipeId;
 }
 
 export async function updateRecipe(
   id: number,
   recipe: Partial<Recipe>,
+  categoryIds?: number[],
 ): Promise<void> {
   await db.runAsync(
     `UPDATE recipes SET
@@ -371,6 +505,7 @@ export async function updateRecipe(
       title_en = COALESCE(?, title_en),
       description_he = COALESCE(?, description_he),
       description_en = COALESCE(?, description_en),
+      image_uri = COALESCE(?, image_uri),
       category_id = COALESCE(?, category_id),
       difficulty = COALESCE(?, difficulty),
       prep_time_min = COALESCE(?, prep_time_min),
@@ -385,6 +520,7 @@ export async function updateRecipe(
       recipe.title_en ?? null,
       recipe.description_he ?? null,
       recipe.description_en ?? null,
+      recipe.image_uri ?? null,
       recipe.category_id ?? null,
       recipe.difficulty ?? null,
       recipe.prep_time_min ?? null,
@@ -395,6 +531,9 @@ export async function updateRecipe(
       id,
     ],
   );
+  if (categoryIds !== undefined) {
+    await setRecipeCategories(id, categoryIds);
+  }
 }
 
 export async function updateRecipeImageUri(id: number, uri: string): Promise<void> {
@@ -489,6 +628,7 @@ export interface MealPlanEntry {
   title_he: string;
   title_en?: string;
   image_uri?: string;
+  ai_nutrition?: string | null;
 }
 
 export async function getMealPlanForWeek(
@@ -497,7 +637,7 @@ export async function getMealPlanForWeek(
 ): Promise<MealPlanEntry[]> {
   const rows = await db.getAllAsync<MealPlanEntry>(
     `SELECT mp.id, mp.date, mp.meal_type, mp.recipe_id,
-            r.title_he, r.title_en, r.image_uri
+            r.title_he, r.title_en, r.image_uri, r.ai_nutrition
      FROM meal_plans mp
      JOIN recipes r ON r.id = mp.recipe_id
      WHERE mp.date >= ? AND mp.date <= ?

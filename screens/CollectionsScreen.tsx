@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
@@ -299,7 +300,22 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
   }
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['left', 'right']}>
+    <View style={[s.container, { backgroundColor: C.background }]}>
+      <ScreenHeader
+        title={isHe ? 'האוספים שלי' : 'My Collections'}
+        subtitle={isHe ? 'ארגן את המתכונים שלך' : 'Organize your recipes'}
+        rightAction={
+          <TouchableOpacity
+            onPress={handleOpenNew}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "צור אוסף חדש" : "New collection"}
+          >
+            <Ionicons name="add-circle-outline" size={26} color={Colors.primary} />
+          </TouchableOpacity>
+        }
+      />
+
       {collections.length === 0 && !loading ? (
         <View style={s.empty}>
           <Text style={s.emptyEmoji}>📁</Text>
@@ -329,17 +345,6 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
               onDelete={() => handleDelete(item)}
             />
           )}
-          ListHeaderComponent={
-            <TouchableOpacity
-              style={s.addRow}
-              onPress={handleOpenNew}
-              accessibilityRole="button"
-              accessibilityLabel={isHe ? "צור אוסף חדש" : "New collection"}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-              <Text style={s.addRowText}>{t('newCollection')}</Text>
-            </TouchableOpacity>
-          }
         />
       )}
 
@@ -350,7 +355,7 @@ export default function CollectionsScreen({ navigation }: { navigation: any }) {
         onClose={() => setModalVisible(false)}
         isHe={isHe}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -362,6 +367,4 @@ const s = StyleSheet.create({
   emptySub: { fontSize: 15, color: Colors.text.secondary, marginBottom: 24 },
   createBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 20 },
   createBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, marginBottom: 8 },
-  addRowText: { fontSize: 16, fontWeight: '600', color: Colors.primary },
 });

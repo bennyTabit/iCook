@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
@@ -310,17 +310,17 @@ export default function AddRecipeScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
-      <View style={s.content}>
-        <View style={s.header}>
-          <Text style={[s.heading, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-            {isHe ? "איך תוסיף את המתכון?" : "How would you like to add a recipe?"}
-          </Text>
-          <Text style={[s.headingSub, { textAlign: isHe ? "right" : "left", color: C.text.secondary }]}>
-            {isHe ? "בחר את הדרך הנוחה לך" : "Choose the way that works best for you"}
-          </Text>
-        </View>
-
+    <View style={[s.container, { backgroundColor: C.background }]}>
+      <ScreenHeader
+        title={isHe ? "הוסף מתכון" : "Add a Recipe"}
+        subtitle={isHe ? "בחר את הדרך הנוחה לך" : "Choose the way that works best for you"}
+      />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {OPTIONS.map((option) => (
           <Pressable
             key={option.key}
@@ -372,21 +372,18 @@ export default function AddRecipeScreen({ navigation }: any) {
             isHe={isHe}
           />
         )}
-      </View>
+      </ScrollView>
 
       <OcrLoadingOverlay visible={ocrLoading} isHe={isHe} count={pendingImages.length} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { flex: 1, padding: 20, gap: 12 },
-  header: { marginBottom: 6, gap: 4 },
-  heading: { fontSize: 22, fontWeight: "700", color: Colors.text.primary },
-  headingSub: { fontSize: 14, color: Colors.text.secondary },
+  container: { flex: 1 },
+  content: { padding: 20, gap: 12, paddingBottom: 32 },
   card: {
     backgroundColor: Colors.surfaceElevated,
     borderRadius: 18,

@@ -14,10 +14,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Colors } from "../constants/colors";
 import { isHebrew } from "../lib/i18n";
+import { getCategories, type Category } from "../lib/db";
+import { CATEGORY_EMOJI, CATEGORY_BG, FALLBACK_EMOJI, FALLBACK_BG } from "../constants/recipes";
 import { useRecipeStore } from "../store/recipeStore";
 import { useDebounce } from "../hooks/useDebounce";
 import { countActiveFilters } from "../lib/search";
@@ -27,6 +28,7 @@ import type { FilterState } from "../lib/search";
 import { addSearchHistory, getSearchHistory, clearSearchHistory, removeSearchHistoryItem } from "../lib/searchHistory";
 import { parseSearchIntent } from "../lib/searchIntent";
 import { useThemeColors } from "../hooks/useThemeColors";
+import ScreenHeader from "../components/ScreenHeader";
 
 const SORT_OPTIONS: {
   key: FilterState["sortBy"];
@@ -63,6 +65,8 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [showingAll, setShowingAll] = useState(false);
 
   // Animate search box focus
   const focusAnim = useRef(new Animated.Value(0)).current;
@@ -70,8 +74,11 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   useFocusEffect(
     useCallback(() => {
       void getSearchHistory().then(setSearchHistory);
+      void getCategories().then(setAllCategories);
     }, []),
   );
+
+  const showBrowse = !rawQuery && activeCount === 0 && !isFocused && !showingAll;
 
   function onSearchFocus() {
     Animated.spring(focusAnim, { toValue: 1, useNativeDriver: false, friction: 8 }).start();
@@ -120,21 +127,12 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 
   return (
     <View style={[s.container, { backgroundColor: C.background }]}>
-      {/* ── Hero gradient header ── */}
-      <LinearGradient
-        colors={Colors.heroGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[s.hero, { paddingTop: insets.top + 10 }]}
+      {/* ── Header ── */}
+      <ScreenHeader
+        title={isHe ? "חיפוש מתכונים" : "Find a Recipe"}
+        subtitle={isHe ? "חפש לפי שם, מצרכים, קטגוריה..." : "Search by name, ingredients, category..."}
       >
-        <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]}>
-          {isHe ? "חיפוש מתכונים" : "Find a Recipe"}
-        </Text>
-        <Text style={[s.heroSub, { textAlign: isHe ? "right" : "left" }]}>
-          {isHe ? "חפש לפי שם, מצרכים, קטגוריה..." : "Search by name, ingredients, category..."}
-        </Text>
-
-        {/* Search bar embedded in hero */}
+        {/* Search bar */}
         <Animated.View
           style={[
             s.searchBox,
@@ -193,7 +191,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             )}
           </TouchableOpacity>
         </Animated.View>
-      </LinearGradient>
+      </ScreenHeader>
 
       {/* ── Search history panel ── */}
       {showHistory && searchHistory.length > 0 && (
@@ -300,6 +298,16 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
       {/* ── Active filter chips ── */}
       {activeCount > 0 && (
         <View style={[s.activeRow, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated, borderBottomColor: C.border }]}>
+          {filters.categoryId && (() => {
+            const cat = allCategories.find(c => c.id === filters.categoryId);
+            const label = cat ? (isHe ? cat.name_he : cat.name_en) : (isHe ? "קטגוריה" : "Category");
+            return (
+              <FilterChip
+                label={`${cat ? CATEGORY_EMOJI[cat.name_en.toLowerCase()] ?? "" : ""}  ${label}`}
+                onRemove={() => setFilter("categoryId", null)}
+              />
+            );
+          })()}
           {filters.favoritesOnly && (
             <FilterChip
               label={isHe ? "מועדפים" : "Favorites"}
@@ -320,10 +328,17 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
               onRemove={() => setFilter("maxCookTime", null)}
             />
           )}
+          {filters.maxCalories && (
+            <FilterChip
+              label={`🔥 ≤${filters.maxCalories} ${isHe ? "קל׳" : "kcal"} ${filters.caloriesMode === "per_serving" ? (isHe ? "למנה" : "pp") : (isHe ? "סה״כ" : "total")}`}
+              onRemove={() => setFilter("maxCalories", null)}
+            />
+          )}
           <TouchableOpacity
             onPress={() => {
               void Haptics.selectionAsync();
               resetFilters();
+              setShowingAll(false);
             }}
             style={s.clearAllBtn}
           >
@@ -343,7 +358,59 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
       </View>
 
       {/* ── Content ── */}
-      {loading ? (
+      {showBrowse ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, paddingBottom: 90 + insets.bottom, gap: 12 }}
+        >
+          <Text style={[s.browseTitle, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+            {isHe ? "עיין לפי קטגוריה" : "Browse by category"}
+          </Text>
+          {/* Show all */}
+          <TouchableOpacity
+            style={[s.showAllBtn, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              resetFilters();
+              setShowingAll(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 26 }}>🍽️</Text>
+            <Text style={[s.showAllLabel, { color: C.text.primary }]}>
+              {isHe ? "הצג הכל" : "Show all"}
+            </Text>
+            <Ionicons name={isHe ? "chevron-back" : "chevron-forward"} size={16} color={C.text.tertiary} style={{ marginStart: "auto" }} />
+          </TouchableOpacity>
+          {/* Category grid */}
+          <View style={s.categoryGrid}>
+            {allCategories.map((cat) => {
+              const key = cat.name_en.toLowerCase();
+              const emoji = CATEGORY_EMOJI[key] ?? FALLBACK_EMOJI;
+              const bg = CATEGORY_BG[key] ?? FALLBACK_BG;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[s.categoryTile, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    setFilter("categoryId", cat.id);
+                    setShowingAll(false);
+                  }}
+                  activeOpacity={0.78}
+                >
+                  <View style={[s.categoryEmojiWrap, { backgroundColor: bg }]}>
+                    <Text style={{ fontSize: 44 }}>{emoji}</Text>
+                  </View>
+                  <Text style={[s.categoryTileLabel, { color: C.text.primary }]} numberOfLines={2}>
+                    {isHe ? cat.name_he : cat.name_en}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+      ) : loading ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -403,6 +470,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
           onClose={() => setShowFilters(false)}
           onReset={resetFilters}
           isHe={isHe}
+          allCategories={allCategories}
         />
       )}
     </View>
@@ -459,26 +527,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  // Hero
-  hero: {
-    paddingHorizontal: 16,
-    paddingBottom: 22,
-    gap: 4,
-  },
-  heroTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: Colors.text.inverse,
-    letterSpacing: -0.4,
-    marginBottom: 2,
-  },
-  heroSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 14,
-  },
-
-  // Search box (inside hero)
+  // Search box (inside ScreenHeader children)
   searchBox: {
     alignItems: "center",
     gap: 8,
@@ -691,6 +740,58 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+  // Browse mode
+  browseTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  showAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  showAllLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  categoryTile: {
+    width: "47%",
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  categoryEmojiWrap: {
+    alignSelf: "stretch",
+    height: 96,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryTileLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    lineHeight: 18,
+  },
+
   intentBanner: {
     marginHorizontal: 16,
     marginTop: 6,

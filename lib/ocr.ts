@@ -1,5 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { structureRecipe } from "./voiceRecipe";
 
 export type OcrResult = {
   rawText: string;
@@ -90,6 +91,28 @@ export async function runOCR(imageUri: string): Promise<OcrResult> {
     throw new Error(
       "No text detected. For handwritten recipes, use a close, bright photo with high contrast and minimal background.",
     );
+  }
+
+  const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+  if (claudeKey) {
+    try {
+      const result = await structureRecipe(rawText, true);
+      const confidence: OcrResult["confidence"] =
+        result.ingredients.length > 2 && result.steps.length > 1
+          ? "high"
+          : result.ingredients.length > 0 || result.steps.length > 0
+            ? "medium"
+            : "low";
+      return {
+        rawText,
+        title: result.title,
+        ingredients: result.ingredients,
+        steps: result.steps,
+        confidence,
+      };
+    } catch {
+      // fall through to regex parser
+    }
   }
 
   return parseOcrText(rawText);

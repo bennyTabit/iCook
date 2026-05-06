@@ -3,6 +3,8 @@ import {
   getMealPlanForWeek,
   insertMealPlan,
   deleteMealPlan,
+  getRecipeById,
+  getIngredientsForRecipe,
   MealPlanEntry,
   MealType,
 } from '../lib/db';
@@ -15,11 +17,13 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Get Monday of the week containing the given date */
-export function getWeekStart(d: Date = new Date()): string {
+/** Get the week start (Sunday or Monday) containing the given date */
+export function getWeekStart(d: Date = new Date(), sundayStart = false): string {
   const date = new Date(d);
   const day = date.getDay(); // 0=Sun
-  const diff = (day === 0 ? -6 : 1 - day); // shift to Monday
+  const diff = sundayStart
+    ? -day                         // shift back to Sunday
+    : (day === 0 ? -6 : 1 - day); // shift back to Monday
   date.setDate(date.getDate() + diff);
   return toDateStr(date);
 }
@@ -60,7 +64,7 @@ interface MealPlanState {
   loadWeek: (weekStart: string) => Promise<void>;
   addEntry: (date: string, mealType: MealType, recipeId: number) => Promise<void>;
   removeEntry: (id: number) => Promise<void>;
-  addWeekToShopping: (isHe: boolean) => void;
+  addWeekToShopping: (isHe: boolean) => Promise<void>;
 }
 
 export const useMealPlanStore = create<MealPlanState>()((set, get) => ({
@@ -103,17 +107,36 @@ export const useMealPlanStore = create<MealPlanState>()((set, get) => ({
     }
   },
 
-  addWeekToShopping: (isHe) => {
+  addWeekToShopping: async (isHe) => {
     const { entries } = get();
     if (!entries.length) return;
-    const addItem = useShoppingStore.getState().addItem;
-    // De-duplicate recipe IDs
+    const addFromRecipe = useShoppingStore.getState().addFromRecipe;
+
+    // De-duplicate recipe IDs so each recipe's ingredients appear once
     const seen = new Set<number>();
-    entries.forEach((e) => {
+    for (const e of entries) {
       if (!seen.has(e.recipe_id)) {
         seen.add(e.recipe_id);
-        addItem(isHe ? e.title_he : (e.title_en ?? e.title_he));
+        const recipe = await getRecipeById(e.recipe_id);
+        if (!recipe) continue;
+
+        // Fetch structured ingredients from the DB
+        const rows = await getIngredientsForRecipe(e.recipe_id);
+
+        // Build human-readable strings, e.g. "2 כוסות קמח" or just "עגבנייה"
+        const ingredientStrings: string[] = rows
+          .map((row) => {
+            const text = (isHe ? row.free_text_he : row.free_text_en) ?? row.free_text_he ?? '';
+            if (!text.trim()) return null;
+            const qty = row.quantity != null ? String(row.quantity) : '';
+            const unit = (isHe ? row.unit_he : row.unit_en) ?? row.unit_he ?? '';
+            return [qty, unit, text].filter(Boolean).join(' ').trim();
+          })
+          .filter((s): s is string => s !== null && s.length > 0);
+
+        // Pass ingredient strings directly; fallback (recipe title) handled inside addFromRecipe
+        addFromRecipe(recipe, ingredientStrings.length ? ingredientStrings : undefined);
       }
-    });
+    }
   },
 }));

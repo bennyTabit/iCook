@@ -79,6 +79,19 @@ export async function getRecipeById(id: number): Promise<Recipe | null> {
   return recipes.find(r => r.id === id) ?? null;
 }
 
+export interface RecipeIngredientRow {
+  free_text_he: string | null;
+  free_text_en: string | null;
+  quantity: number | null;
+  unit_he: string | null;
+  unit_en: string | null;
+}
+
+/** Web stub — ingredients not stored in memory, returns empty array */
+export async function getIngredientsForRecipe(_recipeId: number): Promise<RecipeIngredientRow[]> {
+  return [];
+}
+
 export async function insertRecipe(recipe: Recipe): Promise<number> {
   if (!recipe.title_he?.trim()) {
     throw new Error("כותרת המתכון לא יכולה להיות ריקה / Recipe title cannot be empty");

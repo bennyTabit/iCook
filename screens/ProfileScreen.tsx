@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  DevSettings,
-  I18nManager,
   Modal,
   Platform,
   ScrollView,
@@ -15,18 +13,18 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ScreenHeader from "../components/ScreenHeader";
 import { Ionicons } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri } from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
-import * as Updates from "expo-updates";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { useThemeStore, type ThemePreference } from "../store/themeStore";
+import { useSettingsStore } from "../store/settingsStore";
 import { isHebrew } from "../lib/i18n";
 import { useAuthStore } from "../store/authStore";
 import i18n from "../lib/i18n";
@@ -98,6 +96,9 @@ export default function ProfileScreen() {
   // Dietary preferences
   const [dietaryTags, setDietaryTags]   = useState<DietaryTag[]>([]);
   const [showDietary, setShowDietary]   = useState(false);
+
+  // Feature flags
+  const { nutritionEnabled, setNutritionEnabled } = useSettingsStore();
 
   const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   const isGoogleConfigured = Boolean(googleClientId);
@@ -226,32 +227,6 @@ export default function ProfileScreen() {
     const next = isHe ? "en" : "he";
     await i18n.changeLanguage(next);
     await AsyncStorage.setItem("icook.lang", next);
-    // forceRTL persists to native layer but only takes effect after a full
-    // native restart (not a JS-only reload via DevSettings).
-    I18nManager.forceRTL(next === "he");
-
-    const isNextHe = next === "he";
-    Alert.alert(
-      isNextHe ? "נדרשת הפעלה מחדש" : "Restart required",
-      isNextHe
-        ? "כדי להפעיל פריסה מימין לשמאל, סגור את האפליקציה לחלוטין ופתח אותה מחדש."
-        : "To apply the left-to-right layout, please close the app completely and reopen it.",
-      [
-        {
-          text: isNextHe ? "אישור" : "OK",
-          onPress: async () => {
-            try {
-              // In production / EAS builds this triggers a full JS reload which
-              // is enough because the native Activity is already running RTL.
-              await Updates.reloadAsync();
-            } catch {
-              // Expo Go: Updates.reloadAsync() throws — nothing else works here
-              // except a manual close+reopen, so just dismiss.
-            }
-          },
-        },
-      ],
-    );
   }
 
   // ── Dietary handlers ───────────────────────────────────────────────────────
@@ -332,54 +307,47 @@ export default function ProfileScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: C.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
-      >
-        {/* ── Hero banner ── */}
-        <LinearGradient
-          colors={C.heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[s.hero, { paddingTop: insets.top + 20 }]}
-        >
-          <View style={s.avatarRing}>
-            <View
-              style={[
-                s.avatar,
-                {
-                  backgroundColor: user
-                    ? user.provider === "google" ? "#4285F4" : "#1A1A1A"
-                    : "rgba(255,255,255,0.3)",
-                },
-              ]}
-            >
-              <Text style={s.avatarText}>{avatarLetter}</Text>
+      {/* ── Header (non-scrollable) ── */}
+      <ScreenHeader
+          title={resolvedName ?? (isHe ? "אורח" : "Guest")}
+          subtitle={user?.email ?? (user
+            ? (isHe ? "מחובר" : "Signed in")
+            : (isHe ? "לא מחובר" : "Not signed in"))}
+          rightAction={
+            <View style={[s.avatarRing, { borderColor: C.border }]}>
+              <View
+                style={[
+                  s.avatar,
+                  {
+                    backgroundColor: user
+                      ? user.provider === "google" ? "#4285F4" : "#1A1A1A"
+                      : C.surfaceElevated,
+                  },
+                ]}
+              >
+                <Text style={[s.avatarText, { color: user ? Colors.text.inverse : C.text.tertiary }]}>{avatarLetter}</Text>
+              </View>
             </View>
-          </View>
-          <Text style={s.heroName} numberOfLines={1}>
-            {resolvedName ?? (isHe ? "אורח" : "Guest")}
-          </Text>
-          <Text style={s.heroEmail} numberOfLines={1}>
-            {user?.email ?? (user
-              ? (isHe ? "מחובר" : "Signed in")
-              : (isHe ? "לא מחובר" : "Not signed in"))}
-          </Text>
+          }
+        >
           {user ? (
-            <View style={s.providerBadge}>
+            <View style={[s.providerBadge, { backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignSelf: isHe ? 'flex-end' : 'flex-start' }]}>
               <Ionicons
                 name={user.provider === "google" ? "logo-google" : "logo-apple"}
                 size={12}
-                color="rgba(255,255,255,0.9)"
+                color={C.text.secondary}
               />
-              <Text style={s.providerText}>
+              <Text style={[s.providerText, { color: C.text.secondary }]}>
                 {user.provider === "google" ? "Google" : "Apple"}
               </Text>
             </View>
           ) : null}
-          <View style={[s.heroWave, { backgroundColor: C.background }]} />
-        </LinearGradient>
+      </ScreenHeader>
 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+      >
         <View style={s.body}>
           {/* ── Sign-in card (guest only) ── */}
           {!user && (
@@ -541,6 +509,42 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {/* ── Premium Features ── */}
+          <View style={s.sectionGroup}>
+            <View style={[{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", gap: 6, marginBottom: 8 }]}>
+              <Text style={[s.groupLabel, { color: C.text.tertiary, marginBottom: 0 }]}>
+                {isHe ? "תכונות פרמיום" : "Premium Features"}
+              </Text>
+              <View style={s.premiumBadge}>
+                <Text style={s.premiumBadgeText}>✨ {isHe ? "בקרוב" : "Soon"}</Text>
+              </View>
+            </View>
+            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+              <View style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}>
+                <View style={[s.rowIconWrap, { backgroundColor: "#E8F5E9" }]}>
+                  <Ionicons name="bar-chart-outline" size={16} color="#4CAF50" />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[s.rowLabel, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+                    {isHe ? "ניתוח ערכי תזונה" : "Nutrition Analysis"}
+                  </Text>
+                  <Text style={[s.rowSub, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
+                    {isHe ? "חישוב קלוריות ומאקרו עם AI" : "AI-powered calorie & macro breakdown"}
+                  </Text>
+                </View>
+                <Switch
+                  value={nutritionEnabled}
+                  onValueChange={(val) => {
+                    void Haptics.selectionAsync();
+                    void setNutritionEnabled(val);
+                  }}
+                  trackColor={{ false: C.border, true: "#4CAF5080" }}
+                  thumbColor={nutritionEnabled ? "#4CAF50" : C.text.tertiary}
+                />
+              </View>
+            </View>
+          </View>
+
           {/* ── Data & Sync settings ── */}
           <View style={s.sectionGroup}>
             <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
@@ -672,27 +676,20 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  // Hero
-  hero: { alignItems: "center", paddingBottom: 36, paddingHorizontal: 20 },
+  // Avatar (used in ScreenHeader rightAction)
   avatarRing: {
-    width: 90, height: 90, borderRadius: 45,
-    borderWidth: 3, borderColor: "rgba(255,255,255,0.5)",
-    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    width: 52, height: 52, borderRadius: 26,
+    borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
   },
-  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 32, color: Colors.text.inverse, fontWeight: "700" },
-  heroName: { fontSize: 22, fontWeight: "700", color: Colors.text.inverse, letterSpacing: -0.3 },
-  heroEmail: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 3 },
+  avatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 20, fontWeight: "700" },
   providerBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10,
-    paddingHorizontal: 12, paddingVertical: 5,
-    backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12,
   },
-  providerText: { fontSize: 12, color: "rgba(255,255,255,0.95)", fontWeight: "600" },
-  heroWave: {
-    position: "absolute", bottom: -1, left: 0, right: 0,
-    height: 24, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-  },
+  providerText: { fontSize: 12, fontWeight: "600" },
 
   // Body
   body: { paddingHorizontal: 16, paddingTop: 8, gap: 6 },
@@ -745,6 +742,16 @@ const s = StyleSheet.create({
   rowIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   rowLabel: { fontSize: 15, fontWeight: "500" },
   rowValue: { fontSize: 13, fontWeight: "500" },
+  rowSub: { fontSize: 12, fontWeight: "400" },
+
+  // Premium badge
+  premiumBadge: {
+    backgroundColor: "#FFF3E0",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  premiumBadgeText: { fontSize: 11, fontWeight: "700", color: "#E65100" },
 
   // Version
   version: { textAlign: "center", fontSize: 12, marginTop: 16, fontWeight: "500" },

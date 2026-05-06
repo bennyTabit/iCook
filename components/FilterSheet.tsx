@@ -1,12 +1,16 @@
-import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, TextInput } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
+import { CATEGORY_EMOJI, FALLBACK_EMOJI } from '../constants/recipes';
+import type { Category } from '../lib/db';
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 const COOK_TIMES = [15, 30, 60];
+const CALORIES_PP = [200, 400, 600, 800];
+const CALORIES_TOTAL = [500, 1000, 2000, 3000];
 const DIETARY_TAGS = [
   { id: 1, he: 'טבעוני',    en: 'Vegan' },
   { id: 2, he: 'צמחוני',    en: 'Vegetarian' },
@@ -35,9 +39,10 @@ const DIFFICULTY_COLOR: Record<string, string> = {
   hard:   Colors.difficulty.hard,
 };
 
-export default function FilterSheet({ filters, onUpdate, onClose, onReset, isHe }: any) {
+export default function FilterSheet({ filters, onUpdate, onClose, onReset, isHe, allCategories = [] }: any) {
   const F = (he: string, en: string) => isHe ? he : en;
   const toggleAnim = useRef(new Animated.Value(filters.favoritesOnly ? 1 : 0)).current;
+  const [calInput, setCalInput] = useState(filters.maxCalories ? String(filters.maxCalories) : '');
 
   function handleToggleFavorites() {
     const next = !filters.favoritesOnly;
@@ -131,6 +136,27 @@ export default function FilterSheet({ filters, onUpdate, onClose, onReset, isHe 
             </Animated.View>
           </TouchableOpacity>
 
+          {/* Category */}
+          {allCategories.length > 0 && (
+            <View style={fs.section}>
+              <Text style={fs.sectionTitle}>{F('קטגוריה', 'Category')}</Text>
+              <View style={fs.chipRow}>
+                {allCategories.map((cat: Category) => {
+                  const key = cat.name_en.toLowerCase();
+                  const emoji = CATEGORY_EMOJI[key] ?? FALLBACK_EMOJI;
+                  return (
+                    <Chip
+                      key={cat.id}
+                      active={filters.categoryId === cat.id}
+                      label={`${emoji} ${isHe ? cat.name_he : cat.name_en}`}
+                      onPress={() => onUpdate('categoryId', filters.categoryId === cat.id ? null : cat.id)}
+                    />
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           {/* Difficulty */}
           <View style={fs.section}>
             <Text style={fs.sectionTitle}>{F('רמת קושי', 'Difficulty')}</Text>
@@ -177,6 +203,81 @@ export default function FilterSheet({ filters, onUpdate, onClose, onReset, isHe 
                 />
               ))}
             </View>
+          </View>
+
+          {/* Calories */}
+          <View style={fs.section}>
+            <Text style={fs.sectionTitle}>{F('קלוריות', 'Calories')}</Text>
+
+            {/* Per person / Total toggle */}
+            <View style={[fs.segRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+              {(['per_serving', 'total'] as const).map(mode => {
+                const active = filters.caloriesMode === mode;
+                const label = mode === 'per_serving'
+                  ? F('למנה אחת', 'Per person')
+                  : F('כל המתכון', 'Full recipe');
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[fs.segBtn, active && fs.segBtnActive]}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      onUpdate('caloriesMode', mode);
+                      onUpdate('maxCalories', null);
+                      setCalInput('');
+                    }}
+                  >
+                    <Text style={[fs.segText, active && fs.segTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Preset chips */}
+            <View style={fs.chipRow}>
+              {(filters.caloriesMode === 'per_serving' ? CALORIES_PP : CALORIES_TOTAL).map(v => (
+                <Chip
+                  key={v}
+                  active={filters.maxCalories === v}
+                  label={`≤${v} ${F('קל׳', 'kcal')}`}
+                  onPress={() => {
+                    const next = filters.maxCalories === v ? null : v;
+                    onUpdate('maxCalories', next);
+                    setCalInput(next ? String(next) : '');
+                  }}
+                  color={Colors.secondary}
+                />
+              ))}
+            </View>
+
+            {/* Free input */}
+            <View style={[fs.calInputRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+              <TextInput
+                style={[fs.calInput, { textAlign: isHe ? 'right' : 'left', color: Colors.text.primary }]}
+                placeholder={F('מקסימום קלוריות...', 'Max calories...')}
+                placeholderTextColor={Colors.text.tertiary}
+                keyboardType="numeric"
+                value={calInput}
+                onChangeText={text => {
+                  setCalInput(text);
+                  const n = parseInt(text, 10);
+                  onUpdate('maxCalories', Number.isNaN(n) || n <= 0 ? null : n);
+                }}
+                returnKeyType="done"
+              />
+              {calInput.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => { setCalInput(''); onUpdate('maxCalories', null); void Haptics.selectionAsync(); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={{ color: Colors.text.tertiary, fontSize: 16 }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <Text style={fs.calNote}>
+              {F('מציג מתכונים עם ערכים תזונתיים בלבד', 'Only shows recipes with nutrition data')}
+            </Text>
           </View>
 
           {/* Source */}
@@ -323,6 +424,50 @@ const fs = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 2,
     elevation: 2,
+  },
+  segRow: {
+    gap: 8,
+  },
+  segBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  segBtnActive: {
+    backgroundColor: Colors.primary + '18',
+    borderColor: Colors.primary + '88',
+  },
+  segText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text.secondary,
+  },
+  segTextActive: {
+    color: Colors.primary,
+  },
+  calInputRow: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+  },
+  calInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 10,
+  },
+  calNote: {
+    fontSize: 11,
+    color: Colors.text.tertiary,
+    fontStyle: 'italic',
   },
   applyBtn: {
     margin: Spacing.lg,

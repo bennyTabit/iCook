@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Colors } from "../constants/colors";
@@ -63,6 +62,15 @@ type MenuItem = {
 };
 
 const MENU_ITEMS: MenuItem[] = [
+  {
+    icon: "calendar-outline",
+    iconBg: "#4D96FF",
+    titleHe: "תכנון ארוחות",
+    titleEn: "Meal planner",
+    subHe: "תכנן את ארוחות השבוע",
+    subEn: "Plan your week's meals",
+    screen: "MealPlanner",
+  },
   {
     icon: "add-circle-outline",
     iconBg: "#FF6B6B",
@@ -131,40 +139,38 @@ function getTabIconName(
   if (routeName === "Home") return focused ? "home" : "home-outline";
   if (routeName === "Search") return focused ? "search" : "search-outline";
   if (routeName === "Add") return "add";
-  if (routeName === "Shopping") return focused ? "basket" : "basket-outline";
   if (routeName === "MealPlanner") return focused ? "calendar" : "calendar-outline";
+  if (routeName === "Shopping") return focused ? "cart" : "cart-outline";
   if (routeName === "Collections") return focused ? "albums" : "albums-outline";
   return focused ? "person" : "person-outline";
 }
 
 function AddTabButton({
+  style,
   onPress,
   onLongPress,
   isHe,
 }: {
+  style?: any;
   onPress: () => void;
   onLongPress: () => void;
   isHe: boolean;
 }) {
+  const C = useThemeColors();
   return (
     <TouchableOpacity
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={300}
-      style={s.addBtnWrap}
+      style={[style, s.addBtnWrap]}
       activeOpacity={0.88}
       accessibilityRole="button"
       accessibilityLabel={isHe ? "הוסף מתכון" : "Add recipe"}
       accessibilityHint={isHe ? "לחיצה ממושכת לתפריט" : "Long press for menu"}
     >
-      <LinearGradient
-        colors={["#FF6B6B", "#FF9B6B"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={s.addBtn}
-      >
-        <Ionicons name="add" size={24} color="#fff" />
-      </LinearGradient>
+      <View style={[s.addBtn, { backgroundColor: C.surfaceElevated }]}>
+        <Ionicons name="add" size={22} color={C.text.primary} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -346,17 +352,18 @@ export default function TabNavigator() {
   return (
     <>
       <Tab.Navigator
+        backBehavior="history"
         screenOptions={({ route, navigation }) => ({
-          tabBarActiveTintColor: "#FFFFFF",
+          tabBarActiveTintColor: C.text.primary,
           tabBarInactiveTintColor: C.text.secondary,
           tabBarStyle: {
             position: "absolute",
             left: 12,
             right: 12,
             bottom: 10,
-            height: 66 + Math.max(insets.bottom - 2, 0),
-            paddingTop: 9,
-            paddingBottom: Math.max(insets.bottom, 10),
+            height: 58 + Math.max(insets.bottom - 2, 0),
+            paddingTop: 6,
+            paddingBottom: Math.max(insets.bottom, 8),
             paddingHorizontal: 6,
             borderTopWidth: 0,
             borderRadius: 24,
@@ -368,25 +375,28 @@ export default function TabNavigator() {
             elevation: 8,
             direction: isHe ? "rtl" : "ltr",
           },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "700", marginTop: 1 },
-          tabBarActiveBackgroundColor:
-            route.name === "Add" ? "transparent" : Colors.primary,
+          tabBarShowLabel: false,
+          tabBarActiveBackgroundColor: "transparent",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={getTabIconName(route.name, focused)}
-              size={23}
-              color={color}
-            />
+            <View style={{ alignItems: "center", gap: 4 }}>
+              <Ionicons
+                name={getTabIconName(route.name, focused)}
+                size={23}
+                color={color}
+              />
+              {focused && route.name !== "Add" && (
+                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary }} />
+              )}
+            </View>
           ),
           tabBarItemStyle: {
             paddingTop: 1,
             borderRadius: 16,
             marginHorizontal: 2,
-            marginTop: route.name === "Add" ? -8 : 0,
           },
           sceneStyle: {
             backgroundColor: C.background,
-            paddingBottom: 76 + Math.max(insets.bottom - 2, 0),
+            paddingBottom: 68 + Math.max(insets.bottom - 2, 0),
           },
           headerShown: true,
           headerShadowVisible: false,
@@ -399,28 +409,14 @@ export default function TabNavigator() {
             fontWeight: "600",
             fontSize: 18,
           },
-          headerLeft: () =>
-            isHe ? null : (
-              <HeaderIconButton
-                icon="menu"
-                onPress={() => handleMenuOpen(navigation)}
-                label="Open menu"
-              />
-            ),
-          headerRight: () =>
-            isHe ? (
-              <HeaderIconButton
-                icon="menu"
-                onPress={() => handleMenuOpen(navigation)}
-                label="פתח תפריט"
-              />
-            ) : null,
+          headerLeft: () => null,
+          headerRight: () => null,
         })}
       >
         <Tab.Screen
           name="Home"
           component={HomeScreen}
-          options={{ title: t("home"), tabBarAccessibilityLabel: isHe ? "בית" : "Home" }}
+          options={{ title: "", headerShown: false, tabBarAccessibilityLabel: isHe ? "בית" : "Home" }}
           listeners={{
             tabPress: () => {
               void Haptics.selectionAsync();
@@ -432,9 +428,7 @@ export default function TabNavigator() {
           component={SearchScreen}
           options={{ title: t("search"), headerShown: false, tabBarAccessibilityLabel: isHe ? "חיפוש" : "Search" }}
           listeners={{
-            tabPress: () => {
-              void Haptics.selectionAsync();
-            },
+            tabPress: () => { void Haptics.selectionAsync(); },
           }}
         />
         <Tab.Screen
@@ -444,8 +438,9 @@ export default function TabNavigator() {
             title: "",
             tabBarLabel: "",
             headerShown: false,
-            tabBarButton: () => (
+            tabBarButton: (props) => (
               <AddTabButton
+                style={props.style}
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   navigation.navigate("AddRecipe");
@@ -468,31 +463,49 @@ export default function TabNavigator() {
           name="Shopping"
           component={ShoppingScreen}
           options={{
-            title: t("shopping"),
+            title: isHe ? "קניות" : "Shopping",
             headerShown: false,
-            tabBarButton: () => null,
-            tabBarItemStyle: { display: "none" },
+            tabBarAccessibilityLabel: isHe ? "רשימת קניות" : "Shopping list",
+          }}
+          listeners={{
+            tabPress: () => { void Haptics.selectionAsync(); },
           }}
         />
         <Tab.Screen
           name="MealPlanner"
           component={MealPlannerScreen}
           options={{
-            title: t("mealPlanner"),
-            headerShown: true,
-            tabBarButton: () => null,
-            tabBarItemStyle: { display: "none" },
+            title: isHe ? "תכנון ארוחות" : "Meal planner",
+            headerShown: false,
+            tabBarAccessibilityLabel: isHe ? "תכנון ארוחות" : "Meal planner",
+          }}
+          listeners={{
+            tabPress: () => { void Haptics.selectionAsync(); },
           }}
         />
-
         <Tab.Screen
           name="Profile"
           component={ProfileScreen}
-          options={{
-            title: t("profile"),
+          options={({ navigation }) => ({
+            title: "",
             headerShown: false,
-            tabBarButton: () => null,
-            tabBarItemStyle: { display: "none" },
+            tabBarAccessibilityLabel: isHe ? "עוד" : "More",
+            tabBarButton: (props) => (
+              <TouchableOpacity
+                style={[props.style, s.moreBtnWrap]}
+                onPress={() => { handleMenuOpen(navigation); }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "עוד" : "More"}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="ellipsis-vertical" size={20} color={C.text.secondary} />
+              </TouchableOpacity>
+            ),
+            tabBarItemStyle: { flex: 0, width: 44, paddingTop: 1, borderRadius: 16, marginHorizontal: 0 },
+          })}
+          listeners={{
+            tabPress: (e) => { e.preventDefault(); },
           }}
         />
 
@@ -501,6 +514,8 @@ export default function TabNavigator() {
           component={RecipeDetailScreen}
           options={{
             title: "",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -510,6 +525,8 @@ export default function TabNavigator() {
           component={AddRecipeScreen}
           options={{
             title: isHe ? "הוסף מתכון" : "Add recipe",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -519,6 +536,8 @@ export default function TabNavigator() {
           component={OcrReviewScreen}
           options={{
             title: isHe ? "סריקת מתכון" : "OCR review",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -528,6 +547,8 @@ export default function TabNavigator() {
           component={ImportLinkScreen}
           options={{
             title: isHe ? "ייבוא מלינק" : "Import link",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -537,6 +558,8 @@ export default function TabNavigator() {
           component={EditRecipeScreen}
           options={{
             title: isHe ? "עריכת מתכון" : "Edit recipe",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -546,6 +569,8 @@ export default function TabNavigator() {
           component={CollectionsScreen}
           options={{
             title: isHe ? "אוספים" : "Collections",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -555,6 +580,8 @@ export default function TabNavigator() {
           component={CollectionDetailScreen}
           options={({ route }) => ({
             title: (route.params as { id: number; name: string })?.name ?? (isHe ? "אוסף" : "Collection"),
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           })}
@@ -564,6 +591,8 @@ export default function TabNavigator() {
           component={VoiceRecipeScreen}
           options={{
             title: isHe ? "הקלטת מתכון" : "Voice Recipe",
+            headerShown: false,
+            sceneStyle: { paddingBottom: 0 },
             tabBarButton: () => null,
             tabBarItemStyle: { display: "none" },
           }}
@@ -594,16 +623,23 @@ const s = StyleSheet.create({
     borderColor: "#FFD4C0",
   },
 
+  // ··· more button
+  moreBtnWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 1,
+  },
+
   // floating add button
   addBtnWrap: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -24,
   },
   addBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: Colors.shadow,

@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Keyboard,
   StyleSheet,
   Alert,
   Image,
@@ -32,12 +33,14 @@ import { synthesizeAudio, isElevenLabsConfigured, clearChefAudioCache, type Chef
 import { Colors } from "../constants/colors";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
-import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, type RecipeUserData } from "../lib/db";
+import { getRecipeById, insertRecipe, getRecipeUserData, upsertRecipeUserData, saveRecipeNutrition, type RecipeUserData } from "../lib/db";
+import { generateNutrition, parseNutrition, perServing, isNutritionConfigured, type NutritionData, type MacrosPerServing } from "../lib/nutrition";
 import { logCook } from '../lib/cookLog';
 import { UNICODE_FRACTIONS, formatScaled, parseNumericToken, scaleIngredientText, parseLeadingQty } from '../lib/scaling';
 import { useRecipeStore } from "../store/recipeStore";
 import { useShoppingStore } from "../store/shoppingStore";
 import { useCollectionStore } from "../store/collectionStore";
+import { useSettingsStore } from "../store/settingsStore";
 import { shareRecipe } from "../lib/sharing";
 import Toast from "../components/Toast";
 import type { Recipe } from "../lib/db";
@@ -940,7 +943,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const { height } = useWindowDimensions();
   const { toggleFav, removeRecipe, loadRecipes } = useRecipeStore();
   const { addFromRecipe } = useShoppingStore();
-  const { collections, loadCollections, addRecipe: addToCol, removeRecipe: removeFromCol, getRecipeCollections } = useCollectionStore();
+  const { collections, loadCollections, createCollection, addRecipe: addToCol, removeRecipe: removeFromCol, getRecipeCollections } = useCollectionStore();
+  const { nutritionEnabled } = useSettingsStore();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [toast, setToast] = useState("");
@@ -953,15 +957,38 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
   const [cookHistory, setCookHistory] = useState(0);
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [recipeCollectionIds, setRecipeCollectionIds] = useState<number[]>([]);
+  const [inlineCreateMode, setInlineCreateMode] = useState(false);
+  const [inlineCreateName, setInlineCreateName] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    ingredients: false,
+    steps: true,
+    nutrition: false,
+    notes: true,
+  });
   const [userData, setUserData] = useState<RecipeUserData>({ recipe_id: 0, rating: null, personal_note: null, last_cooked_at: null });
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
+  const [noteEditMode, setNoteEditMode] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [nutrition, setNutrition] = useState<NutritionData | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(false);
   const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const favScale = useRef(new Animated.Value(1)).current;
-  const scrollY = useRef(new Animated.Value(0)).current;
   const timerWasRunningRef = useRef(false);
-  const heroHeight = Math.max(240, Math.round(height * 0.36));
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  const hasPhoto = !!recipe?.image_uri;
+  const noPhotoHeroHeight = insets.top + 115;
+  const fullHeroHeight = hasPhoto ? Math.max(240, Math.round(height * 0.36)) : noPhotoHeroHeight;
+  const collapsedHeroHeight = insets.top + 52;
+  const heroHeight = (hasPhoto && heroCollapsed) ? collapsedHeroHeight : fullHeroHeight;
+
+  function toggleHero() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    void Haptics.selectionAsync();
+    setHeroCollapsed(v => !v);
+  }
 
   async function loadRecipe() {
     if (!id) return;
@@ -971,6 +998,21 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
       const ud = await getRecipeUserData(id);
       setUserData(ud);
       setNoteText(ud.personal_note ?? '');
+    }
+    if (fresh) {
+      const cached = parseNutrition(fresh.ai_nutrition);
+      if (cached) {
+        setNutrition(cached);
+      } else if (nutritionEnabled && isNutritionConfigured()) {
+        setNutritionLoading(true);
+        generateNutrition(fresh).then(async (result) => {
+          if (result && id) {
+            await saveRecipeNutrition(id, JSON.stringify(result));
+            setNutrition(result);
+          }
+          setNutritionLoading(false);
+        }).catch(() => setNutritionLoading(false));
+      }
     }
   }
 
@@ -1004,6 +1046,20 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     }
     void hydrateCookHistory();
   }, [historyKey]);
+
+  // Keyboard height tracking — used to push ScrollView content above keyboard when editing notes
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      if (noteEditMode) {
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), Platform.OS === 'ios' ? 50 : 150);
+      }
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [noteEditMode]);
 
   // Timer countdown
   useEffect(() => {
@@ -1097,7 +1153,21 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     await loadCollections();
     const cols = await getRecipeCollections(id);
     setRecipeCollectionIds(cols.map((c) => c.id));
+    setInlineCreateMode(false);
+    setInlineCreateName("");
     setCollectionModalVisible(true);
+  }
+
+  function handleCloseCollectionModal() {
+    setCollectionModalVisible(false);
+    setInlineCreateMode(false);
+    setInlineCreateName("");
+  }
+
+  function toggleSection(key: string) {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    void Haptics.selectionAsync();
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   async function handleToggleCollection(collectionId: number) {
@@ -1166,6 +1236,20 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
     }, 600);
   }
 
+  async function handleNoteDone() {
+    Keyboard.dismiss();
+    if (noteDebounceRef.current) {
+      clearTimeout(noteDebounceRef.current);
+      noteDebounceRef.current = null;
+    }
+    if (id) {
+      setNoteSaving(true);
+      await upsertRecipeUserData(id, { personal_note: noteText.trim() || null });
+      setNoteSaving(false);
+    }
+    setNoteEditMode(false);
+  }
+
   function toggleIngredientDone(index: number) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIngredientDone((prev) => ({ ...prev, [index]: !prev[index] }));
@@ -1225,95 +1309,23 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  const stickyHeaderOpacity = scrollY.interpolate({
-    inputRange: [heroHeight - 70, heroHeight - 20],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
-
   return (
     <View style={[s.container, { backgroundColor: C.background }]}>
-      {/* ── Sticky title header (appears on scroll) ── */}
-      <Animated.View
-        style={[
-          s.stickyHeader,
-          { paddingTop: insets.top + 6, opacity: stickyHeaderOpacity, backgroundColor: C.background },
-        ]}
-        pointerEvents="none"
-      >
-        <Text style={[s.stickyHeaderTitle, { color: C.text.primary }]} numberOfLines={1}>
-          {title}
-        </Text>
-      </Animated.View>
 
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
-        )}
-        scrollEventThrottle={16}
-      >
-        {/* ── Hero ── */}
-        {recipe?.image_uri ? (
-          /* ── Full photo hero ── */
-          <View style={[s.hero, { height: heroHeight }]}>
-            <Image
-              source={{ uri: recipe.image_uri }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0)", "rgba(0,0,0,0.7)"]}
-              style={StyleSheet.absoluteFill}
-              locations={[0, 0.35, 1]}
-            />
-            <View
-              style={[s.heroTopBar, { paddingTop: insets.top + 8, flexDirection: isHe ? "row-reverse" : "row" }]}
-            >
-              <TouchableOpacity
-                style={s.heroIconBtn}
-                onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "חזור" : "Back"}
-              >
-                <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
-              </TouchableOpacity>
-              <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-                {!isDraft && (
-                  <>
-                    <TouchableOpacity
-                      style={s.heroIconBtn}
-                      onPress={() => recipe && void shareRecipe(recipe)}
-                      accessibilityRole="button"
-                      accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
-                    >
-                      <Ionicons name="share-outline" size={20} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.heroIconBtn}
-                      onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}
-                      accessibilityRole="button"
-                      accessibilityLabel={isHe ? "ערוך מתכון" : "Edit recipe"}
-                    >
-                      <Ionicons name="create-outline" size={20} color="#fff" />
-                    </TouchableOpacity>
-                    <Animated.View style={{ transform: [{ scale: favScale }] }}>
-                      <TouchableOpacity
-                        style={s.heroIconBtn}
-                        onPress={onFavoritePress}
-                        accessibilityRole="button"
-                        accessibilityLabel={isHe ? (isFav ? "הסר ממועדפים" : "הוסף למועדפים") : (isFav ? "Remove from favorites" : "Add to favorites")}
-                        accessibilityState={{ checked: isFav }}
-                      >
-                        <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
-                      </TouchableOpacity>
-                    </Animated.View>
-                  </>
-                )}
-              </View>
-            </View>
+      {/* ── Hero — fixed, does not scroll ── */}
+      {recipe?.image_uri ? (
+        <View style={[s.hero, { height: heroHeight, overflow: 'hidden' }]}>
+          <Image
+            source={{ uri: recipe.image_uri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0)", "rgba(0,0,0,0.7)"]}
+            style={StyleSheet.absoluteFill}
+            locations={[0, 0.35, 1]}
+          />
+          {!heroCollapsed && (
             <View style={[s.heroBottom, { paddingBottom: 20 }]}>
               {recipe?.source_type && recipe.source_type !== "manual" ? (
                 <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
@@ -1325,77 +1337,114 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 </Text>
               ) : null}
             </View>
+          )}
+        </View>
+      ) : (
+        <View style={{ height: heroHeight, backgroundColor: C.background, justifyContent: "flex-end" }}>
+          <View style={[s.compactHeroTitle, {
+            alignItems: isHe ? "flex-end" : "flex-start",
+            paddingHorizontal: 16,
+            paddingBottom: 16,
+          }]}>
+            {recipe?.source_type && recipe.source_type !== "manual" ? (
+              <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
+            ) : null}
+            <Text style={[s.heroTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>{title}</Text>
+            {cookHistory > 0 ? (
+              <Text style={[s.cookHistoryHero, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+                {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
+              </Text>
+            ) : null}
           </View>
-        ) : (
-          /* ── Compact no-photo header ── */
-          <LinearGradient
-            colors={["#FF6B6B", "#FF8E53"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[s.compactHero, { paddingTop: insets.top + 8 }]}
-          >
-            {/* Decorative emoji watermark */}
-            <Text style={s.compactHeroWatermark}>🍽️</Text>
+        </View>
+      )}
 
-            {/* Top bar */}
-            <View style={[s.heroTopBar, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <TouchableOpacity
-                style={s.heroIconBtn}
-                onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}
-                accessibilityRole="button"
-                accessibilityLabel={isHe ? "חזור" : "Back"}
-              >
-                <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color="#fff" />
-              </TouchableOpacity>
-              <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-                {!isDraft && (
-                  <>
+      {/* ── Buttons overlay on hero — always visible ── */}
+      {(() => {
+        const hasPhoto = !!recipe?.image_uri;
+        const btnStyle = hasPhoto ? s.heroIconBtn : [s.heroIconBtn, { backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border }];
+        const iconColor = hasPhoto ? "#fff" : C.text.primary;
+        return (
+          <View style={[s.fixedTopBar, { paddingTop: insets.top + 6, flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <TouchableOpacity
+              style={btnStyle}
+              onPress={() => { void Haptics.selectionAsync(); navigation.goBack(); }}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? "חזור" : "Back"}
+            >
+              <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color={iconColor} />
+            </TouchableOpacity>
+            <View style={[s.heroRightBtns, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              {!isDraft && (
+                <>
+                  <TouchableOpacity
+                    style={btnStyle}
+                    onPress={() => recipe && void shareRecipe(recipe)}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
+                  >
+                    <Ionicons name="share-outline" size={20} color={iconColor} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={btnStyle}
+                    onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? "ערוך מתכון" : "Edit recipe"}
+                  >
+                    <Ionicons name="create-outline" size={20} color={iconColor} />
+                  </TouchableOpacity>
+                  <Animated.View style={{ transform: [{ scale: favScale }] }}>
                     <TouchableOpacity
-                      style={s.heroIconBtn}
-                      onPress={() => recipe && void shareRecipe(recipe)}
+                      style={btnStyle}
+                      onPress={onFavoritePress}
                       accessibilityRole="button"
-                      accessibilityLabel={isHe ? "שתף מתכון" : "Share recipe"}
+                      accessibilityLabel={isHe ? (isFav ? "הסר ממועדפים" : "הוסף למועדפים") : (isFav ? "Remove from favorites" : "Add to favorites")}
+                      accessibilityState={{ checked: isFav }}
                     >
-                      <Ionicons name="share-outline" size={20} color="#fff" />
+                      <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : iconColor} />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.heroIconBtn}
-                      onPress={() => { void Haptics.selectionAsync(); navigation.navigate("EditRecipe", { id }); }}
-                      accessibilityRole="button"
-                      accessibilityLabel={isHe ? "ערוך מתכון" : "Edit recipe"}
-                    >
-                      <Ionicons name="create-outline" size={20} color="#fff" />
-                    </TouchableOpacity>
-                    <Animated.View style={{ transform: [{ scale: favScale }] }}>
-                      <TouchableOpacity
-                        style={s.heroIconBtn}
-                        onPress={onFavoritePress}
-                        accessibilityRole="button"
-                        accessibilityLabel={isHe ? (isFav ? "הסר ממועדפים" : "הוסף למועדפים") : (isFav ? "Remove from favorites" : "Add to favorites")}
-                        accessibilityState={{ checked: isFav }}
-                      >
-                        <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color={isFav ? "#FF4757" : "#fff"} />
-                      </TouchableOpacity>
-                    </Animated.View>
-                  </>
-                )}
-              </View>
+                  </Animated.View>
+                </>
+              )}
             </View>
+          </View>
+        );
+      })()}
 
-            {/* Title block */}
-            <View style={[s.compactHeroTitle, { alignItems: isHe ? "flex-end" : "flex-start" }]}>
-              {recipe?.source_type && recipe.source_type !== "manual" ? (
-                <View style={s.sourceBadge}><Text style={s.sourceBadgeText}>{recipe.source_type.toUpperCase()}</Text></View>
-              ) : null}
-              <Text style={[s.heroTitle, { textAlign: isHe ? "right" : "left" }]} numberOfLines={2}>{title}</Text>
-              {cookHistory > 0 ? (
-                <Text style={[s.cookHistoryHero, { textAlign: isHe ? "right" : "left" }]}>
-                  {isHe ? `בושל ${cookHistory} פעמים 👨‍🍳` : `Cooked ${cookHistory} times 👨‍🍳`}
-                </Text>
-              ) : null}
-            </View>
-          </LinearGradient>
-        )}
+      {/* ── Hero toggle — outside ScrollView so it never scrolls away ── */}
+      {hasPhoto && (
+        <TouchableOpacity
+          style={[s.heroToggleBar, { backgroundColor: C.background }]}
+          onPress={toggleHero}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={heroCollapsed ? (isHe ? "הצג תמונה" : "Show photo") : (isHe ? "הסתר תמונה" : "Hide photo")}
+        >
+          <View style={[s.heroHandlePill, { backgroundColor: C.text.primary + "30" }]} />
+          <View style={[s.heroTogglePill, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+            <Ionicons
+              name={heroCollapsed ? "image-outline" : "chevron-up"}
+              size={18}
+              color={C.text.primary}
+            />
+            <Text style={[s.heroToggleLabel, { color: C.text.primary }]}>
+              {heroCollapsed
+                ? (isHe ? "הצג תמונה" : "Show photo")
+                : (isHe ? "הסתר תמונה" : "Hide photo")}
+            </Text>
+            {!heroCollapsed && <Ionicons name="chevron-up" size={14} color={C.text.secondary} />}
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* ── Scrollable body — card rises over hero ── */}
+      <ScrollView
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: noteEditMode ? keyboardHeight + 24 : 10 + 58 + Math.max(insets.bottom - 2, 0) + 10 + 130 }}
+        style={[s.scrollCard, { backgroundColor: C.background, borderTopColor: C.text.primary + "18", borderTopWidth: hasPhoto ? 0 : 2 }]}
+      >
 
         {/* ── Info chips ── */}
         <View style={[s.infoStrip, { flexDirection: isHe ? "row-reverse" : "row" }]}>
@@ -1546,10 +1595,70 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
 
+          {/* ── Nutrition ── */}
+          {!isDraft && (
+            <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+              <TouchableOpacity
+                style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                onPress={() => nutritionEnabled ? toggleSection("nutrition") : undefined}
+                activeOpacity={nutritionEnabled ? 0.7 : 1}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "ערכי תזונה" : "Nutrition"}
+                accessibilityState={{ expanded: !collapsed.nutrition }}
+              >
+                <View style={{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
+                  <Text style={[s.sectionTitle, { color: C.text.primary }]}>
+                    {isHe ? "ערכי תזונה" : "Nutrition"}
+                  </Text>
+                  {!nutritionEnabled && (
+                    <View style={s.featureLockBadge}>
+                      <Ionicons name="lock-closed" size={10} color="#E65100" />
+                      <Text style={s.featureLockText}>{isHe ? "פרמיום" : "Premium"}</Text>
+                    </View>
+                  )}
+                </View>
+                {nutritionEnabled && (
+                  <Ionicons
+                    name={collapsed.nutrition ? (isHe ? "chevron-back" : "chevron-forward") : "chevron-down"}
+                    size={18}
+                    color={C.text.tertiary}
+                  />
+                )}
+              </TouchableOpacity>
+
+              {nutritionEnabled ? (
+                !collapsed.nutrition && (
+                  <NutritionCard
+                    nutrition={nutrition}
+                    loading={nutritionLoading}
+                    ratio={ratio}
+                    displayServings={servings}
+                    isHe={isHe}
+                    C={C}
+                  />
+                )
+              ) : (
+                <View style={s.featureDisabled}>
+                  <Text style={[s.featureDisabledText, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+                    {isHe
+                      ? "ניתוח ערכי תזונה מופעל בעזרת AI. הפעל את התכונה בהגדרות כדי לראות קלוריות, חלבון, פחמימות ושומנים."
+                      : "Nutrition analysis is powered by AI. Enable the feature in Settings to see calories, protein, carbs and fat."}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* ── Ingredients ── */}
           <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-            <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <TouchableOpacity
+              style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}
+              onPress={() => toggleSection("ingredients")}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: !collapsed.ingredients }}
+            >
+              <View style={{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
                 <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "מרכיבים" : "Ingredients"}</Text>
                 {shownIngredients.length > 0 && (
                   <View style={s.countBadge}>
@@ -1558,29 +1667,37 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                 )}
               </View>
               <View style={[s.sectionHeaderActions, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-                <TouchableOpacity
-                  style={[s.pill, { borderColor: C.border, backgroundColor: C.surface }, checklistMode && s.pillActive]}
-                  onPress={() => {
-                    void Haptics.selectionAsync();
-                    setChecklistMode((v) => !v);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? (checklistMode ? "בטל מצב סימון" : "הפעל מצב סימון") : (checklistMode ? "Disable checklist" : "Enable checklist")}
-                  accessibilityState={{ checked: checklistMode }}
-                >
-                  <Ionicons
-                    name={checklistMode ? "checkmark-circle" : "checkmark-circle-outline"}
-                    size={13}
-                    color={checklistMode ? "#fff" : C.text.secondary}
-                  />
-                  <Text style={[s.pillText, { color: C.text.secondary }, checklistMode && s.pillTextActive]}>
-                    {isHe ? "סימון" : "Check"}
-                  </Text>
-                </TouchableOpacity>
+                {!collapsed.ingredients && (
+                  <TouchableOpacity
+                    style={[s.pill, { borderColor: C.border, backgroundColor: C.surface }, checklistMode && s.pillActive]}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      void Haptics.selectionAsync();
+                      setChecklistMode((v) => !v);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? (checklistMode ? "בטל מצב סימון" : "הפעל מצב סימון") : (checklistMode ? "Disable checklist" : "Enable checklist")}
+                    accessibilityState={{ checked: checklistMode }}
+                  >
+                    <Ionicons
+                      name={checklistMode ? "checkmark-circle" : "checkmark-circle-outline"}
+                      size={13}
+                      color={checklistMode ? "#fff" : C.text.secondary}
+                    />
+                    <Text style={[s.pillText, { color: C.text.secondary }, checklistMode && s.pillTextActive]}>
+                      {isHe ? "סימון" : "Check"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <Ionicons
+                  name={collapsed.ingredients ? (isHe ? "chevron-back" : "chevron-forward") : "chevron-down"}
+                  size={18}
+                  color={C.text.tertiary}
+                />
               </View>
-            </View>
+            </TouchableOpacity>
 
-            {shownIngredients.length === 0 ? (
+            {!collapsed.ingredients && (shownIngredients.length === 0 ? (
               <Text style={[s.emptyHint, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "אין מרכיבים — ערוך את המתכון להוספה" : "No ingredients — edit recipe to add"}
               </Text>
@@ -1638,13 +1755,19 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                 );
               })
-            )}
+            ))}
           </View>
 
           {/* ── Steps ── */}
           <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-            <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <TouchableOpacity
+              style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}
+              onPress={() => toggleSection("steps")}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: !collapsed.steps }}
+            >
+              <View style={{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", gap: 6 }}>
                 <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "שלבי הכנה" : "Steps"}</Text>
                 {rawSteps.length > 0 && (
                   <View style={s.countBadge}>
@@ -1652,9 +1775,14 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
               </View>
-            </View>
+              <Ionicons
+                name={collapsed.steps ? (isHe ? "chevron-back" : "chevron-forward") : "chevron-down"}
+                size={18}
+                color={C.text.tertiary}
+              />
+            </TouchableOpacity>
 
-            {rawSteps.length === 0 ? (
+            {!collapsed.steps && (rawSteps.length === 0 ? (
               <Text style={[s.emptyHint, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
                 {isHe ? "אין שלבים — ערוך את המתכון להוספה" : "No steps — edit recipe to add"}
               </Text>
@@ -1728,33 +1856,93 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
                   </Swipeable>
                 );
               })
-            )}
+            ))}
           </View>
 
           {/* ── Personal notes ── */}
           {!isDraft && (
             <View style={[s.section, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-              <View style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+              <TouchableOpacity
+                style={[s.sectionHeader, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                onPress={() => toggleSection("notes")}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: !collapsed.notes }}
+              >
                 <Text style={[s.sectionTitle, { color: C.text.primary }]}>{isHe ? "הערות אישיות" : "My notes"}</Text>
-                {noteSaving && <Text style={[s.noteSavingText, { color: C.text.tertiary }]}>{isHe ? "שומר..." : "Saving..."}</Text>}
-              </View>
-              <TextInput
-                style={[s.noteInput, { textAlign: isHe ? "right" : "left", backgroundColor: C.surface, borderColor: C.border, color: C.text.primary }]}
-                value={noteText}
-                onChangeText={handleNoteChange}
-                placeholder={isHe ? "הוסף הערות אישיות, שינויים שעשית, ..." : "Add personal notes, changes you made, ..."}
-                placeholderTextColor={C.text.tertiary}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+                <View style={{ flexDirection: isHe ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
+                  {noteSaving && <Text style={[s.noteSavingText, { color: C.text.tertiary }]}>{isHe ? "שומר..." : "Saving..."}</Text>}
+                  {!collapsed.notes && !noteEditMode && (
+                    <TouchableOpacity
+                      onPress={(e) => { e.stopPropagation?.(); void Haptics.selectionAsync(); if (collapsed.notes) toggleSection("notes"); setNoteEditMode(true); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "ערוך הערות" : "Edit notes"}
+                    >
+                      <Ionicons name="pencil-outline" size={16} color={C.text.tertiary} />
+                    </TouchableOpacity>
+                  )}
+                  <Ionicons
+                    name={collapsed.notes ? (isHe ? "chevron-back" : "chevron-forward") : "chevron-down"}
+                    size={18}
+                    color={C.text.tertiary}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {!collapsed.notes && (
+                noteEditMode ? (
+                  <View>
+                    <TextInput
+                      style={[s.noteInput, { textAlign: isHe ? "right" : "left", backgroundColor: C.surface, borderColor: C.primary + "60", color: C.text.primary }]}
+                      value={noteText}
+                      onChangeText={handleNoteChange}
+                      placeholder={isHe ? "הוסף הערות אישיות, שינויים שעשית, ..." : "Add personal notes, changes you made, ..."}
+                      placeholderTextColor={C.text.tertiary}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={[s.noteDoneBtn, { backgroundColor: C.primary }]}
+                      onPress={() => void handleNoteDone()}
+                      accessibilityRole="button"
+                      accessibilityLabel={isHe ? "שמור הערות" : "Save notes"}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Text style={s.notedoneBtnText}>{isHe ? "שמור" : "Save"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => { void Haptics.selectionAsync(); setNoteEditMode(true); }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? "ערוך הערות" : "Edit notes"}
+                  >
+                    {noteText.trim() ? (
+                      <Text style={[s.noteReadOnly, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
+                        {noteText}
+                      </Text>
+                    ) : (
+                      <Text style={[s.noteReadOnly, { color: C.text.tertiary, textAlign: isHe ? "right" : "left", fontStyle: "italic" }]}>
+                        {isHe ? "הקש להוספת הערות אישיות..." : "Tap to add personal notes..."}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )
+              )}
             </View>
           )}
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
 
-      {/* ── Bottom action bar ── */}
-      <View style={[s.actionBar, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: C.surfaceElevated, borderTopColor: C.border }]}>
+      {/* ── Bottom action bar — sits above floating tab bar ── */}
+      {(() => {
+        const tabBarH = 10 + 58 + Math.max(insets.bottom - 2, 0);
+        return (
+      <View style={[s.actionBar, { paddingBottom: tabBarH + 10, backgroundColor: C.surfaceElevated, borderTopWidth: 2, borderTopColor: C.text.primary + "18" }]}>
         {isDraft ? (
           <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
             <TouchableOpacity
@@ -1830,6 +2018,8 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
           </>
         )}
       </View>
+        );
+      })()}
 
       {/* ── Cooking mode overlay ── */}
       {cookingMode && rawSteps.length > 0 ? (
@@ -1847,49 +2037,146 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
         visible={collectionModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setCollectionModalVisible(false)}
+        onRequestClose={handleCloseCollectionModal}
       >
         <Pressable
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
-          onPress={() => setCollectionModalVisible(false)}
+          onPress={handleCloseCollectionModal}
         />
         <View style={[s.collectionSheet, { backgroundColor: C.surfaceElevated }]}>
           <View style={[s.collectionHandle, { backgroundColor: C.border }]} />
-          <Text style={[s.collectionTitle, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-            {isHe ? "הוסף לאוסף" : "Add to collection"}
-          </Text>
-          {collections.length === 0 ? (
-            <Text style={[s.collectionEmpty, { color: C.text.secondary, textAlign: isHe ? "right" : "left" }]}>
-              {isHe ? "אין אוספים — צור אוסף מהתפריט" : "No collections — create one from the menu"}
+
+          {/* Header row with optional back button when in inline-create mode */}
+          <View style={[s.collectionHeaderRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            {inlineCreateMode && (
+              <TouchableOpacity
+                onPress={() => { setInlineCreateMode(false); setInlineCreateName(""); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "חזור" : "Back"}
+              >
+                <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={22} color={C.text.secondary} />
+              </TouchableOpacity>
+            )}
+            <Text style={[s.collectionTitle, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left", marginBottom: 0 }]}>
+              {inlineCreateMode
+                ? (isHe ? "אוסף חדש" : "New collection")
+                : (isHe ? "הוסף לאוסף" : "Add to collection")}
             </Text>
+          </View>
+
+          {/* ── Empty state ── */}
+          {collections.length === 0 && !inlineCreateMode ? (
+            <View style={s.collectionWelcome}>
+              <Text style={s.collectionWelcomeEmoji}>🗂️</Text>
+              <Text style={[s.collectionWelcomeTitle, { color: C.text.primary }]}>
+                {isHe ? "צור את האוסף הראשון שלך!" : "Create your first collection!"}
+              </Text>
+              <Text style={[s.collectionWelcomeSub, { color: C.text.secondary }]}>
+                {isHe
+                  ? "אוספים מאפשרים לך לארגן מתכונים לפי נושא — ארוחות שבת, קינוחים מועדפים, ועוד."
+                  : "Collections let you group recipes by theme — weekend dinners, favourite desserts, and more."}
+              </Text>
+              <TouchableOpacity
+                style={[s.collectionCreateBtn, { backgroundColor: Colors.primary }]}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setInlineCreateMode(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "צור אוסף" : "Create collection"}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={s.collectionCreateBtnText}>
+                  {isHe ? "צור אוסף" : "Create collection"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : inlineCreateMode ? (
+            /* ── Inline create form ── */
+            <View style={s.collectionInlineForm}>
+              <TextInput
+                style={[s.collectionInlineInput, { backgroundColor: C.surface, borderColor: C.border, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}
+                placeholder={isHe ? "שם האוסף..." : "Collection name..."}
+                placeholderTextColor={C.text.tertiary}
+                value={inlineCreateName}
+                onChangeText={setInlineCreateName}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  if (!inlineCreateName.trim()) return;
+                  void (async () => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    await createCollection(inlineCreateName.trim(), inlineCreateName.trim(), Colors.primary, "📁");
+                    await loadCollections();
+                    setInlineCreateName("");
+                    setInlineCreateMode(false);
+                  })();
+                }}
+              />
+              <TouchableOpacity
+                style={[s.collectionCreateBtn, { backgroundColor: Colors.primary, opacity: inlineCreateName.trim() ? 1 : 0.45 }]}
+                disabled={!inlineCreateName.trim()}
+                onPress={() => {
+                  void (async () => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    await createCollection(inlineCreateName.trim(), inlineCreateName.trim(), Colors.primary, "📁");
+                    await loadCollections();
+                    setInlineCreateName("");
+                    setInlineCreateMode(false);
+                  })();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "שמור" : "Save"}
+              >
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={s.collectionCreateBtnText}>{isHe ? "שמור" : "Save"}</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
-            collections.map((col) => {
-              const inCol = recipeCollectionIds.includes(col.id);
-              const colName = isHe ? col.name_he : (col.name_en ?? col.name_he);
-              return (
-                <TouchableOpacity
-                  key={col.id}
-                  style={[s.collectionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}
-                  onPress={() => void handleToggleCollection(col.id)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={isHe ? (inCol ? `הסר מ${colName}` : `הוסף ל${colName}`) : (inCol ? `Remove from ${colName}` : `Add to ${colName}`)}
-                  accessibilityState={{ checked: inCol }}
-                >
-                  <View style={[s.collectionIconWrap, { backgroundColor: col.color + "22" }]}>
-                    <Text style={{ fontSize: 22 }}>{col.icon}</Text>
-                  </View>
-                  <Text style={[s.collectionRowName, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-                    {colName}
-                  </Text>
-                  <Ionicons
-                    name={inCol ? "checkmark-circle" : "ellipse-outline"}
-                    size={22}
-                    color={inCol ? col.color : C.text.tertiary}
-                  />
-                </TouchableOpacity>
-              );
-            })
+            /* ── Collection list ── */
+            <>
+              {collections.map((col) => {
+                const inCol = recipeCollectionIds.includes(col.id);
+                const colName = isHe ? col.name_he : (col.name_en ?? col.name_he);
+                return (
+                  <TouchableOpacity
+                    key={col.id}
+                    style={[s.collectionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}
+                    onPress={() => void handleToggleCollection(col.id)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={isHe ? (inCol ? `הסר מ${colName}` : `הוסף ל${colName}`) : (inCol ? `Remove from ${colName}` : `Add to ${colName}`)}
+                    accessibilityState={{ checked: inCol }}
+                  >
+                    <View style={[s.collectionIconWrap, { backgroundColor: col.color + "22" }]}>
+                      <Text style={{ fontSize: 22 }}>{col.icon}</Text>
+                    </View>
+                    <Text style={[s.collectionRowName, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
+                      {colName}
+                    </Text>
+                    <Ionicons
+                      name={inCol ? "checkmark-circle" : "ellipse-outline"}
+                      size={22}
+                      color={inCol ? col.color : C.text.tertiary}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+              {/* Add another collection shortcut */}
+              <TouchableOpacity
+                style={[s.collectionAddAnother, { flexDirection: isHe ? "row-reverse" : "row", borderTopColor: C.border }]}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setInlineCreateMode(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={isHe ? "צור אוסף חדש" : "New collection"}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+                <Text style={s.collectionAddAnotherText}>{isHe ? "אוסף חדש" : "New collection"}</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </Modal>
@@ -1904,28 +2191,70 @@ export default function RecipeDetailScreen({ route, navigation }: any) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
-  // Sticky header
-  stickyHeader: {
+  // Fixed top bar
+  fixedTopBar: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingBottom: 10,
-    backgroundColor: Colors.background,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 8,
+    justifyContent: "space-between",
   },
-  stickyHeaderTitle: {
+  // Hero toggle
+  heroToggleBar: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 6,
+    gap: 6,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+  },
+  heroHandle: {
+    alignItems: "center",
+    gap: 2,
+    paddingBottom: 2,
+  },
+  heroHandlePill: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  heroTogglePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  heroToggleLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  heroToggleCollapsed: {
+    alignItems: "center",
+    gap: 10,
+    paddingBottom: 4,
+  },
+  heroToggleTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: Colors.text.primary,
-    letterSpacing: -0.2,
+  },
+
+  // Scroll card — rounded top corners, sits flush below hero
+  scrollCard: {
+    flex: 1,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
   // Hero
@@ -1950,16 +2279,6 @@ const s = StyleSheet.create({
   },
   heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   heroEmoji: { fontSize: 72 },
-  heroTopBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 12,
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 10,
-  },
   heroIconBtn: {
     width: 40,
     height: 40,
@@ -2147,9 +2466,9 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: "800",
     color: Colors.text.primary,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   sectionHeaderActions: { gap: 6, alignItems: "center" },
 
@@ -2329,15 +2648,13 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: Colors.surfaceElevated,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
     paddingHorizontal: 16,
     paddingTop: 10,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 14,
   },
   actionRow: {
     alignItems: "center",
@@ -2349,9 +2666,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 13,
+    height: 50,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: 15,
   },
   actionBtnPrimaryText: {
     fontSize: 15,
@@ -2372,9 +2689,9 @@ const s = StyleSheet.create({
     color: Colors.text.secondary,
   },
   actionBtnIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 50,
+    height: 50,
+    borderRadius: 15,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -2399,16 +2716,97 @@ const s = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 18,
   },
+  collectionHeaderRow: {
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
   collectionTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: Colors.text.primary,
-    marginBottom: 16,
   },
-  collectionEmpty: {
+
+  // Welcome / empty state
+  collectionWelcome: {
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingBottom: 8,
+  },
+  collectionWelcomeEmoji: { fontSize: 52, marginBottom: 14 },
+  collectionWelcomeTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.text.primary,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  collectionWelcomeSub: {
     fontSize: 14,
     color: Colors.text.secondary,
-    marginBottom: 16,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  collectionCreateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  collectionCreateBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  // Inline create form
+  collectionInlineForm: {
+    gap: 12,
+    paddingBottom: 8,
+  },
+  collectionInlineInput: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    borderWidth: 1,
+  },
+
+  // Add another row (below list)
+  collectionAddAnother: {
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 14,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  collectionAddAnotherText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+
+  // Feature lock
+  featureLockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FFF3E0",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  featureLockText: { fontSize: 10, fontWeight: "700", color: "#E65100" },
+  featureDisabled: {
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  featureDisabledText: {
+    fontSize: 13,
+    lineHeight: 19,
   },
   collectionRow: {
     alignItems: "center",
@@ -2465,26 +2863,199 @@ const s = StyleSheet.create({
     lineHeight: 20,
     minHeight: 80,
   },
+  noteReadOnly: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.text.secondary,
+    paddingVertical: 4,
+    paddingBottom: 8,
+  },
+  noteDoneBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 10,
+    paddingVertical: 9,
+  },
+  notedoneBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 
   // Start Cooking hero button
   startCookingBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 15,
+    gap: 10,
+    paddingVertical: 16,
     marginBottom: 10,
     backgroundColor: "#2E9E8F",
-    borderRadius: 16,
+    borderRadius: 18,
+    shadowColor: "#2E9E8F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   startCookingEmoji: {
-    fontSize: 20,
+    fontSize: 22,
   },
   startCookingText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "800",
     color: "#fff",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+  },
+});
+
+// ─── Nutrition Card ───────────────────────────────────────────────────────────
+
+function NutritionCard({
+  nutrition,
+  loading,
+  ratio,
+  displayServings,
+  isHe,
+  C,
+}: {
+  nutrition: NutritionData | null;
+  loading: boolean;
+  ratio: number;
+  displayServings: number;
+  isHe: boolean;
+  C: ReturnType<typeof import('../hooks/useThemeColors').useThemeColors>;
+}) {
+  const macroConfig = [
+    { emoji: '🔥', labelHe: 'קלוריות', labelEn: 'kcal',    key: 'calories' as const },
+    { emoji: '💪', labelHe: 'חלבון',   labelEn: 'protein', key: 'protein' as const },
+    { emoji: '🌾', labelHe: 'פחמימות', labelEn: 'carbs',   key: 'carbs' as const },
+    { emoji: '🫒', labelHe: 'שומן',    labelEn: 'fat',     key: 'fat' as const },
+  ];
+
+  function MacroRow({ values, label }: { values: MacrosPerServing; label: string }) {
+    return (
+      <View style={nc.macroBlock}>
+        <Text style={[nc.rowLabel, { color: C.text.tertiary, textAlign: isHe ? 'right' : 'left' }]}>
+          {label}
+        </Text>
+        <View style={nc.macroRow}>
+          {macroConfig.map(m => (
+            <View key={m.key} style={[nc.macroPill, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <Text style={nc.macroEmoji}>{m.emoji}</Text>
+              <Text style={[nc.macroValue, { color: C.text.primary }]}>
+                {m.key === 'calories' ? values[m.key].toLocaleString() : values[m.key]}
+                {m.key !== 'calories' ? 'g' : ''}
+              </Text>
+              <Text style={[nc.macroLabel, { color: C.text.tertiary }]}>
+                {isHe ? m.labelHe : m.labelEn}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {loading && !nutrition ? (
+        <View style={nc.shimmerWrap}>
+          <View style={[nc.shimmerBar, { backgroundColor: C.border, width: '80%' }]} />
+          <View style={[nc.shimmerBar, { backgroundColor: C.border, width: '60%', marginTop: 8 }]} />
+          <Text style={[nc.aiLabel, { color: C.text.tertiary, marginTop: 6 }]}>
+            {isHe ? 'מחשב ערכים תזונתיים...' : 'Calculating nutrition...'}
+          </Text>
+        </View>
+      ) : nutrition ? (
+        <>
+          <MacroRow
+            values={{
+              calories: Math.round(nutrition.calories * ratio),
+              protein: Math.round(nutrition.protein * ratio),
+              carbs: Math.round(nutrition.carbs * ratio),
+              fat: Math.round(nutrition.fat * ratio),
+              fiber: Math.round(nutrition.fiber * ratio),
+            }}
+            label={isHe
+              ? `המתכון המלא (${displayServings} מנות)`
+              : `Full recipe (${displayServings} servings)`}
+          />
+          <View style={[nc.divider, { backgroundColor: C.border }]} />
+          <MacroRow
+            values={perServing(nutrition)}
+            label={isHe ? 'למנה אחת' : 'Per serving'}
+          />
+          {(nutrition.prep_tip_he || nutrition.prep_tip_en) && (
+            <>
+              <View style={[nc.divider, { backgroundColor: C.border }]} />
+              <Text style={[nc.prepTip, { color: C.text.secondary, textAlign: isHe ? 'right' : 'left' }]}>
+                🥡 {isHe ? nutrition.prep_tip_he : nutrition.prep_tip_en}
+              </Text>
+            </>
+          )}
+          <Text style={[nc.aiLabel, { color: C.text.tertiary, textAlign: isHe ? 'right' : 'left' }]}>
+            {isHe ? '* הערכה בעזרת AI' : '* AI estimate'}
+          </Text>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+const nc = StyleSheet.create({
+  macroBlock: {
+    paddingTop: 10,
+    paddingHorizontal: 4,
+    paddingBottom: 10,
+    gap: 8,
+  },
+  rowLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    paddingHorizontal: 2,
+  },
+  macroRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  macroPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 5,
+  },
+  macroEmoji: { fontSize: 26 },
+  macroValue: { fontSize: 20, fontWeight: '800' },
+  macroLabel: { fontSize: 12, fontWeight: '600' },
+  divider: { height: 1, marginHorizontal: 0, marginVertical: 10 },
+  prepTip: {
+    fontSize: 14,
+    lineHeight: 21,
+    paddingHorizontal: 2,
+    paddingBottom: 8,
+  },
+  aiLabel: {
+    fontSize: 11,
+    paddingHorizontal: 2,
+    paddingBottom: 4,
+    fontStyle: 'italic',
+  },
+  shimmerWrap: {
+    paddingBottom: 16,
+    gap: 6,
+  },
+  shimmerBar: {
+    height: 16,
+    borderRadius: 8,
   },
 });
 

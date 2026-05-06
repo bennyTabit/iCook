@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  BackHandler,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -20,7 +21,8 @@ import { Colors } from "../constants/colors";
 import { Typography } from "../constants/typography";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { isHebrew } from "../lib/i18n";
-import { getRecipeById, insertRecipe, updateRecipe } from "../lib/db";
+import { getRecipeById, insertRecipe, updateRecipe, getCategories, getRecipeCategoryIds, type Category } from "../lib/db";
+import * as Haptics from "expo-haptics";
 import { pickRecipeImage, requestMediaPermissions } from "../lib/ocr";
 import { useRecipeStore } from "../store/recipeStore";
 
@@ -63,21 +65,11 @@ function parseFreeNotes(notes: string) {
 }
 
 const DIFFICULTIES = ["easy", "medium", "hard"] as const;
-const CATEGORIES = [
-  { key: "pasta",     labelHe: "פסטה",         labelEn: "Pasta",      id: 2 },
-  { key: "salads",    labelHe: "סלטים",         labelEn: "Salads",     id: 3 },
-  { key: "desserts",  labelHe: "קינוחים",       labelEn: "Desserts",   id: 4 },
-  { key: "soups",     labelHe: "מרקים",         labelEn: "Soups",      id: 5 },
-  { key: "meat",      labelHe: "בשר",           labelEn: "Meat",       id: 6 },
-  { key: "fish",      labelHe: "דגים",          labelEn: "Fish",       id: 7 },
-  { key: "veggie",    labelHe: "צמחוני",        labelEn: "Veggie",     id: 8 },
-  { key: "breakfast", labelHe: "ארוחות בוקר",   labelEn: "Breakfast",  id: 9 },
-];
 
 type DraftState = {
   title: string;
   imageUri: string;
-  categoryKey: string;
+  categoryIds: number[];
   ingredients: string[];
   steps: string[];
   prepTime: string;
@@ -92,7 +84,7 @@ function createInitialState(): DraftState {
   return {
     title: "",
     imageUri: "",
-    categoryKey: "",
+    categoryIds: [],
     ingredients: [""],
     steps: [""],
     prepTime: "",
@@ -143,6 +135,11 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   const [state, setState] = useState<DraftState>(createInitialState());
   const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    void getCategories().then(setAllCategories);
+  }, []);
 
   const initialSnapshotRef = useRef<string>(JSON.stringify(createInitialState()));
 
@@ -152,25 +149,40 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   );
 
   // ── Unsaved-changes guard ───────────────────────────────────────────────────
+  function handleBack() {
+    if (!isDirty || saving) {
+      navigation.goBack();
+      return;
+    }
+    Alert.alert(
+      isHe ? "יש שינויים שלא נשמרו" : "Unsaved changes",
+      isHe ? "מה ברצונך לעשות עם השינויים?" : "What would you like to do?",
+      [
+        { text: isHe ? "המשך עריכה" : "Keep editing", style: "cancel" },
+        {
+          text: isHe ? "שמור ויצא" : "Save & leave",
+          onPress: () => { void handleSave(); },
+        },
+        {
+          text: isHe ? "בטל שינויים" : "Discard",
+          style: "destructive",
+          onPress: () => navigation.goBack(),
+        },
+      ],
+    );
+  }
+
+  // Android hardware back button
   useEffect(() => {
-    const unsub = navigation.addListener("beforeRemove", (e: any) => {
-      if (!isDirty || saving) return;
-      e.preventDefault();
-      Alert.alert(
-        isHe ? "לצאת בלי לשמור?" : "Leave without saving?",
-        isHe ? "יש לך שינויים שלא נשמרו" : "You have unsaved changes",
-        [
-          { text: isHe ? "הישאר" : "Stay", style: "cancel" },
-          {
-            text: isHe ? "צא" : "Leave",
-            style: "destructive",
-            onPress: () => navigation.dispatch(e.data.action),
-          },
-        ],
-      );
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (isDirty && !saving) {
+        handleBack();
+        return true;
+      }
+      return false;
     });
-    return unsub;
-  }, [navigation, isDirty, saving, isHe]);
+    return () => sub.remove();
+  }, [isDirty, saving]);
 
   // ── Hydrate from DB (edit) or AsyncStorage (draft) ─────────────────────────
   useEffect(() => {
@@ -183,10 +195,11 @@ export default function EditRecipeScreen({ route, navigation }: any) {
             : (recipe.notes_en ?? recipe.notes_he ?? "");
           const parsedIngredients = parseSectionLines(notesSrc, "ingredients");
           const parsedSteps = parseSectionLines(notesSrc, "steps");
+          const existingCategoryIds = await getRecipeCategoryIds(id);
           const nextState: DraftState = {
             title: isHe ? recipe.title_he : (recipe.title_en ?? recipe.title_he),
             imageUri: recipe.image_uri ?? "",
-            categoryKey: "pasta",
+            categoryIds: existingCategoryIds,
             ingredients: parsedIngredients.length ? parsedIngredients : [""],
             steps: parsedSteps.length ? parsedSteps : [""],
             prepTime: recipe.prep_time_min ? String(recipe.prep_time_min) : "",
@@ -207,6 +220,7 @@ export default function EditRecipeScreen({ route, navigation }: any) {
       if (raw) {
         try {
           const parsed = JSON.parse(raw) as DraftState;
+          if (!Array.isArray(parsed.categoryIds)) parsed.categoryIds = [];
           setState(parsed);
           initialSnapshotRef.current = JSON.stringify(parsed);
         } catch {
@@ -312,7 +326,6 @@ export default function EditRecipeScreen({ route, navigation }: any) {
 
     setSaving(true);
     try {
-      const cat = CATEGORIES.find((c) => c.key === state.categoryKey);
       const ingredients = state.ingredients.map((s) => s.trim()).filter(Boolean);
       const steps = state.steps.map((s) => s.trim()).filter(Boolean);
 
@@ -331,7 +344,6 @@ export default function EditRecipeScreen({ route, navigation }: any) {
       const payload = {
         title_he: state.title.trim(),
         title_en: state.title.trim(),
-        category_id: cat?.id,
         image_uri: state.imageUri || undefined,
         prep_time_min: state.prepTime ? parseInt(state.prepTime, 10) : undefined,
         cook_time_min: state.cookTime ? parseInt(state.cookTime, 10) : undefined,
@@ -345,9 +357,9 @@ export default function EditRecipeScreen({ route, navigation }: any) {
 
       let recipeId = id;
       if (id) {
-        await updateRecipe(id, payload);
+        await updateRecipe(id, payload, state.categoryIds);
       } else {
-        recipeId = await insertRecipe(payload);
+        recipeId = await insertRecipe(payload, state.categoryIds);
       }
 
       await loadRecipes();
@@ -378,7 +390,22 @@ export default function EditRecipeScreen({ route, navigation }: any) {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["left", "right"]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={["top", "left", "right"]}>
+      {/* ── Header ── */}
+      <View style={[s.header, { flexDirection: isHe ? "row-reverse" : "row", borderBottomColor: C.border }]}>
+        <TouchableOpacity
+          onPress={handleBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? "חזור" : "Back"}
+        >
+          <Ionicons name={isHe ? "chevron-forward" : "chevron-back"} size={26} color={C.text.primary} />
+        </TouchableOpacity>
+        <Text style={[s.screenTitle, { color: C.text.primary, flex: 1, textAlign: isHe ? "right" : "left" }]} numberOfLines={1}>
+          {id ? (isHe ? "עריכת מתכון" : "Edit recipe") : (isHe ? "מתכון חדש" : "New recipe")}
+        </Text>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -389,12 +416,6 @@ export default function EditRecipeScreen({ route, navigation }: any) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Screen title */}
-        <Text style={[s.screenTitle, { textAlign: isHe ? "right" : "left", color: C.text.primary }]}>
-          {id
-            ? (isHe ? "עריכת מתכון" : "Edit recipe")
-            : (isHe ? "מתכון חדש" : "New recipe")}
-        </Text>
 
         {/* ── Recipe name ── */}
         <TextInput
@@ -429,30 +450,33 @@ export default function EditRecipeScreen({ route, navigation }: any) {
           )}
         </TouchableOpacity>
 
-        {/* ── Category ── */}
-        <SectionHeader title={isHe ? "קטגוריה" : "Category"} isHe={isHe} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.chipScroll}
-          style={isHe ? { transform: [{ scaleX: -1 }] } : undefined}
-        >
-          {CATEGORIES.map((c) => {
-            const selected = c.key === state.categoryKey;
+        {/* ── Category (multi-select) ── */}
+        <SectionHeader title={isHe ? "קטגוריות" : "Categories"} isHe={isHe} />
+        <View style={s.categoryWrap}>
+          {allCategories.map((cat) => {
+            const selected = state.categoryIds.includes(cat.id);
             return (
               <TouchableOpacity
-                key={c.key}
-                style={[s.chip, { borderColor: C.border, backgroundColor: C.surfaceElevated }, selected && s.chipActive, isHe ? { transform: [{ scaleX: -1 }] } : undefined]}
-                onPress={() => patch({ categoryKey: c.key })}
+                key={cat.id}
+                style={[s.chip, { borderColor: C.border, backgroundColor: C.surfaceElevated }, selected && s.chipActive]}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  patch({
+                    categoryIds: selected
+                      ? state.categoryIds.filter(id => id !== cat.id)
+                      : [...state.categoryIds, cat.id],
+                  });
+                }}
                 activeOpacity={0.8}
               >
+                <Text style={{ fontSize: 14 }}>{cat.icon}</Text>
                 <Text style={[s.chipText, { color: C.text.secondary }, selected && s.chipTextActive]}>
-                  {isHe ? c.labelHe : c.labelEn}
+                  {isHe ? cat.name_he : cat.name_en}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
 
         {/* ── Details card ── */}
         <SectionHeader title={isHe ? "פרטים" : "Details"} isHe={isHe} />
@@ -628,20 +652,33 @@ export default function EditRecipeScreen({ route, navigation }: any) {
           </Text>
         </TouchableOpacity>
 
-        {/* ── Save button ── */}
-        <TouchableOpacity
-          style={[s.saveBtn, saving && { opacity: 0.65 }]}
-          disabled={saving}
-          onPress={handleSave}
-        >
-          <Text style={s.saveBtnText}>
-            {saving
-              ? (isHe ? "שומר..." : "Saving...")
-              : id
-                ? (isHe ? "שמור שינויים" : "Save changes")
-                : (isHe ? "שמור מתכון" : "Save recipe")}
-          </Text>
-        </TouchableOpacity>
+        {/* ── Save / Cancel row ── */}
+        <View style={[s.actionRow, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+          <TouchableOpacity
+            style={[s.saveBtn, { flex: 1 }, saving && { opacity: 0.65 }]}
+            disabled={saving}
+            onPress={handleSave}
+          >
+            <Text style={s.saveBtnText}>
+              {saving
+                ? (isHe ? "שומר..." : "Saving...")
+                : id
+                  ? (isHe ? "שמור שינויים" : "Save changes")
+                  : (isHe ? "שמור מתכון" : "Save recipe")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.cancelBtn, { borderColor: C.border, backgroundColor: C.surface }]}
+            disabled={saving}
+            onPress={handleBack}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? "ביטול" : "Cancel"}
+          >
+            <Text style={[s.cancelBtnText, { color: C.text.secondary }]}>
+              {isHe ? "ביטול" : "Cancel"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -654,11 +691,19 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 16, paddingBottom: 100 },
 
-  // Screen heading
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   screenTitle: {
-    ...Typography.h2,
+    fontSize: 18,
+    fontWeight: "700",
     color: Colors.text.primary,
-    marginBottom: 16,
   },
 
   // Prominent title input — no box, just an underline
@@ -746,9 +791,13 @@ const s = StyleSheet.create({
 
   // Category chips (horizontal scroll)
   chipScroll: { gap: 8 },
+  categoryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     borderRadius: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -941,9 +990,13 @@ const s = StyleSheet.create({
     color: Colors.primary,
   },
 
-  // Save button
-  saveBtn: {
+  // Save / Cancel row
+  actionRow: {
     marginTop: 20,
+    gap: 10,
+    alignItems: "stretch",
+  },
+  saveBtn: {
     minHeight: 52,
     borderRadius: 14,
     backgroundColor: Colors.primary,
@@ -959,5 +1012,17 @@ const s = StyleSheet.create({
     ...Typography.button,
     color: Colors.text.inverse,
     fontSize: 16,
+  },
+  cancelBtn: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

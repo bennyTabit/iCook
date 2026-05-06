@@ -7,6 +7,8 @@ export type SortOrder =
   | "favorites"
   | "last_used";
 
+export type CaloriesMode = "per_serving" | "total";
+
 export type FilterState = {
   query: string;
   categoryId: number | null;
@@ -16,6 +18,8 @@ export type FilterState = {
   sourceType: string | null;
   sortBy: SortOrder;
   favoritesOnly: boolean;
+  maxCalories: number | null;
+  caloriesMode: CaloriesMode;
 };
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -27,6 +31,8 @@ export const DEFAULT_FILTERS: FilterState = {
   sourceType: null,
   sortBy: "newest",
   favoritesOnly: false,
+  maxCalories: null,
+  caloriesMode: "per_serving",
 };
 
 export type RecipeSummary = {
@@ -43,6 +49,7 @@ export type RecipeSummary = {
   category_name_he: string;
   category_name_en: string;
   tag_ids: string; // comma-separated from GROUP_CONCAT
+  ai_nutrition: string | null;
 };
 
 // Full-text + filter search — tag filtering done in JS (SQLite has no FIND_IN_SET)
@@ -57,12 +64,11 @@ export async function searchRecipes(
       r.id, r.title_he, r.title_en, r.image_uri,
       r.servings,
       r.cook_time_min, r.prep_time_min, r.difficulty,
-      r.is_favorite, r.source_type, r.created_at, r.updated_at,
-      c.name_he AS category_name_he,
-      c.name_en AS category_name_en,
+      r.is_favorite, r.source_type, r.ai_nutrition, r.created_at, r.updated_at,
+      (SELECT c.name_he FROM recipe_categories rc JOIN categories c ON rc.category_id = c.id WHERE rc.recipe_id = r.id LIMIT 1) AS category_name_he,
+      (SELECT c.name_en FROM recipe_categories rc JOIN categories c ON rc.category_id = c.id WHERE rc.recipe_id = r.id LIMIT 1) AS category_name_en,
       GROUP_CONCAT(rt.tag_id) AS tag_ids
     FROM recipes r
-    LEFT JOIN categories c ON r.category_id = c.id
     LEFT JOIN recipe_tags rt ON r.id = rt.recipe_id
   `;
 
@@ -86,7 +92,7 @@ export async function searchRecipes(
     sql += " AND r.is_favorite = 1";
   }
   if (filters.categoryId) {
-    sql += " AND r.category_id = ?";
+    sql += " AND r.id IN (SELECT recipe_id FROM recipe_categories WHERE category_id = ?)";
     params.push(filters.categoryId);
   }
   if (filters.difficulty) {
@@ -100,6 +106,21 @@ export async function searchRecipes(
   if (filters.sourceType) {
     sql += " AND r.source_type = ?";
     params.push(filters.sourceType);
+  }
+  if (filters.maxCalories) {
+    // Only include recipes that have nutrition data and match the calorie limit.
+    // json_extract returns NULL for rows where ai_nutrition is NULL, so the
+    // comparison fails safely and those rows are excluded.
+    sql += " AND r.ai_nutrition IS NOT NULL";
+    if (filters.caloriesMode === "per_serving") {
+      sql += ` AND (
+        CAST(json_extract(r.ai_nutrition, '$.calories') AS REAL)
+        / MAX(CAST(json_extract(r.ai_nutrition, '$.servings') AS REAL), 1)
+      ) <= ?`;
+    } else {
+      sql += " AND CAST(json_extract(r.ai_nutrition, '$.calories') AS REAL) <= ?";
+    }
+    params.push(filters.maxCalories);
   }
 
   sql += " GROUP BY r.id";
@@ -151,5 +172,6 @@ export function countActiveFilters(f: FilterState): number {
   if (f.tagIds.length) n += f.tagIds.length;
   if (f.sourceType) n++;
   if (f.favoritesOnly) n++;
+  if (f.maxCalories) n++;
   return n;
 }
