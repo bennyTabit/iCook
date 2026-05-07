@@ -218,7 +218,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Breakfast ──────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1620991565081-82743a5a499c?w=800&q=80',
     title_he: 'פנקייקים אמריקאים',
     title_en: 'American Pancakes',
     description_he: 'פנקייקים תפוחים ורכים עם סירופ מייפל — ארוחת בוקר חלומית',
@@ -998,7 +998,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Desserts ───────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1475856033578-76b4a228f5c5?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1618822612659-dd44957a9462?w=800&q=80',
     title_he: 'עוגיות טחינה',
     title_en: 'Tahini Cookies',
     description_he: 'עוגיות טחינה פריכות ועשירות בטעם — פשוט להכנה ומוצלח תמיד',
@@ -1031,7 +1031,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1555670546-909815d14af6?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1766186930324-187ef2f45d47?w=800&q=80',
     title_he: 'סהרונים',
     title_en: 'Rugelach',
     description_he: 'סהרונים מתפוררים במילוי ריבה ואגוזים — קלאסיקה ישראלית אהובה',
@@ -1067,7 +1067,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1567171466295-4afa63d45416?w=800&q=80',
     title_he: 'עוגת גבינה אפויה',
     title_en: 'Baked Cheesecake',
     description_he: 'עוגת גבינה אפויה קלאסית עם קרסט ביסקוויטים — מלכת הקינוחים',
@@ -1105,7 +1105,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1511357840105-5958d1e7bf18?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1673551494277-92204546b504?w=800&q=80',
     title_he: 'מוס שוקולד מהיר',
     title_en: 'Quick Chocolate Mousse',
     description_he: 'מוס שוקולד קל וקטיפתי בכמה מרכיבים — קינוח שמרשים תמיד',
@@ -1141,7 +1141,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   // ── Baking ─────────────────────────────────────────────────────────────────
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1587668178277-295251f900ce?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1569762404472-026308ba6b64?w=800&q=80',
     title_he: 'עוגת בננות לחה',
     title_en: 'Moist Banana Cake',
     description_he: 'עוגת בננות לחה ועשירה מבננות בשלות — מה לעשות עם בננות שחורות',
@@ -1178,7 +1178,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1499636268110-7e0de20f5fe5?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=800&q=80',
     title_he: 'עוגיות שוקולד צ\'יפס',
     title_en: 'Chocolate Chip Cookies',
     description_he: 'עוגיות שוקולד צ\'יפס קלאסיות — פריכות בשוליים ורכות במרכז',
@@ -1215,7 +1215,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
   },
 
   {
-    image_uri: 'https://images.unsplash.com/photo-1606101273945-e9eba14e5c4f?w=800&q=80',
+    image_uri: 'https://images.unsplash.com/photo-1552056711-84ca09c0a8cd?w=800&q=80',
     title_he: 'לחם בננה שוקולד',
     title_en: 'Chocolate Banana Bread',
     description_he: 'לחם בננה עשיר עם שוקולד מריר — ארוחת בוקר שהיא גם קינוח',
