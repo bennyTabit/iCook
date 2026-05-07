@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -27,6 +28,7 @@ import { useThemeStore, type ThemePreference } from "../store/themeStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { isHebrew } from "../lib/i18n";
 import { useAuthStore } from "../store/authStore";
+import { useRecipeStore } from "../store/recipeStore";
 import i18n from "../lib/i18n";
 import {
   getNotificationPrefs,
@@ -39,7 +41,7 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
-// ── Dietary chip definitions (same as OnboardingScreen) ──────────────────────
+// ── Dietary chip definitions ──────────────────────────────────────────────────
 type DietaryTag = "vegan" | "dairy-free" | "gluten-free" | "nut-free" | "meat";
 const DIETARY_CHIPS: { tag: DietaryTag; emoji: string; labelHe: string; labelEn: string }[] = [
   { tag: "vegan",       emoji: "🌱", labelHe: "טבעוני",    labelEn: "Vegan" },
@@ -67,12 +69,16 @@ const THEME_LABEL_EN: Record<ThemePreference, string> = {
   dark:   "Dark",
 };
 
+// ── Row type ──────────────────────────────────────────────────────────────────
 type SettingRow = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
+  sub?: string;
   value?: string;
   onPress: () => void;
-  tint?: string;
+  tint?: string;          // icon & background accent colour
+  noChevron?: boolean;    // hide the trailing chevron (e.g. version row)
+  danger?: boolean;       // red label
 };
 
 export default function ProfileScreen() {
@@ -82,6 +88,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signInWithGoogle, signInWithApple, signOut, loading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Recipe stats from store
+  const { recipes } = useRecipeStore();
+  const totalRecipes   = recipes.length;
+  const favoriteCount  = recipes.filter(r => r.is_favorite === 1).length;
 
   // Notification prefs
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
@@ -94,8 +105,8 @@ export default function ProfileScreen() {
   const { preference: themePreference, setPreference: setThemePreference } = useThemeStore();
 
   // Dietary preferences
-  const [dietaryTags, setDietaryTags]   = useState<DietaryTag[]>([]);
-  const [showDietary, setShowDietary]   = useState(false);
+  const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
+  const [showDietary, setShowDietary] = useState(false);
 
   // Feature flags
   const { nutritionEnabled, setNutritionEnabled } = useSettingsStore();
@@ -249,6 +260,16 @@ export default function ProfileScreen() {
       .join(", ");
   }
 
+  // ── Share handler ──────────────────────────────────────────────────────────
+  async function handleShare() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Share.share({
+      message: isHe
+        ? "אני משתמש ב-iCook לשמירת המתכונים שלי 🍳\nנסה גם אתה!"
+        : "I use iCook to keep all my recipes in one place 🍳\nCheck it out!",
+    });
+  }
+
   // ── Name / avatar ──────────────────────────────────────────────────────────
   const resolvedName: string | null = user
     ? user.displayName ??
@@ -260,25 +281,28 @@ export default function ProfileScreen() {
 
   const avatarLetter = resolvedName?.[0]?.toUpperCase() ?? (isHe ? "א" : "A");
 
-  // ── Setting rows ───────────────────────────────────────────────────────────
+  // ── Row definitions ────────────────────────────────────────────────────────
   const GENERAL_ROWS: SettingRow[] = [
     {
       icon: "language-outline",
       label: isHe ? "שפה" : "Language",
       value: isHe ? "עברית" : "English",
       onPress: toggleLanguage,
+      tint: "#007AFF",
     },
     {
       icon: THEME_ICON[themePreference],
       label: isHe ? "ערכת נושא" : "Theme",
       value: isHe ? THEME_LABEL_HE[themePreference] : THEME_LABEL_EN[themePreference],
       onPress: handleCycleTheme,
+      tint: "#8B5CF6",
     },
     {
-      icon: "nutrition-outline",
+      icon: "leaf-outline",
       label: isHe ? "העדפות תזונה" : "Dietary",
       value: dietaryLabel(),
       onPress: () => setShowDietary(true),
+      tint: "#34C759",
     },
   ];
 
@@ -287,13 +311,53 @@ export default function ProfileScreen() {
       icon: "cloud-upload-outline",
       label: isHe ? "גיבוי ענן" : "Cloud Backup",
       value: user ? (isHe ? "מסונכרן" : "Synced") : (isHe ? "לא מחובר" : "Not connected"),
-      tint: user ? Colors.secondary : undefined,
+      tint: user ? Colors.secondary : "#8E8E93",
       onPress: () => {},
     },
     {
       icon: "download-outline",
       label: isHe ? "ייצוא מתכונים" : "Export Recipes",
       onPress: () => {},
+      tint: "#5856D6",
+    },
+  ];
+
+  const ABOUT_ROWS: SettingRow[] = [
+    {
+      icon: "star-outline",
+      label: isHe ? "דרג את iCook" : "Rate iCook",
+      onPress: () => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Alert.alert(
+          isHe ? "תודה על התמיכה! ⭐" : "Thanks for your support! ⭐",
+          isHe ? "הדירוג יהיה זמין בקרוב" : "Rating will be available soon",
+          [{ text: isHe ? "אישור" : "OK" }],
+        );
+      },
+      tint: "#FF9500",
+    },
+    {
+      icon: "share-social-outline",
+      label: isHe ? "שתף עם חברים" : "Share with Friends",
+      onPress: handleShare,
+      tint: "#34C759",
+    },
+    {
+      icon: "lock-closed-outline",
+      label: isHe ? "מדיניות פרטיות" : "Privacy Policy",
+      onPress: () => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        void WebBrowser.openBrowserAsync("https://icook.app/privacy");
+      },
+      tint: "#8E8E93",
+    },
+    {
+      icon: "information-circle-outline",
+      label: isHe ? "גרסה" : "Version",
+      value: "1.0.0",
+      onPress: () => {},
+      tint: "#8E8E93",
+      noChevron: true,
     },
   ];
 
@@ -309,39 +373,68 @@ export default function ProfileScreen() {
     <View style={[s.container, { backgroundColor: C.background }]}>
       {/* ── Header (non-scrollable) ── */}
       <ScreenHeader
-          title={resolvedName ?? (isHe ? "אורח" : "Guest")}
-          subtitle={user?.email ?? (user
-            ? (isHe ? "מחובר" : "Signed in")
-            : (isHe ? "לא מחובר" : "Not signed in"))}
-          rightAction={
-            <View style={[s.avatarRing, { borderColor: C.border }]}>
-              <View
-                style={[
-                  s.avatar,
-                  {
-                    backgroundColor: user
-                      ? user.provider === "google" ? "#4285F4" : "#1A1A1A"
-                      : C.surfaceElevated,
-                  },
-                ]}
-              >
-                <Text style={[s.avatarText, { color: user ? Colors.text.inverse : C.text.tertiary }]}>{avatarLetter}</Text>
-              </View>
-            </View>
-          }
-        >
-          {user ? (
-            <View style={[s.providerBadge, { backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignSelf: isHe ? 'flex-end' : 'flex-start' }]}>
-              <Ionicons
-                name={user.provider === "google" ? "logo-google" : "logo-apple"}
-                size={12}
-                color={C.text.secondary}
-              />
-              <Text style={[s.providerText, { color: C.text.secondary }]}>
-                {user.provider === "google" ? "Google" : "Apple"}
+        title={resolvedName ?? (isHe ? "אורח" : "Guest")}
+        subtitle={user?.email ?? (user
+          ? (isHe ? "מחובר" : "Signed in")
+          : (isHe ? "לא מחובר — התחבר לגיבוי בענן" : "Not signed in — sign in to back up"))}
+        rightAction={
+          <View style={[s.avatarRing, { borderColor: C.border }]}>
+            <View
+              style={[
+                s.avatar,
+                {
+                  backgroundColor: user
+                    ? user.provider === "google" ? "#4285F4" : "#1A1A1A"
+                    : C.surfaceElevated,
+                },
+              ]}
+            >
+              <Text style={[s.avatarText, { color: user ? Colors.text.inverse : C.text.tertiary }]}>
+                {avatarLetter}
               </Text>
             </View>
-          ) : null}
+          </View>
+        }
+      >
+        {/* ── Stats strip ── */}
+        {totalRecipes > 0 && (
+          <View style={[s.statsStrip, { flexDirection: isHe ? "row-reverse" : "row" }]}>
+            <View style={[s.statPill, { backgroundColor: Colors.primary + "14", borderColor: Colors.primary + "30" }]}>
+              <Text style={[s.statNum, { color: Colors.primary }]}>{totalRecipes}</Text>
+              <Text style={[s.statLabel, { color: Colors.primary + "CC" }]}>
+                {isHe ? "מתכונים" : "Recipes"}
+              </Text>
+            </View>
+            <View style={[s.statPill, { backgroundColor: "#FF6B6B14", borderColor: "#FF6B6B30" }]}>
+              <Text style={[s.statNum, { color: "#E85555" }]}>{favoriteCount}</Text>
+              <Text style={[s.statLabel, { color: "#E85555CC" }]}>
+                {isHe ? "מועדפים" : "Favorites"}
+              </Text>
+            </View>
+            {user && (
+              <View style={[s.statPill, { backgroundColor: Colors.secondary + "14", borderColor: Colors.secondary + "30" }]}>
+                <Ionicons name="cloud-done-outline" size={16} color={Colors.secondary} />
+                <Text style={[s.statLabel, { color: Colors.secondary + "CC", marginTop: 1 }]}>
+                  {isHe ? "מסונכרן" : "Synced"}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Provider badge ── */}
+        {user && (
+          <View style={[s.providerBadge, { backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignSelf: isHe ? "flex-end" : "flex-start", marginTop: totalRecipes > 0 ? 6 : 0 }]}>
+            <Ionicons
+              name={user.provider === "google" ? "logo-google" : "logo-apple"}
+              size={12}
+              color={C.text.secondary}
+            />
+            <Text style={[s.providerText, { color: C.text.secondary }]}>
+              {user.provider === "google" ? "Google" : "Apple"}
+            </Text>
+          </View>
+        )}
       </ScreenHeader>
 
       <ScrollView
@@ -425,52 +518,21 @@ export default function ProfileScreen() {
           )}
 
           {/* ── General settings ── */}
-          <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
-              {isHe ? "כללי" : "General"}
-            </Text>
-            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-              {GENERAL_ROWS.map((row, i) => (
-                <TouchableOpacity
-                  key={row.label}
-                  style={[
-                    s.row,
-                    { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
-                    i < GENERAL_ROWS.length - 1 && [s.rowBorder, { borderBottomColor: C.border }],
-                  ]}
-                  onPress={row.onPress}
-                  activeOpacity={0.65}
-                >
-                  <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
-                    <Ionicons name={row.icon} size={16} color={C.text.secondary} />
-                  </View>
-                  <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-                    {row.label}
-                  </Text>
-                  {row.value ? <Text style={[s.rowValue, { color: C.text.tertiary }]}>{row.value}</Text> : null}
-                  <Ionicons
-                    name={isHe ? "chevron-back" : "chevron-forward"}
-                    size={14}
-                    color={C.text.tertiary}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          <SectionGroup label={isHe ? "כללי" : "General"} isHe={isHe} C={C}>
+            <SettingCard rows={GENERAL_ROWS} isHe={isHe} C={C} />
+          </SectionGroup>
 
-          {/* ── Notifications settings ── */}
-          <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
-              {isHe ? "התראות" : "Notifications"}
-            </Text>
+          {/* ── Notifications ── */}
+          <SectionGroup label={isHe ? "התראות" : "Notifications"} isHe={isHe} C={C}>
             <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+              {/* Toggle row */}
               <View style={[
                 s.row,
                 { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
                 s.rowBorder,
                 { borderBottomColor: C.border },
               ]}>
-                <View style={[s.rowIconWrap, { backgroundColor: "#FFF0E8" }]}>
+                <View style={[s.rowIconWrap, { backgroundColor: "#FF6B6B18" }]}>
                   <Ionicons name="notifications-outline" size={16} color={Colors.primary} />
                 </View>
                 <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
@@ -483,14 +545,15 @@ export default function ProfileScreen() {
                   thumbColor={notifPrefs.enabled ? Colors.primary : C.text.tertiary}
                 />
               </View>
+              {/* Time row — only visible when enabled */}
               {notifPrefs.enabled && (
                 <TouchableOpacity
                   style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}
                   onPress={handleChangeReminderTime}
                   activeOpacity={0.65}
                 >
-                  <View style={[s.rowIconWrap, { backgroundColor: C.surface }]}>
-                    <Ionicons name="time-outline" size={16} color={C.text.secondary} />
+                  <View style={[s.rowIconWrap, { backgroundColor: "#FF950018" }]}>
+                    <Ionicons name="time-outline" size={16} color="#FF9500" />
                   </View>
                   <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
                     {isHe ? "שעת תזכורת" : "Reminder time"}
@@ -507,7 +570,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               )}
             </View>
-          </View>
+          </SectionGroup>
 
           {/* ── Premium Features ── */}
           <View style={s.sectionGroup}>
@@ -521,8 +584,8 @@ export default function ProfileScreen() {
             </View>
             <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
               <View style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}>
-                <View style={[s.rowIconWrap, { backgroundColor: "#E8F5E9" }]}>
-                  <Ionicons name="bar-chart-outline" size={16} color="#4CAF50" />
+                <View style={[s.rowIconWrap, { backgroundColor: "#34C75918" }]}>
+                  <Ionicons name="bar-chart-outline" size={16} color="#34C759" />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[s.rowLabel, { color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
@@ -538,59 +601,26 @@ export default function ProfileScreen() {
                     void Haptics.selectionAsync();
                     void setNutritionEnabled(val);
                   }}
-                  trackColor={{ false: C.border, true: "#4CAF5080" }}
-                  thumbColor={nutritionEnabled ? "#4CAF50" : C.text.tertiary}
+                  trackColor={{ false: C.border, true: "#34C75980" }}
+                  thumbColor={nutritionEnabled ? "#34C759" : C.text.tertiary}
                 />
               </View>
             </View>
           </View>
 
-          {/* ── Data & Sync settings ── */}
-          <View style={s.sectionGroup}>
-            <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
-              {isHe ? "נתונים וסנכרון" : "Data & Sync"}
-            </Text>
-            <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
-              {DATA_ROWS.map((row, i) => (
-                <TouchableOpacity
-                  key={row.label}
-                  style={[
-                    s.row,
-                    { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
-                    i < DATA_ROWS.length - 1 && [s.rowBorder, { borderBottomColor: C.border }],
-                  ]}
-                  onPress={row.onPress}
-                  activeOpacity={0.65}
-                >
-                  <View
-                    style={[
-                      s.rowIconWrap,
-                      { backgroundColor: row.tint ? row.tint + "20" : C.surface },
-                    ]}
-                  >
-                    <Ionicons name={row.icon} size={16} color={row.tint ?? C.text.secondary} />
-                  </View>
-                  <Text style={[s.rowLabel, { flex: 1, color: C.text.primary, textAlign: isHe ? "right" : "left" }]}>
-                    {row.label}
-                  </Text>
-                  {row.value ? (
-                    <Text style={[s.rowValue, row.tint ? { color: row.tint } : { color: C.text.tertiary }]}>
-                      {row.value}
-                    </Text>
-                  ) : null}
-                  <Ionicons
-                    name={isHe ? "chevron-back" : "chevron-forward"}
-                    size={14}
-                    color={C.text.tertiary}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          {/* ── Data & Sync ── */}
+          <SectionGroup label={isHe ? "נתונים וסנכרון" : "Data & Sync"} isHe={isHe} C={C}>
+            <SettingCard rows={DATA_ROWS} isHe={isHe} C={C} />
+          </SectionGroup>
+
+          {/* ── About & Support ── */}
+          <SectionGroup label={isHe ? "עוד" : "About & Support"} isHe={isHe} C={C}>
+            <SettingCard rows={ABOUT_ROWS} isHe={isHe} C={C} />
+          </SectionGroup>
 
           {/* ── Sign out ── */}
-          {user ? (
-            <View style={s.sectionGroup}>
+          {user && (
+            <View style={[s.sectionGroup, { marginTop: 4 }]}>
               <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
                 <TouchableOpacity
                   style={[s.row, { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated }]}
@@ -606,9 +636,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          ) : null}
-
-          <Text style={[s.version, { color: C.text.disabled }]}>iCook v1.0.0</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -625,16 +653,13 @@ export default function ProfileScreen() {
           onPress={() => setShowDietary(false)}
         />
         <View style={[s.dietarySheet, { backgroundColor: C.surfaceElevated }]}>
-          {/* Handle */}
           <View style={[s.sheetHandle, { backgroundColor: C.border }]} />
-
           <Text style={[s.sheetTitle, { color: C.text.primary }]}>
             {isHe ? "העדפות תזונה" : "Dietary preferences"}
           </Text>
           <Text style={[s.sheetSub, { color: C.text.secondary }]}>
             {isHe ? "בחר את ההגבלות שלך (לא חובה)" : "Select your restrictions (optional)"}
           </Text>
-
           <View style={s.chipGrid}>
             {DIETARY_CHIPS.map((chip) => {
               const active = dietaryTags.includes(chip.tag);
@@ -659,7 +684,6 @@ export default function ProfileScreen() {
               );
             })}
           </View>
-
           <TouchableOpacity
             style={[s.sheetDone, { backgroundColor: Colors.primary }]}
             onPress={() => setShowDietary(false)}
@@ -672,11 +696,99 @@ export default function ProfileScreen() {
   );
 }
 
+// ── Reusable sub-components ───────────────────────────────────────────────────
+
+type ThemeColors = ReturnType<typeof useThemeColors>;
+
+function SectionGroup({
+  label,
+  isHe,
+  C,
+  children,
+}: {
+  label: string;
+  isHe: boolean;
+  C: ThemeColors;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.sectionGroup}>
+      <Text style={[s.groupLabel, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
+        {label}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+function SettingCard({
+  rows,
+  isHe,
+  C,
+}: {
+  rows: SettingRow[];
+  isHe: boolean;
+  C: ThemeColors;
+}) {
+  return (
+    <View style={[s.card, { backgroundColor: C.surfaceElevated, borderColor: C.border }]}>
+      {rows.map((row, i) => (
+        <TouchableOpacity
+          key={row.label}
+          style={[
+            s.row,
+            { flexDirection: isHe ? "row-reverse" : "row", backgroundColor: C.surfaceElevated },
+            i < rows.length - 1 && [s.rowBorder, { borderBottomColor: C.border }],
+          ]}
+          onPress={row.onPress}
+          activeOpacity={row.noChevron ? 1 : 0.65}
+        >
+          {/* Coloured icon box */}
+          <View style={[
+            s.rowIconWrap,
+            { backgroundColor: row.tint ? row.tint + "18" : C.surface },
+          ]}>
+            <Ionicons name={row.icon} size={16} color={row.tint ?? C.text.secondary} />
+          </View>
+
+          {/* Label + optional sub */}
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={[
+              s.rowLabel,
+              { color: row.danger ? Colors.error : C.text.primary, textAlign: isHe ? "right" : "left" },
+            ]}>
+              {row.label}
+            </Text>
+            {row.sub ? (
+              <Text style={[s.rowSub, { color: C.text.tertiary, textAlign: isHe ? "right" : "left" }]}>
+                {row.sub}
+              </Text>
+            ) : null}
+          </View>
+
+          {/* Trailing value + chevron */}
+          {row.value ? (
+            <Text style={[s.rowValue, { color: C.text.tertiary }]}>{row.value}</Text>
+          ) : null}
+          {!row.noChevron && (
+            <Ionicons
+              name={isHe ? "chevron-back" : "chevron-forward"}
+              size={14}
+              color={C.text.tertiary}
+            />
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  // Avatar (used in ScreenHeader rightAction)
+  // Avatar
   avatarRing: {
     width: 52, height: 52, borderRadius: 26,
     borderWidth: 2,
@@ -684,6 +796,25 @@ const s = StyleSheet.create({
   },
   avatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 20, fontWeight: "700" },
+
+  // Stats strip (in header)
+  statsStrip: {
+    gap: 8,
+    marginTop: 4,
+  },
+  statPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  statNum: { fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
+  statLabel: { fontSize: 12, fontWeight: "600" },
+
+  // Provider badge
   providerBadge: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 4,
@@ -692,7 +823,7 @@ const s = StyleSheet.create({
   providerText: { fontSize: 12, fontWeight: "600" },
 
   // Body
-  body: { paddingHorizontal: 16, paddingTop: 8, gap: 6 },
+  body: { paddingHorizontal: 16, paddingTop: 12, gap: 6 },
 
   // Sign-in card
   signInCard: {
@@ -702,7 +833,7 @@ const s = StyleSheet.create({
   },
   signInIconWrap: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: Colors.errorSurface,
+    backgroundColor: "#FFF0E8",
     alignItems: "center", justifyContent: "center", marginBottom: 2,
   },
   signInTitle: { fontSize: 17, fontWeight: "700" },
@@ -729,8 +860,8 @@ const s = StyleSheet.create({
   // Section groups
   sectionGroup: { gap: 6 },
   groupLabel: {
-    fontSize: 12, fontWeight: "600", letterSpacing: 0.5,
-    textTransform: "uppercase", paddingHorizontal: 4, marginTop: 10,
+    fontSize: 11, fontWeight: "600", letterSpacing: 0.6,
+    textTransform: "uppercase", paddingHorizontal: 4, marginTop: 12, marginBottom: 2,
   },
   card: {
     borderRadius: 16, borderWidth: 1, overflow: "hidden",
@@ -738,7 +869,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
   },
   row: { alignItems: "center", paddingHorizontal: 14, paddingVertical: 13, gap: 12 },
-  rowBorder: { borderBottomWidth: 1 },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
   rowIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   rowLabel: { fontSize: 15, fontWeight: "500" },
   rowValue: { fontSize: 13, fontWeight: "500" },
@@ -752,9 +883,6 @@ const s = StyleSheet.create({
     paddingVertical: 2,
   },
   premiumBadgeText: { fontSize: 11, fontWeight: "700", color: "#E65100" },
-
-  // Version
-  version: { textAlign: "center", fontSize: 12, marginTop: 16, fontWeight: "500" },
 
   // Dietary modal
   modalBackdrop: {
