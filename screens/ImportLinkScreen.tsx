@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -225,10 +227,15 @@ export default function ImportLinkScreen({ route, navigation }: any) {
         onCancel={() => setShowWebView(false)}
       />
     )}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
     <ScrollView
       style={s.container}
       contentContainerStyle={s.content}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {/* ── Option 1: Browse websites ── */}
       <TouchableOpacity
@@ -434,6 +441,7 @@ export default function ImportLinkScreen({ route, navigation }: any) {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
     </View>
   );
 }

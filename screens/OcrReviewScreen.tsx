@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   View,
   Text,
   TextInput,
@@ -161,7 +163,16 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         }
       />
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={s.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
       <View style={s.tipCard}>
         <Text style={[s.tipTitle, { textAlign: isHe ? "right" : "left" }]}>
           {isHe
@@ -294,6 +305,7 @@ export default function OcrReviewScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
     </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
