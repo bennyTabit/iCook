@@ -45,7 +45,7 @@ export default function HomeMainScreen({ navigation }: any) {
   const { i18n } = useTranslation();
   const isHe = isHebrew();
   const insets = useSafeAreaInsets();
-  const { recipes, loadRecipes, setFilter } = useRecipeStore();
+  const { recipes, loadRecipes, setFilter, resetFilters } = useRecipeStore();
   const { user } = useAuthStore();
 
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -60,6 +60,14 @@ export default function HomeMainScreen({ navigation }: any) {
   useEffect(() => {
     void loadRecipes();
   }, []);
+
+  // Reset any active search/category filters whenever Home is focused,
+  // so the recipe count and "recipe of the day" always reflect the full list.
+  useFocusEffect(
+    useCallback(() => {
+      resetFilters();
+    }, []),
+  );
 
   // Check clipboard on every focus
   useFocusEffect(
