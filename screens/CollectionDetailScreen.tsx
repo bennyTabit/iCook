@@ -24,20 +24,35 @@ import type { RecipeSummary } from '../lib/search';
 function RecipeRow({
   recipe,
   isHe,
+  editMode,
   onPress,
+  onRemove,
 }: {
   recipe: Recipe;
   isHe: boolean;
+  editMode: boolean;
   onPress: () => void;
+  onRemove: () => void;
 }) {
   const C = useThemeColors();
   const title = isHe ? recipe.title_he : (recipe.title_en ?? recipe.title_he);
+
   return (
-    <TouchableOpacity
-      style={[r.card, { backgroundColor: C.surfaceElevated }]}
-      onPress={() => { void Haptics.selectionAsync(); onPress(); }}
-      activeOpacity={0.8}
-    >
+    <View style={[r.card, { backgroundColor: C.surfaceElevated, flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+      {/* ── Remove button (edit mode only) ── */}
+      {editMode && (
+        <TouchableOpacity
+          style={r.removeBtn}
+          onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onRemove(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isHe ? 'הסר מתכון' : 'Remove recipe'}
+        >
+          <Ionicons name="remove-circle" size={22} color={Colors.error} />
+        </TouchableOpacity>
+      )}
+
+      {/* ── Thumbnail ── */}
       {recipe.image_uri ? (
         <Image source={{ uri: recipe.image_uri }} style={r.thumb} />
       ) : (
@@ -45,8 +60,18 @@ function RecipeRow({
           <Text style={{ fontSize: 26 }}>🍽️</Text>
         </View>
       )}
-      <View style={{ flex: 1 }}>
-        <Text style={[r.title, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]} numberOfLines={2}>
+
+      {/* ── Text ── */}
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        onPress={() => { void Haptics.selectionAsync(); onPress(); }}
+        activeOpacity={0.8}
+        disabled={editMode}
+      >
+        <Text
+          style={[r.title, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]}
+          numberOfLines={2}
+        >
           {title}
         </Text>
         {recipe.cook_time_min != null && (
@@ -57,19 +82,22 @@ function RecipeRow({
             </Text>
           </View>
         )}
-      </View>
-      <Ionicons
-        name={isHe ? 'chevron-back-outline' : 'chevron-forward-outline'}
-        size={16}
-        color={C.text.tertiary}
-      />
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      {/* ── Trailing chevron (normal mode only) ── */}
+      {!editMode && (
+        <Ionicons
+          name={isHe ? 'chevron-back-outline' : 'chevron-forward-outline'}
+          size={16}
+          color={C.text.tertiary}
+        />
+      )}
+    </View>
   );
 }
 
 const r = StyleSheet.create({
   card: {
-    flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
     padding: 12,
@@ -80,6 +108,10 @@ const r = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
+  },
+  removeBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   thumb: { width: 52, height: 52, borderRadius: 12 },
   iconWrap: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -94,9 +126,10 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
   const C = useThemeColors();
   const isHe = isHebrew();
   const { id, name } = route.params as { id: number; name: string };
-  const { addRecipe, getRecipes } = useCollectionStore();
+  const { addRecipe, removeRecipe, getRecipes } = useCollectionStore();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   async function refresh() {
     const list = await getRecipes(id);
@@ -105,18 +138,34 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
 
   useEffect(() => { void refresh(); }, [id]);
 
-  const addedIds = useMemo(() => new Set(recipes.map((r) => r.id).filter((id): id is number => id != null)), [recipes]);
+  const addedIds = useMemo(
+    () => new Set(recipes.map((r) => r.id).filter((id): id is number => id != null)),
+    [recipes],
+  );
 
   async function handleAdd(recipe: RecipeSummary) {
     await addRecipe(id, recipe.id);
     await refresh();
-    // keep picker open so user can keep adding
+  }
+
+  async function handleRemove(recipeId: number) {
+    await removeRecipe(id, recipeId);
+    const updated = await getRecipes(id);
+    setRecipes(updated);
+    // auto-exit edit mode when the list is emptied
+    if (updated.length === 0) setEditMode(false);
+  }
+
+  function toggleEditMode() {
+    void Haptics.selectionAsync();
+    setEditMode((prev) => !prev);
   }
 
   return (
     <SafeAreaView style={[s.container, { backgroundColor: C.background }]} edges={['top', 'left', 'right']}>
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={[s.header, { flexDirection: isHe ? 'row-reverse' : 'row', borderBottomColor: C.border }]}>
+        {/* Back */}
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -125,18 +174,54 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
         >
           <Ionicons name={isHe ? 'chevron-forward' : 'chevron-back'} size={26} color={C.text.primary} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: C.text.primary, flex: 1, textAlign: isHe ? 'right' : 'left' }]} numberOfLines={1}>
+
+        {/* Title */}
+        <Text
+          style={[s.headerTitle, { color: C.text.primary, flex: 1, textAlign: isHe ? 'right' : 'left' }]}
+          numberOfLines={1}
+        >
           {name}
         </Text>
-        <TouchableOpacity
-          onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPickerVisible(true); }}
-          style={[s.addBtn, { backgroundColor: Colors.primary }]}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? 'הוסף מתכון' : 'Add recipe'}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
+
+        {/* Edit / Done toggle (only when there are recipes) */}
+        {recipes.length > 0 && (
+          <TouchableOpacity
+            onPress={toggleEditMode}
+            style={[
+              s.editBtn,
+              { backgroundColor: editMode ? Colors.secondary + '20' : C.surfaceElevated, borderColor: editMode ? Colors.secondary : C.border },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={editMode ? (isHe ? 'סיום' : 'Done') : (isHe ? 'עריכה' : 'Edit')}
+          >
+            <Text style={[s.editBtnText, { color: editMode ? Colors.secondary : C.text.secondary }]}>
+              {editMode ? (isHe ? 'סיום' : 'Done') : (isHe ? 'עריכה' : 'Edit')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Add recipe button (hidden in edit mode) */}
+        {!editMode && (
+          <TouchableOpacity
+            onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setPickerVisible(true); }}
+            style={[s.addBtn, { backgroundColor: Colors.primary }]}
+            accessibilityRole="button"
+            accessibilityLabel={isHe ? 'הוסף מתכון' : 'Add recipe'}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* ── Edit mode hint bar ── */}
+      {editMode && (
+        <View style={[s.editHint, { backgroundColor: Colors.error + '10', borderBottomColor: Colors.error + '25' }]}>
+          <Ionicons name="information-circle-outline" size={14} color={Colors.error} />
+          <Text style={[s.editHintText, { color: Colors.error }]}>
+            {isHe ? 'הקש על ○ האדום להסרת מתכון מהאוסף' : 'Tap the red ○ to remove a recipe from this collection'}
+          </Text>
+        </View>
+      )}
 
       {recipes.length === 0 ? (
         /* ── Empty state ── */
@@ -175,7 +260,9 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
             <RecipeRow
               recipe={item}
               isHe={isHe}
+              editMode={editMode}
               onPress={() => navigation.navigate('RecipeDetail', { id: item.id })}
+              onRemove={() => { void handleRemove(item.id!); }}
             />
           )}
         />
@@ -196,12 +283,19 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   header: {
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 18, fontWeight: '700' },
+  editBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  editBtnText: { fontSize: 14, fontWeight: '600' },
   addBtn: {
     width: 34,
     height: 34,
@@ -209,6 +303,17 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Edit hint banner
+  editHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  editHintText: { fontSize: 12, fontWeight: '500', flex: 1 },
+  // Empty state
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 36, gap: 12 },
   emptyIllustration: {
     width: 100,
