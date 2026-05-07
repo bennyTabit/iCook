@@ -188,15 +188,17 @@ export default function CollectionDetailScreen({ route, navigation }: { route: a
           <TouchableOpacity
             onPress={toggleEditMode}
             style={[
-              s.editBtn,
-              { backgroundColor: editMode ? Colors.secondary + '20' : C.surfaceElevated, borderColor: editMode ? Colors.secondary : C.border },
+              s.iconBtn,
+              { backgroundColor: editMode ? Colors.secondary : '#8E8E93' },
             ]}
             accessibilityRole="button"
             accessibilityLabel={editMode ? (isHe ? 'סיום' : 'Done') : (isHe ? 'עריכה' : 'Edit')}
           >
-            <Text style={[s.editBtnText, { color: editMode ? Colors.secondary : C.text.secondary }]}>
-              {editMode ? (isHe ? 'סיום' : 'Done') : (isHe ? 'עריכה' : 'Edit')}
-            </Text>
+            <Ionicons
+              name={editMode ? 'checkmark' : 'pencil'}
+              size={18}
+              color="#fff"
+            />
           </TouchableOpacity>
         )}
 
@@ -289,13 +291,13 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 18, fontWeight: '700' },
-  editBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  editBtnText: { fontSize: 14, fontWeight: '600' },
   addBtn: {
     width: 34,
     height: 34,
