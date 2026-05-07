@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -31,7 +34,7 @@ const PRESET_COLORS = [
 
 const PRESET_ICONS = ['📁', '❤️', '⭐', '🔖', '🏷️', '🍽️', '🥗', '🎉', '🌙', '☀️', '🏠', '🌿'];
 
-// ── Edit Modal ─────────────────────────────────────────────────────────────
+// ── Edit / Create Modal ────────────────────────────────────────────────────
 
 function EditCollectionModal({
   visible,
@@ -72,66 +75,127 @@ function EditCollectionModal({
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={em.backdrop} onPress={onClose} />
-      <View style={[em.sheet, { paddingBottom: Math.max(insets.bottom, 20), backgroundColor: C.surfaceElevated }]}>
-        <View style={[em.handle, { backgroundColor: C.border }]} />
-        <Text style={[em.title, { textAlign: isHe ? 'right' : 'left', color: C.text.primary }]}>
-          {initial ? t('editCollection') : t('newCollection')}
-        </Text>
+      {/* KeyboardAvoidingView lifts the sheet above the keyboard */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Semi-transparent backdrop — tap to dismiss */}
+        <Pressable style={em.backdrop} onPress={onClose} />
 
-        {/* Name input */}
-        <TextInput
-          style={[em.input, { textAlign: isHe ? 'right' : 'left', backgroundColor: C.surface, borderColor: C.border, color: C.text.primary }]}
-          placeholder={t('collectionName')}
-          placeholderTextColor={C.text.tertiary}
-          value={name}
-          onChangeText={setName}
-          autoFocus
-        />
+        {/* Sheet */}
+        <View style={[em.sheet, { backgroundColor: C.surfaceElevated }]}>
+          {/* Drag handle */}
+          <View style={[em.handle, { backgroundColor: C.border }]} />
 
-        {/* Icon picker */}
-        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>{t('pickIcon')}</Text>
-        <View style={em.iconGrid}>
-          {PRESET_ICONS.map((ic) => (
+          {/* Header row: title + close button */}
+          <View style={[em.headerRow, { flexDirection: isHe ? 'row-reverse' : 'row' }]}>
+            <Text style={[em.title, { color: C.text.primary, flex: 1, textAlign: isHe ? 'right' : 'left' }]}>
+              {initial ? t('editCollection') : t('newCollection')}
+            </Text>
             <TouchableOpacity
-              key={ic}
-              style={[em.iconBtn, { backgroundColor: C.surface }, icon === ic && { borderColor: color, borderWidth: 2 }]}
-              onPress={() => { void Haptics.selectionAsync(); setIcon(ic); }}
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
-              accessibilityLabel={ic}
-              accessibilityState={{ selected: icon === ic }}
+              accessibilityLabel={isHe ? 'סגור' : 'Close'}
             >
-              <Text style={{ fontSize: 22 }}>{ic}</Text>
+              <Ionicons name="close-circle" size={24} color={C.text.tertiary} />
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
 
-        {/* Color picker */}
-        <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>{t('pickColor')}</Text>
-        <View style={em.colorRow}>
-          {PRESET_COLORS.map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={[em.colorDot, { backgroundColor: c }, color === c && [em.colorDotActive, { borderColor: C.text.primary }]]}
-              onPress={() => { void Haptics.selectionAsync(); setColor(c); }}
-              accessibilityRole="button"
-              accessibilityLabel={c}
-              accessibilityState={{ selected: color === c }}
+          {/* Scrollable body — stays accessible even when keyboard is open */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={[em.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) }]}
+          >
+            {/* Name input */}
+            <TextInput
+              style={[em.input, {
+                textAlign: isHe ? 'right' : 'left',
+                backgroundColor: C.surface,
+                borderColor: C.border,
+                color: C.text.primary,
+              }]}
+              placeholder={t('collectionName')}
+              placeholderTextColor={C.text.tertiary}
+              value={name}
+              onChangeText={setName}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
             />
-          ))}
-        </View>
 
-        {/* Save button */}
-        <TouchableOpacity
-          style={[em.saveBtn, { backgroundColor: color, opacity: name.trim() ? 1 : 0.5 }]}
-          onPress={handleSave}
-          disabled={!name.trim()}
-          accessibilityRole="button"
-          accessibilityLabel={isHe ? "שמור אוסף" : "Save collection"}
-        >
-          <Text style={em.saveBtnText}>{t('save')}</Text>
-        </TouchableOpacity>
-      </View>
+            {/* Icon picker */}
+            <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>
+              {t('pickIcon')}
+            </Text>
+            <View style={em.iconGrid}>
+              {PRESET_ICONS.map((ic) => (
+                <TouchableOpacity
+                  key={ic}
+                  style={[
+                    em.iconBtn,
+                    { backgroundColor: C.surface },
+                    icon === ic && { borderColor: color, borderWidth: 2, backgroundColor: color + '18' },
+                  ]}
+                  onPress={() => { void Haptics.selectionAsync(); setIcon(ic); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={ic}
+                  accessibilityState={{ selected: icon === ic }}
+                >
+                  <Text style={{ fontSize: 22 }}>{ic}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Color picker */}
+            <Text style={[em.sectionLabel, { textAlign: isHe ? 'right' : 'left', color: C.text.secondary }]}>
+              {t('pickColor')}
+            </Text>
+            <View style={em.colorRow}>
+              {PRESET_COLORS.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[
+                    em.colorDot,
+                    { backgroundColor: c },
+                    color === c && em.colorDotActive,
+                  ]}
+                  onPress={() => { void Haptics.selectionAsync(); setColor(c); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={c}
+                  accessibilityState={{ selected: color === c }}
+                />
+              ))}
+            </View>
+
+            {/* Preview strip */}
+            <View style={[em.preview, { backgroundColor: color + '18', borderColor: color + '40' }]}>
+              <View style={[em.previewIcon, { backgroundColor: color + '30' }]}>
+                <Text style={{ fontSize: 22 }}>{icon}</Text>
+              </View>
+              <Text style={[em.previewName, { color: color }]} numberOfLines={1}>
+                {name.trim() || (isHe ? 'שם האוסף' : 'Collection name')}
+              </Text>
+            </View>
+
+            {/* Save button */}
+            <TouchableOpacity
+              style={[em.saveBtn, { backgroundColor: color, opacity: name.trim() ? 1 : 0.45 }]}
+              onPress={handleSave}
+              disabled={!name.trim()}
+              accessibilityRole="button"
+              accessibilityLabel={isHe ? 'שמור אוסף' : 'Save collection'}
+            >
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Text style={em.saveBtnText}>{t('save')}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -139,32 +203,64 @@ function EditCollectionModal({
 const em = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
-    backgroundColor: Colors.surfaceElevated,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 10,
     paddingHorizontal: 20,
+    // max height so it never covers full screen
+    maxHeight: '88%',
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 18 },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.text.primary, marginBottom: 16 },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  headerRow: {
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  title: { fontSize: 18, fontWeight: '700' },
+  scrollContent: { gap: 0 },
   input: {
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 16,
-    color: Colors.text.primary,
     borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: 20,
+  },
+  sectionLabel: {
+    fontSize: 11, fontWeight: '600',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  iconBtn: {
+    width: 48, height: 48, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  colorRow: { flexDirection: 'row', gap: 10, marginBottom: 20, flexWrap: 'wrap' },
+  colorDot: { width: 34, height: 34, borderRadius: 17 },
+  colorDotActive: { borderWidth: 3, borderColor: '#1A1A1A' },
+  // Live preview strip
+  preview: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 14, borderWidth: 1,
+    paddingVertical: 10, paddingHorizontal: 14,
     marginBottom: 16,
   },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: Colors.text.secondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  iconBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  colorRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  colorDot: { width: 32, height: 32, borderRadius: 16 },
-  colorDotActive: { borderWidth: 3, borderColor: Colors.text.primary },
-  saveBtn: { borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  previewIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewName: { fontSize: 15, fontWeight: '700', flex: 1 },
+  // Save
+  saveBtn: {
+    borderRadius: 16, paddingVertical: 14,
+    alignItems: 'center', flexDirection: 'row',
+    justifyContent: 'center', gap: 8,
+  },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
 
